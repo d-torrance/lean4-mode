@@ -652,12 +652,18 @@ FALLBACK is used when it can show none of them."
       fallback))
 
 (defcustom lean4-info-pin-icon nil
-  "Control shown in the goal display for pinning.
-Nil means pick whichever candidate the frame can display.
+  "Control shown in the goal display while it is following point.
+Clicking it pins, so it shows a pin held ready.  Nil means pick
+whichever candidate the frame can display."
+  :group 'lean4-info
+  :type '(choice (const :tag "Choose to suit the frame" nil) string))
 
-One glyph for both states, distinguished by `lean4-info-button-active'.
-VS Code turns its pin on its side when pinned, but that is a codicon
-font, and Unicode has no rotated-pin pair."
+(defcustom lean4-info-unpin-icon nil
+  "Control shown in the goal display while it is pinned.
+Clicking it unpins, so it shows the pin driven home, as pause and resume
+swap their glyphs: the control says what the click does rather than what
+the state is.  Nil means pick whichever candidate the frame can
+display."
   :group 'lean4-info
   :type '(choice (const :tag "Choose to suit the frame" nil) string))
 
@@ -683,6 +689,26 @@ is.  Nil means pick whichever candidate the frame can display."
   ;; one -- it is in the same block as the media controls, which terminal
   ;; fonts that have any of this tend to cover.
   (lean4-info--glyph lean4-info-pin-icon '("📌" "🖈" "⌖") "P"))
+
+(defun lean4-info-unpin-glyph ()
+  "Return the unpin control for this frame.
+
+U+1F4CD is the same pin seen head-on rather than from the side: pushed
+in rather than held ready.  VS Code turns its pin from upright to lying
+flat to say the same thing, but that is a codicon font.  Unicode\='s one
+upright/slanted pin pair needs U+1F588, which too many fonts render as a
+box for the difference to rest on.
+
+The candidate has to differ from what `lean4-info-pin-glyph' chose --- a
+pair that lands on one glyph says nothing --- so the frame deciding the
+first one also decides this."
+  (let ((pin (lean4-info-pin-glyph)))
+    (or lean4-info-unpin-icon
+        (seq-find (lambda (candidate)
+                    (and (not (equal candidate pin))
+                         (lean4-info--displayable-p candidate)))
+                  '("📍" "🖈" "⌾"))
+        "[P]")))
 
 (defun lean4-info-pause-glyph ()
   "Return the pause control for this frame."
@@ -734,7 +760,9 @@ ACTIVE marks the control as engaged, which shows in its face."
   "Return the pin and pause controls, as one string."
   (concat
    (lean4-info--button
-    (lean4-info-pin-glyph)
+    (if lean4-info--pin
+        (lean4-info-unpin-glyph)
+      (lean4-info-pin-glyph))
     (if lean4-info--pin
         "mouse-1: unpin, and follow point again"
       "mouse-1: pin the display to this position")

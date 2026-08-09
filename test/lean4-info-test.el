@@ -202,6 +202,36 @@ every ordinary line is proved."
                          (get-text-property pause 'keymap heading)
                          "<mouse-1>"))))))
 
+(ert-deftest lean4-info-pin-control-shows-which-way-it-will-go ()
+  "The pin control differs pinned from unpinned, as pause and resume do.
+Without this the only sign of the state was the control's face, which is
+not much to read a mode off."
+  (should-not (equal (lean4-info-pin-glyph) (lean4-info-unpin-glyph)))
+  ;; Including when the frame can display none of the candidates.
+  (cl-letf (((symbol-function 'lean4-info--displayable-p) #'ignore))
+    (should-not (equal (lean4-info-pin-glyph) (lean4-info-unpin-glyph))))
+  ;; And when it can display all of them, so the pair is the emoji pair
+  ;; rather than two tiers of the fallback chain.
+  (cl-letf (((symbol-function 'lean4-info--displayable-p)
+             (lambda (&rest _) t)))
+    (should (equal (lean4-info-pin-glyph) "📌"))
+    (should (equal (lean4-info-unpin-glyph) "📍")))
+  ;; A configured glyph wins, as for the others.
+  (let ((lean4-info-unpin-icon "!"))
+    (should (equal (lean4-info-unpin-glyph) "!"))))
+
+(ert-deftest lean4-info-heading-shows-the-unpin-control-when-pinned ()
+  "The heading picks up the swapped glyph."
+  (with-temp-buffer
+    (rename-buffer "Qux.lean" 'unique)
+    (let* ((lean4-info-paused nil)
+           (lean4-info--pin (copy-marker (point-min)))
+           (heading (substring-no-properties
+                     (lean4-info--heading (lean4-info--location-string)))))
+      (should (string-search (lean4-info-unpin-glyph) heading))
+      (should-not (string-search (lean4-info-pin-glyph) heading))
+      (set-marker lean4-info--pin nil))))
+
 (ert-deftest lean4-info-controls-fall-back-to-ascii ()
   "The controls are configurable, for fonts without the glyphs.
 Emacs runs in terminals and on machines with no emoji font, so the
@@ -232,23 +262,22 @@ defaults are chosen with `char-displayable-p' and can be overridden."
 
 (ert-deftest lean4-info-pin-control-shows-its-state-by-face ()
   "The pin control is faced differently when engaged.
-
-Unicode has no rotated-pin pair, and the nearest alternatives differ in
-width, so the state is carried by the face rather than by a second
-glyph."
+A second channel alongside the swapped glyph, and the one that survives
+a frame with no glyph to swap to."
   (with-temp-buffer
     (rename-buffer "Faces.lean" 'unique)
-    (cl-flet ((pin-face ()
+    (cl-flet ((pin-face (glyph)
                 (let* ((heading (lean4-info--heading
                                  (lean4-info--location-string)))
                        (index (string-search
-                               (lean4-info-pin-glyph)
-                               (substring-no-properties heading))))
+                               glyph (substring-no-properties heading))))
+                  (should index)
                   (get-text-property index 'face heading))))
       (let ((lean4-info--pin nil) (lean4-info-paused nil))
-        (should (eq (pin-face) 'lean4-info-button)))
+        (should (eq (pin-face (lean4-info-pin-glyph)) 'lean4-info-button)))
       (let ((lean4-info--pin (point-marker)) (lean4-info-paused nil))
-        (should (eq (pin-face) 'lean4-info-button-active))))))
+        (should (eq (pin-face (lean4-info-unpin-glyph))
+                    'lean4-info-button-active))))))
 
 (ert-deftest lean4-info-glyphs-suit-the-frame ()
   "The controls are chosen for the frame they are drawn in.

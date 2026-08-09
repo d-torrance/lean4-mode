@@ -246,13 +246,23 @@ Eglot's own configuration applies.
 
 ** The goal display's controls
 
-The pin and pause controls are drawn with whichever glyphs the frame can
-display, decided each time they are drawn rather than once at startup,
-so one Emacs serving both a graphical frame and a terminal gets the
-right thing in each.  A graphical frame usually gets =📌 ⏸ ⏵=, a
-terminal =⌖ ⏸ ⏵=, and a display with nothing but ASCII gets =P || >=.
-Set ~lean4-info-pin-icon~, ~lean4-info-pause-icon~ or
-~lean4-info-resume-icon~ to override.
+Each control says what clicking it will do rather than what the state
+is, so both swap glyph when engaged: =📌= becomes =📍= once pinned, and
+=⏸= becomes =⏵= once paused.  The pin is the same pin seen head-on
+instead of from the side -- pushed in rather than held ready.  VS Code
+turns its pin from upright to flat to say the same thing, but that is a
+codicon font; Unicode's one upright/slanted pin pair needs U+1F588,
+which too many fonts draw as a box to rest the difference on.  The
+engaged control is faced differently too, which is what carries the
+state on a frame with no second glyph to swap to.
+
+The glyphs are chosen for whichever frame they are drawn in, decided
+each time rather than once at startup, so one Emacs serving both a
+graphical frame and a terminal gets the right thing in each.  A
+graphical frame usually gets =📌 📍 ⏸ ⏵=, a terminal =⌖ ⌾ ⏸ ⏵=, and a
+display with nothing but ASCII gets =P [P] || >=.  Set
+~lean4-info-pin-icon~, ~lean4-info-unpin-icon~, ~lean4-info-pause-icon~
+or ~lean4-info-resume-icon~ to override.
 
 ** Older Lean versions
 
