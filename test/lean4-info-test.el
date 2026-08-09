@@ -185,6 +185,39 @@ bottom, as did every refresh while reading a long goal."
     (should (<= (point) (point-max)))
     (should (<= (window-start (selected-window)) (point-max)))))
 
+(ert-deftest lean4-info-message-badge-counts-by-severity ()
+  "The heading says what kinds of message a file has, as VS Code does."
+  (cl-letf (((symbol-function 'lean4-info--displayable-p) (lambda (&rest _) t)))
+    (should (equal (lean4-info--severity-badge
+                    '((:severity 1) (:severity 3) (:severity 3)
+                      (:severity 3) (:severity 3) (:severity 3)))
+                   "1 ⊗  5 ⓘ"))
+    ;; Most severe first, and severities nobody has are left out rather
+    ;; than shown as zero.
+    (should (equal (lean4-info--severity-badge
+                    '((:severity 4) (:severity 2) (:severity 1)))
+                   "1 ⊗  1 ⚠  1 ⓗ"))
+    (should (equal (lean4-info--severity-badge '((:severity 2))) "1 ⚠"))
+    ;; A diagnostic with no severity is an error, as everywhere else.
+    (should (equal (lean4-info--severity-badge '((:message "x"))) "1 ⊗")))
+  (should-not (lean4-info--severity-badge nil)))
+
+(ert-deftest lean4-info-message-badge-falls-back-to-letters ()
+  "A frame with no glyphs gets letters, not a row of boxes."
+  (cl-letf (((symbol-function 'lean4-info--displayable-p) #'ignore))
+    (should (equal (lean4-info--severity-badge
+                    '((:severity 1) (:severity 3)))
+                   "1 E  1 I"))))
+
+(ert-deftest lean4-info-all-messages-caption-carries-the-badge ()
+  "The caption names the section and counts what is in it."
+  (cl-letf (((symbol-function 'lean4-info--displayable-p) (lambda (&rest _) t)))
+    (should (equal (lean4-info--all-messages-caption '((:severity 1)))
+                   "All messages (1 ⊗):")))
+  ;; Nothing to count is not a state the section is inserted in, but the
+  ;; caption should still read as a caption.
+  (should (equal (lean4-info--all-messages-caption nil) "All messages:")))
+
 (ert-deftest lean4-info-goals-value-distinguishes-three-outcomes ()
   "No proof, a finished proof, and an open goal are told apart.
 

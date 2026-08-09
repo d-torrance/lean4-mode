@@ -334,6 +334,42 @@ display away from whatever prompted the click."
                   (set-window-point window (min spot (point-max))))
                 windows starts))))
 
+(defconst lean4-info--severity-badges
+  '((1 ("⊗" "✖" "×") "E" error)
+    (2 ("⚠" "△" "!") "W" warning)
+    (3 ("ⓘ" "ℹ" "i") "I" shadow)
+    (4 ("ⓗ" "☞" "?") "H" shadow))
+  "How each LSP severity is counted in a message section\='s heading.
+Each entry is (SEVERITY CANDIDATES FALLBACK FACE).  The candidates are
+tried in turn against the frame, as the pin and pause controls are: a
+badge that renders as a row of boxes is worse than a letter.")
+
+(defun lean4-info--severity-badge (diagnostics)
+  "Return a count of DIAGNOSTICS by severity, or nil if there are none.
+
+Reads as VS Code\='s does -- \"1 ⊗ 5 ⓘ\" for one error and five notes --
+so the shape of a file\='s output can be taken in without unfolding the
+section.  Severities nobody has are left out rather than shown as zero."
+  (let (parts)
+    (pcase-dolist (`(,severity ,candidates ,fallback ,face)
+                   lean4-info--severity-badges)
+      (let ((count (seq-count
+                    (lambda (diagnostic)
+                      (= (lean4-diagnostics-severity diagnostic) severity))
+                    diagnostics)))
+        (when (> count 0)
+          (push (concat (number-to-string count) " "
+                        (propertize (lean4-info--glyph nil candidates fallback)
+                                    'face face))
+                parts))))
+    (when parts (string-join (nreverse parts) "  "))))
+
+(defun lean4-info--all-messages-caption (diagnostics)
+  "Return the caption for the section listing DIAGNOSTICS."
+  (if-let* ((badge (lean4-info--severity-badge diagnostics)))
+      (format "All messages (%s):" badge)
+    "All messages:"))
+
 (defun lean4-info--add-visibility-indicators ()
   "Draw the fold indicators on the sections just inserted.
 
@@ -381,7 +417,7 @@ Lean buffer to be the selected one, which it is not in that case."
                                         (flymake-diagnostics))))
                   (lambda (a b) (< (lean4-info--end-line a)
                                    (lean4-info--end-line b))))))
-      (pcase-let ((`(,above ,here ,below)
+      (pcase-let ((`(,_above ,here ,_below)
                    (lean4-info--split-diagnostics diagnostics line))
                   (key (list goals term-goal location lean4-info-paused
                              (and lean4-info--pin t) diagnostics
@@ -402,8 +438,8 @@ Lean buffer to be the selected one, which it is not in that case."
             ;; reads like one that has stopped working.  VS Code words it
             ;; this way.  This is about the position being reported on, so
             ;; the messages from elsewhere in the file that may follow do
-            ;; not count -- the notice and a "Messages below:" section can
-            ;; and should appear together.
+            ;; not count -- the notice and the "All messages:" section
+            ;; can and should appear together.
             (unless (or goals term-goal here)
               (insert (propertize "No info found.\n" 'face 'shadow)))
             (when goals
@@ -420,10 +456,14 @@ Lean buffer to be the selected one, which it is not in that case."
                   (insert term-goal "\n"))))
             (lean4-info--mk-message-section
              'errors-here "Messages here:" here buffer)
+            ;; One section for the file, as VS Code has it, rather than
+            ;; one above point and one below: the split said where a
+            ;; message was relative to point, which the line number in
+            ;; each entry already says, and it made the count in the
+            ;; heading two counts of nothing in particular.
             (lean4-info--mk-message-section
-             'errors-below "Messages below:" below buffer)
-            (lean4-info--mk-message-section
-             'errors-above "Messages above:" above buffer))
+             'all-messages (lean4-info--all-messages-caption diagnostics)
+             diagnostics buffer))
           (lean4-info--add-visibility-indicators))))))))
 
 ;;;; Refresh

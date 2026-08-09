@@ -383,6 +383,27 @@ see `lean4-e2e-info-buffer-shows-the-goal'."
      (with-current-buffer lean4-info-buffer-name
        (string-search "⊢" (buffer-string))))))
 
+(ert-deftest lean4-e2e-info-buffer-separates-the-messages-at-point ()
+  "Messages covering point are listed apart from the rest of the file.
+
+Which messages are \"here\" comes from Lean\'s `fullRange\', not from the
+range it underlines: line 6 is the name of the declaration the `sorry\'
+is in, and that is what the message is anchored to."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (lean4-e2e--goto-line 6)
+      (lean4-info-buffer-refresh)
+      (should (lean4-e2e--wait-until
+               "the message at point to be listed on its own"
+               (lambda ()
+                 (with-current-buffer lean4-info-buffer-name
+                   (string-search "Messages here:" (buffer-string))))))
+      (with-current-buffer lean4-info-buffer-name
+        ;; And it is still counted among the file's messages.
+        (should (string-search "All messages (" (buffer-string)))
+        (should (string-search "declaration uses" (buffer-string)))))))
+
 (ert-deftest lean4-e2e-info-buffer-says-when-there-is-nothing ()
   "Outside a proof the display says so rather than going blank.
 
@@ -405,7 +426,7 @@ buffer being empty -- it appears alongside the messages from below."
                  (with-current-buffer lean4-info-buffer-name
                    (string-search "No info found." (buffer-string))))))
       (with-current-buffer lean4-info-buffer-name
-        (should (string-search "Messages below:" (buffer-string)))))))
+        (should (string-search "All messages (" (buffer-string)))))))
 
 (ert-deftest lean4-e2e-info-buffer-goals-are-interactive ()
   "Goals in the info buffer carry per-subterm information.

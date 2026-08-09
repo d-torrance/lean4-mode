@@ -207,6 +207,12 @@ which declaration they belong to, so a message about a multi-line
 declaration stays visible while point moves through it.  Terms inside a
 message are as interactive as terms inside a goal.
 
+Those covering point are listed under =Messages here:=, and every
+message in the file under =All messages:=, whose heading counts them by
+severity the way VS Code's does -- =All messages (1 ⊗  5 ⓘ):= for a file
+with one error and five notes.  The glyphs are picked for the frame,
+falling back to =E W I H= where none can be displayed.
+
 ** Completion
 
 Completion is offered through ~completion-at-point-functions~, so any
