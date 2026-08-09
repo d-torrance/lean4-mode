@@ -52,6 +52,7 @@
 (require 'lean4-settings)
 (require 'lean4-syntax)
 (require 'lean4-eglot)
+(require 'lean4-diagnostics)
 (require 'lean4-info)
 (require 'lean4-fringe)
 (require 'lean4-lake)
