@@ -1,7 +1,7 @@
 ;;; lean4-rpc.el --- Lean interactive RPC sessions -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2026 Jan Mas Rovira
-;; Copyright (C) 2026 Lean4-Mode contributors
+;; Copyright (C) 2026 Doug Torrance
 
 ;; SPDX-License-Identifier: MIT
 

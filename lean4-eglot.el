@@ -1,8 +1,6 @@
 ;;; lean4-eglot.el --- Eglot glue for lean4-mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 2023 Buster Copley
-;; Copyright (C) 2024 Paul D. Nelson
-;; Copyright (C) 2026 Lean4-Mode contributors
+;; Copyright (C) 2026 Doug Torrance
 
 ;; SPDX-License-Identifier: Apache-2.0
 

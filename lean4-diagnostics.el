@@ -1,6 +1,6 @@
 ;;; lean4-diagnostics.el --- Lean's diagnostic extensions -*- lexical-binding: t -*-
 
-;; Copyright (C) 2026 Lean4-Mode contributors
+;; Copyright (C) 2026 Doug Torrance
 
 ;; SPDX-License-Identifier: Apache-2.0
 

@@ -2,9 +2,7 @@
 
 ;; Copyright (c) 2013, 2014 Microsoft Corporation. All rights reserved.
 ;; Copyright (c) 2014, 2015 Soonho Kong. All rights reserved.
-;; Copyright (C) 2023 Buster Copley
-;; Copyright (C) 2024 Paul D. Nelson
-;; Copyright (C) 2026 Lean4-Mode contributors
+;; Copyright (C) 2026 Doug Torrance
 
 ;; Author: Leonardo de Moura <leonardo@microsoft.com>
 ;;         Soonho Kong       <soonhok@cs.cmu.edu>

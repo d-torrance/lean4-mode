@@ -1,6 +1,6 @@
 ;;; lean4-indent.el --- Indentation for Lean 4 -*- lexical-binding: t -*-
 
-;; Copyright (C) 2026 Lean4-Mode contributors
+;; Copyright (C) 2026 Doug Torrance
 
 ;; SPDX-License-Identifier: Apache-2.0
 

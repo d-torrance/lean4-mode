@@ -1,9 +1,7 @@
 ;;; lean4-info.el --- Emacs mode for Lean theorem prover  -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2016 Gabriel Ebner. All rights reserved.
-;; Copyright (C) 2023 Buster Copley
-;; Copyright (C) 2024 Paul D. Nelson
-;; Copyright (C) 2026 Lean4-Mode contributors
+;; Copyright (C) 2026 Doug Torrance
 
 ;; This file is not part of GNU Emacs.
 

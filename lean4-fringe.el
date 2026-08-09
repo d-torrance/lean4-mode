@@ -1,7 +1,7 @@
 ;;; lean4-fringe.el --- Lean4-Mode Processing Progress in Fringe  -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2016 Microsoft Corporation. All rights reserved.
-;; Copyright (C) 2026 Lean4-Mode contributors
+;; Copyright (C) 2026 Doug Torrance
 
 ;; This file is not part of GNU Emacs.
 

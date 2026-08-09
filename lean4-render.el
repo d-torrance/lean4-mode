@@ -1,7 +1,7 @@
 ;;; lean4-render.el --- Render Lean's interactive goal trees -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2026 Jan Mas Rovira
-;; Copyright (C) 2026 Lean4-Mode contributors
+;; Copyright (C) 2026 Doug Torrance
 
 ;; SPDX-License-Identifier: MIT
 

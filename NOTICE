@@ -12,6 +12,15 @@ two files remain under the MIT License; see LICENSES/MIT.txt.  The rest of
 this package is licensed under the Apache License, Version 2.0.
 
 ------------------------------------------------------------------------
+The move from lsp-mode to Eglot
+------------------------------------------------------------------------
+Draws on the forks at <https://github.com/bustercopley/lean4-mode> by
+Buster Copley and <https://github.com/ultronozm/lean4-mode> by Paul D.
+Nelson, both of which are forks of this package and so are under the
+Apache License, Version 2.0.  Neither asserts copyright in its own
+files; the credit is recorded here and in the commit history.
+
+------------------------------------------------------------------------
 data/abbreviations.json
 ------------------------------------------------------------------------
 Taken from the Lean 4 Visual Studio Code extension
