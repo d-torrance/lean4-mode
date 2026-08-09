@@ -213,5 +213,32 @@
         (inherited-entries (car lean4-font-lock-defaults)))
     `(,(append new-entries inherited-entries))))
 
+;;;; Keyword completion
+
+(defun lean4-keyword-completion-at-point ()
+  "Complete the Lean keyword before point.
+
+Meant for `completion-at-point-functions', after the server's own entry.
+Lean's completion is contextual and offers nothing for a bare word at
+the top level, so typing `exam' gets no help towards `example' -- VS
+Code fills that gap with editor-level word suggestions rather than
+anything from the server.
+
+Never exclusive, so a prefix that matches no keyword falls through to
+whatever else is configured."
+  (when-let* ((bounds (bounds-of-thing-at-point 'symbol))
+              (start (car bounds))
+              ;; Only when point is at the end of the word being typed;
+              ;; completing from the middle of an existing word is noise.
+              ((= (cdr bounds) (point)))
+              ;; A backslash prefix is an abbreviation being typed, not a
+              ;; keyword.  The backslash is not a symbol constituent, so
+              ;; without this `\alph' would look like the word `alph'.
+              ((not (eq (char-before start) ?\\))))
+    (list start (point)
+          (append lean4-keywords1 lean4-constants)
+          :annotation-function (lambda (_) " keyword")
+          :exclusive 'no)))
+
 (provide 'lean4-syntax)
 ;;; lean4-syntax.el ends here

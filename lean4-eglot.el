@@ -326,6 +326,32 @@ they abandon a proof, so they should be hard to miss."
             (append eglot-semantic-token-types '("leanSorryLike"))))
     (eglot-semantic-tokens-mode 1)))
 
+;;;; Completion
+
+(defun lean4-eglot-completion-at-point ()
+  "Eglot's completion, but not exclusive.
+
+Eglot's own entry sets no `:exclusive', which makes it exclusive: when
+the server offers nothing, completion stops there rather than trying
+anything else.  Lean's completion is contextual -- tactics inside `by',
+identifiers and dot-completion inside terms -- and it returns nothing at
+all for a bare word at the top level.  Left exclusive, that silences
+every other source the reader has configured, at precisely the positions
+where the server is no help."
+  (when-let* ((result (eglot-completion-at-point)))
+    (if (plist-member (nthcdr 3 result) :exclusive)
+        result
+      (append result '(:exclusive no)))))
+
+(defun lean4--setup-completion ()
+  "Use the non-exclusive wrapper in place of Eglot's own entry.
+Run from `eglot-managed-mode-hook', which is when Eglot installs it."
+  (when (memq #'eglot-completion-at-point completion-at-point-functions)
+    (setq-local completion-at-point-functions
+                (cl-substitute #'lean4-eglot-completion-at-point
+                               #'eglot-completion-at-point
+                               completion-at-point-functions))))
+
 ;;;; Diagnostics
 
 (defcustom lean4-diagnostics-delay 0.05

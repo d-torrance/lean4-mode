@@ -205,10 +205,14 @@ to be added or removed from the hook variable.")
   ;; completion frontend decides how to present them.
   (add-hook 'completion-at-point-functions
             #'lean4-input-completion-at-point nil 'local)
+  ;; Appended, so it is consulted only where the server offered nothing.
+  (add-hook 'completion-at-point-functions
+            #'lean4-keyword-completion-at-point 'append 'local)
   (electric-indent-local-mode -1)
   (pcase-dolist (`(,hook . ,fn) lean4-hooks-alist)
     (add-hook hook fn nil 'local))
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-semantic-tokens nil 'local)
+  (add-hook 'eglot-managed-mode-hook #'lean4--setup-completion nil 'local)
   (lean4-info--maybe-auto-open)
   ;; Deliberately not conditional on finding a workspace root.  A file
   ;; outside any Lake package is still worth serving -- `lean4--server-command'
