@@ -15,13 +15,17 @@
 (require 'lean4-mode)
 
 (defun lean4-info-test--chevrons ()
-  "Return the fold indicators actually drawn, innermost last."
+  "Return the indentation and fold indicator drawn on each heading.
+
+Both live in the `display' of the heading\='s first character, which the
+character itself follows; drop that to leave what is drawn in front of
+it."
   (let (found)
     (letrec ((walk (lambda (section)
                      (when (lean4-info--foldable-p section)
-                       (push (get-text-property (oref section start)
-                                                'line-prefix)
-                             found))
+                       (let ((shown (get-text-property (oref section start)
+                                                       'display)))
+                         (push (and shown (substring shown 0 -1)) found)))
                      (mapc walk (oref section children)))))
       (funcall walk magit-root-section))
     (nreverse found)))
@@ -109,6 +113,41 @@ its indicator stayed put, so the two drifted apart."
             (magit-section-show section)
             (lean4-info--repaint-chevrons)
             (should (equal (car (lean4-info-test--chevrons)) open)))))
+    (kill-buffer lean4-info-buffer-name)))
+
+(ert-deftest lean4-info-heading-below-a-folded-one-keeps-its-chevron ()
+  "Folding one section does not take the indicator off the next.
+
+Regression test.  The indicator was drawn in the line\='s `line-prefix',
+and folding a section makes `magit-section' cover its body including the
+newline before the next heading -- which leaves that heading at the edge
+of an invisible run, where a `line-prefix' stops being drawn.  The
+heading below a folded one lost its chevron, and its indentation with
+it."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (with-current-buffer lean4-info-buffer-name
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (magit-insert-section (magit-section 'root)
+            (lean4-info--indented
+              (magit-insert-section (magit-section 'a)
+                (magit-insert-heading "A heading")
+                (magit-insert-section-body (insert "body of A\n")))
+              (magit-insert-section (magit-section 'b)
+                (magit-insert-heading "B heading")
+                (magit-insert-section-body (insert "body of B\n"))))))
+        (lean4-info--paint-chevrons)
+        (pcase-let ((`(,open . ,closed) (lean4-info-chevron-pair))
+                    (a (nth 0 (oref magit-root-section children))))
+          (should (equal (lean4-info-test--chevrons)
+                         (list (concat "  " open) (concat "  " open))))
+          (magit-section-hide a)
+          (lean4-info--paint-chevrons)
+          ;; The folded one turns round; the one below keeps both its
+          ;; indicator and its indentation.
+          (should (equal (lean4-info-test--chevrons)
+                         (list (concat "  " closed) (concat "  " open))))))
     (kill-buffer lean4-info-buffer-name)))
 
 (ert-deftest lean4-info-folding-leaves-no-chevron-hanging ()

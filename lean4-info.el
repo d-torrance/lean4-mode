@@ -680,16 +680,21 @@ a section with an empty body is one whose content and end coincide."
 (defun lean4-info--paint-chevrons ()
   "Put a fold indicator at the start of every heading that folds.
 
-`magit-section' draws its own in the fringe, which cannot be indented:
-a section set in from its parent has its text move right while its
-indicator stays at the frame edge, so the two drift apart and the
-indicator stops saying which heading it belongs to.  This draws into the
-line\='s `line-prefix' instead, after the indentation, so the indicator
-sits with the text it is about.
+`magit-section' draws its own in the fringe, which cannot be indented: a
+section set in from its parent has its text move right while its
+indicator stays at the frame edge, so the two drift apart.
+
+Drawn into the `display' of the heading\='s first character, not the
+line\='s `line-prefix'.  A `line-prefix' is drawn only where a display
+line begins, and folding a section makes `magit-section' cover its body
+*including the newline before the next heading* -- which puts that
+heading at the edge of an invisible run, where the prefix stops being
+drawn.  The heading below a folded one lost its chevron, and its
+indentation with it.
 
 Nothing is inserted into the buffer.  The goal text carries the
-positions `lean4-render\=', ElDoc and xref read back out of it, and it is
-also what `magit-section\=' keeps its own markers into."
+positions `lean4-render', ElDoc and xref read back out of it, and it is
+also what `magit-section' keeps its own markers into."
   (when (bound-and-true-p magit-root-section)
     (pcase-let ((inhibit-read-only t)
                 (`(,open . ,closed) (lean4-info-chevron-pair)))
@@ -700,18 +705,24 @@ also what `magit-section\=' keeps its own markers into."
                            (indent (or (get-text-property
                                         start 'lean4-info-indent)
                                        ""))
+                           ;; A folded section's children are still in the
+                           ;; buffer, merely invisible; giving them a
+                           ;; chevron left one hanging under a section that
+                           ;; had just been folded shut.
                            (chevron (cond ((not visible) "")
                                           ((oref section hidden) closed)
-                                          (t open))))
-                      (put-text-property
-                       start (save-excursion (goto-char start)
-                                             (line-end-position))
-                       'line-prefix (concat indent chevron))))
-                  ;; A folded section's children are still in the buffer,
-                  ;; merely invisible, and a `line-prefix' at the edge of
-                  ;; an invisible run is drawn anyway -- which showed as a
-                  ;; chevron hanging under a section that had just been
-                  ;; folded shut.  Give them no chevron to leave behind.
+                                          (t open)))
+                           (character (char-after start)))
+                      (when character
+                        (put-text-property
+                         start (1+ start) 'display
+                         (concat indent chevron (string character)))
+                        ;; The indentation comes with the chevron now, so
+                        ;; the line must not also carry it.
+                        (put-text-property
+                         start (save-excursion (goto-char start)
+                                               (line-end-position))
+                         'line-prefix ""))))
                   (let ((visible (and visible (not (oref section hidden)))))
                     (dolist (child (oref section children))
                       (funcall walk child visible))))))
