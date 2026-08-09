@@ -20,6 +20,8 @@
 (require 'ert)
 (require 'flymake)
 (require 'lean4-mode)
+(require 'lean4-rpc)
+(require 'lean4-render)
 
 (defconst lean4-e2e--fixture-directory
   (expand-file-name
@@ -200,6 +202,127 @@ window showing the source."
             ;; version, which is useful in the echo area but noise here.
             (should-not (string-search "Lean 4: " (buffer-string)))))
       (delete-other-windows))))
+
+;;;; Interactive RPC
+
+(defun lean4-e2e--rpc (call)
+  "Run CALL, a function of (SUCCESS FAILURE), and return its result.
+Signals if the call fails or never answers."
+  (let (result failure done)
+    (funcall call
+             (lambda (value) (setq result value done t))
+             (lambda (error) (setq failure error done t)))
+    (lean4-e2e--wait-until "the RPC call to return" (lambda () done))
+    (when failure
+      (error "RPC call failed: %S" failure))
+    result))
+
+(ert-deftest lean4-e2e-rpc-negotiates-wire-format-v1 ()
+  "The server agrees to the v1 reference encoding we ask for.
+Version 0 names the field \"p\", which can collide with user data."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--sorry-line)
+    (back-to-indentation)
+    (should (eq (lean4-rpc-handle-ref-key (lean4-rpc-open)) :__rpcref))))
+
+(ert-deftest lean4-e2e-rpc-interactive-goals-render ()
+  "Interactive goals come back and render to the expected proposition."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--sorry-line)
+    (back-to-indentation)
+    (let* ((handle (lean4-rpc-open))
+           (result (lean4-e2e--rpc
+                    (lambda (success failure)
+                      (lean4-rpc-get-interactive-goals handle success failure))))
+           (rendered (lean4-render-goals (plist-get result :goals)))
+           ;; The goal prefix and any hypothesis names are Lean4-Mode's own
+           ;; text, not part of the term, so only the type is expected to
+           ;; be covered by subterms.
+           (type (lean4-render-tagged-text
+                  (plist-get (elt (plist-get result :goals) 0) :type))))
+      (should rendered)
+      (should (string-search "2 + 2 = 4" (substring-no-properties rendered)))
+      (should (equal (substring-no-properties type) "2 + 2 = 4"))
+      ;; Every character of the term must carry the subterm covering it,
+      ;; or hovering and jumping cannot work.
+      (dotimes (index (length type))
+        (should (get-text-property index 'lean4-subexpr-pos type))
+        (should (get-text-property index 'lean4-info type))))))
+
+(ert-deftest lean4-e2e-rpc-subterm-hover ()
+  "A subterm reference expands into its type.
+This is what the goal buffer shows when point is on a subterm."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--sorry-line)
+    (back-to-indentation)
+    (let* ((handle (lean4-rpc-open))
+           (goals (lean4-e2e--rpc
+                   (lambda (success failure)
+                     (lean4-rpc-get-interactive-goals handle success failure))))
+           (type (lean4-render-tagged-text
+                  (plist-get (elt (plist-get goals :goals) 0) :type)))
+           ;; The first character of "2 + 2 = 4" is a numeral.
+           (info (get-text-property 0 'lean4-info type))
+           (popup (lean4-e2e--rpc
+                   (lambda (success failure)
+                     (lean4-rpc-info-to-interactive handle info
+                                                    success failure)))))
+      (should info)
+      (should popup)
+      ;; The popup reports the numeral's type.
+      (should (string-search
+               "Nat"
+               (substring-no-properties
+                (lean4-render-tagged-text (plist-get popup :type))))))))
+
+(ert-deftest lean4-e2e-rpc-go-to-location ()
+  "A subterm can say where it is defined.
+This is what backs jumping from the goal buffer to a definition."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--sorry-line)
+    (back-to-indentation)
+    (let* ((handle (lean4-rpc-open))
+           (goals (lean4-e2e--rpc
+                   (lambda (success failure)
+                     (lean4-rpc-get-interactive-goals handle success failure))))
+           (type (lean4-render-tagged-text
+                  (plist-get (elt (plist-get goals :goals) 0) :type)))
+           ;; Index 2 is the "+", whose head symbol is a real definition.
+           (info (get-text-property 2 'lean4-info type))
+           (locations (lean4-e2e--rpc
+                       (lambda (success failure)
+                         (lean4-rpc-get-go-to-location handle "definition" info
+                                                       success failure)))))
+      (should (> (length locations) 0))
+      (should (plist-get (elt locations 0) :targetUri)))))
+
+(ert-deftest lean4-e2e-rpc-survives-a-restart ()
+  "A call after the file worker restarts reconnects instead of failing."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--sorry-line)
+    (back-to-indentation)
+    (let ((handle (lean4-rpc-open)))
+      ;; Prime the session.
+      (lean4-e2e--rpc (lambda (success failure)
+                        (lean4-rpc-get-interactive-goals handle success failure)))
+      ;; Closing and reopening the document restarts the file worker, which
+      ;; invalidates the session exactly as editing an import would.
+      (lean4-refresh-file-dependencies)
+      (lean4-e2e--wait-until
+       "the file to be elaborated again"
+       (lambda ()
+         (flymake-start)
+         (seq-find #'lean4-e2e--error-p (flymake-diagnostics))))
+      (let ((result (lean4-e2e--rpc
+                     (lambda (success failure)
+                       (lean4-rpc-get-interactive-goals handle
+                                                        success failure)))))
+        (should (lean4-render-goals (plist-get result :goals)))))))
 
 (provide 'lean4-e2e-test)
 ;;; lean4-e2e-test.el ends here

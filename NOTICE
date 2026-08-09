@@ -1,0 +1,36 @@
+lean4-mode
+Copyright (c) 2013-2026 the lean4-mode contributors
+
+This product includes software developed by third parties, as follows.
+
+------------------------------------------------------------------------
+lean4-rpc.el, lean4-render.el
+------------------------------------------------------------------------
+Derived from neo-lean-mode <https://github.com/janmasrovira/neo-lean-mode>,
+Copyright (c) 2026 Jan Mas Rovira, licensed under the MIT License.  These
+two files remain under the MIT License; see LICENSES/MIT.txt.  The rest of
+this package is licensed under the Apache License, Version 2.0.
+
+------------------------------------------------------------------------
+data/abbreviations.json
+------------------------------------------------------------------------
+Taken from the Lean 4 Visual Studio Code extension
+<https://github.com/leanprover/vscode-lean4>, Copyright (c) 2020 Microsoft
+Corporation, licensed under the Apache License, Version 2.0.  Kept in sync
+by .github/workflows/update-abbr.yml.
+
+------------------------------------------------------------------------
+Indentation
+------------------------------------------------------------------------
+Indentation is provided by the `eri' package
+<https://github.com/agda/agda>, Copyright (c) 2005-2026 the Agda
+contributors, licensed under the MIT License.  It was previously vendored
+into this package as lean4-eri.el.
+
+------------------------------------------------------------------------
+lean4-input.el
+------------------------------------------------------------------------
+Based on agda-input.el from Agda mode <https://github.com/agda/agda>,
+Copyright (c) 2005-2012 Ulf Norell, Nils Anders Danielsson, Catarina
+Coquand, Makoto Takeyama, Andreas Abel, Karl Mehltretter, Marcin Benke and
+Darin Morrison.

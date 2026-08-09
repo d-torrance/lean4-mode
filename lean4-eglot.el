@@ -144,6 +144,27 @@ The decision is made from the workspace root instead."
                (cons '(lean4-mode :language-id "lean4")
                      #'lean4--server-contact)))
 
+;;;; Client capabilities
+
+(defvar lean4-client-capabilities
+  '(:rpcWireFormat "v1")
+  "Lean's own additions to the LSP client capabilities.
+
+`rpcWireFormat' picks how server-side references are encoded.  Version 0
+names the field \"p\", which can collide with a field of the same name
+in user data (leanprover/vscode-lean4#712); v1 renames it to
+\"__rpcref\".  Asking for v1 is safe against an older toolchain: a
+server that has never heard of the capability simply keeps speaking v0,
+and `lean4-rpc' reads back what was actually negotiated.")
+
+(cl-defmethod eglot-client-capabilities :around
+  ((_server lean4-eglot-lsp-server))
+  "Add Lean's non-standard capabilities to the standard set."
+  (let ((capabilities (cl-call-next-method)))
+    ;; Lean reads these from `ClientCapabilities.lean?'.
+    (plist-put capabilities :lean lean4-client-capabilities)
+    capabilities))
+
 ;;;; Workspace discovery
 
 (defcustom lean4-workspace-roots nil
