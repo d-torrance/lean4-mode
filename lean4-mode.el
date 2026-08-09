@@ -217,6 +217,9 @@ to be added or removed from the hook variable.")
     (add-hook hook fn nil 'local))
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-semantic-tokens nil 'local)
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-completion nil 'local)
+  ;; Before `eglot-ensure' below, which is what asks project.el where
+  ;; this file's root is.
+  (lean4-register-project-backend)
   (lean4-info--maybe-auto-open)
   ;; Deliberately not conditional on finding a workspace root.  A file
   ;; outside any Lake package is still worth serving -- `lean4--server-command'

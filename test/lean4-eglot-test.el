@@ -111,6 +111,21 @@ hijack `project.el' for the whole repository."
   (let ((eglot-lsp-context t))
     (should-not (lean4-project-find nil))))
 
+(ert-deftest lean4-eglot-project-backend-is-registered-by-the-mode ()
+  "project.el learns about us when a Lean file is opened, not before.
+
+`project-find-functions' is a global hook, and a package that has been
+installed but not used has no business being in it.  It has to be
+registered before `eglot-ensure', which is what asks project.el where
+the file's root is."
+  (let ((project-find-functions nil))
+    (with-temp-buffer
+      (let ((lean4-mode-hook nil)
+            (lean4-auto-start-server nil)
+            (lean4-info-auto-open nil))
+        (lean4-mode))
+      (should (memq #'lean4-project-find project-find-functions)))))
+
 ;;;; Server command
 
 (ert-deftest lean4-eglot-server-command-uses-lake-for-a-package ()

@@ -25,11 +25,14 @@ jobs:
       env:
         LOCAL_REPO: ${{ github.workspace }}
         # RECIPE is your recipe as written for MELPA:
+        # `:defaults' takes every .el in the top level, which would ship
+        # build.el -- the Makefile's batch entry points, of no use to
+        # anyone installing the package.
         RECIPE: >-
           (lean4-mode
             :fetcher github
             :repo "d-torrance/lean4-mode"
-            :files (:defaults ("data" "data/*.json")))
+            :files (:defaults (:exclude "build.el") ("data" "data/*.json")))
         # set this to false (or remove it) if the package isn't on MELPA:
         # EXIST_OK: true
       run: echo $GITHUB_REF && make -C ~/melpazoid

@@ -157,7 +157,7 @@ interacted with."
 ;;;; Client capabilities
 
 (defvar lean4-client-capabilities
-  '(:rpcWireFormat "v1")
+  '(:rpcWireFormat "v1" :silentDiagnosticSupport t)
   "Lean's own additions to the LSP client capabilities.
 
 `rpcWireFormat' picks how server-side references are encoded.  Version 0
@@ -165,7 +165,19 @@ names the field \"p\", which can collide with a field of the same name
 in user data (leanprover/vscode-lean4#712); v1 renames it to
 \"__rpcref\".  Asking for v1 is safe against an older toolchain: a
 server that has never heard of the capability simply keeps speaking v0,
-and `lean4-rpc' reads back what was actually negotiated.")
+and `lean4-rpc' reads back what was actually negotiated.
+
+`silentDiagnosticSupport' asks for the diagnostics Lean means for the
+goal display rather than the editor, the completed-proof report among
+them.  Both halves of that matter: without the capability Lean withholds
+them entirely, and asking is still not enough, because they are never
+pushed -- they arrive only through
+`Lean.Widget.getInteractiveDiagnostics'.  Both verified against Lean
+4.32.2 by removing each in turn.
+
+Declared here, in one list, rather than appended to from the libraries
+that care: a capability added at load time is a capability that depends
+on whether that library happened to be loaded.")
 
 (cl-defmethod eglot-client-capabilities :around
   ((_server lean4-eglot-lsp-server))
@@ -246,8 +258,13 @@ unconditionally would hijack `project.el' for the whole repository."
     (when-let* ((root (lean4--workspace-root file-name)))
       (cons 'lean4 root))))
 
-;;;###autoload
-(add-hook 'project-find-functions #'lean4-project-find)
+(defun lean4-register-project-backend ()
+  "Have project.el ask us where a Lean file's project root is.
+
+Registered when the first Lean file is opened rather than when the
+package loads: `project-find-functions' is a global hook, and a package
+that has been installed but not used has no business being in it."
+  (add-hook 'project-find-functions #'lean4-project-find))
 
 ;;;; Buffers and URIs
 

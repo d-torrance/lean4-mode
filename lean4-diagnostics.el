@@ -111,14 +111,8 @@ everything, as VS Code's Problems view does."
 ;; needs version-keyed accumulation ahead of Eglot's own handler; until that
 ;; exists, not asking is what keeps diagnostics correct.
 ;;
-;; `silentDiagnosticSupport' *is* asked for, and both halves of that matter.
-;; Without the capability Lean withholds silent diagnostics entirely -- drop
-;; it and the "Goals accomplished!" report vanishes.  But asking is not
-;; enough either: silent diagnostics are never *pushed*.  They arrive only
-;; through `Lean.Widget.getInteractiveDiagnostics'.  Both verified against
-;; Lean 4.32.2 by removing each in turn.
-(setq lean4-client-capabilities
-      (append lean4-client-capabilities '(:silentDiagnosticSupport t)))
+;; `silentDiagnosticSupport' *is* asked for, in `lean4-client-capabilities';
+;; see there for why both asking and then fetching are needed.
 
 ;;;; Filtering
 

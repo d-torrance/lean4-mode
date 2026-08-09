@@ -35,7 +35,7 @@
 ;; corresponding to ASCII characters).
 
 ;; This file is based on agda-input.el from Agda-Mode:
-;; https://github.com/agda/agda/blob/d2cbd2dd4f49fa84c5ca6fcf464c3211adcc0088/src/data/emacs-mode/agda-input.el
+;; https://github.com/agda/agda/blob/d2cbd2dd/src/data/emacs-mode/agda-input.el
 
 ;;; Code:
 

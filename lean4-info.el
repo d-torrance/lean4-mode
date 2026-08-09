@@ -451,9 +451,10 @@ section.  Severities nobody has are left out rather than shown as zero."
 (defun lean4-info--messages-caption (label diagnostics)
   "Return LABEL as a caption, counting DIAGNOSTICS by severity after it.
 
-No trailing colon, unlike the other captions: `magit-section' replaces
-one with a count of the section\='s children, which here would follow the
-badge with a second, coarser count of the same messages."
+No trailing colon, unlike the other captions: the `magit-section'
+package replaces
+one with a count of the section\='s children, which here would follow
+the badge with a second, coarser count of the same messages."
   (if-let* ((badge (lean4-info--severity-badge diagnostics)))
       (format "%s (%s)" label badge)
     label))
