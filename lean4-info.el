@@ -430,7 +430,8 @@ find the indentation again."
 
 Over the whole section, not merely its heading: a key pressed anywhere
 inside a pinned section should act on that section, which is the only
-way `C-c C-s' can mean anything in a display holding several pins."
+way \\[lean4-info-toggle-pin] can mean anything in a display holding
+several pins."
   (declare (indent 1) (debug (form body)))
   `(let ((start (point)))
      (prog1 (progn ,@body)
