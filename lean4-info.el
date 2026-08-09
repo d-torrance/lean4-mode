@@ -717,18 +717,22 @@ also what `magit-section' keeps its own markers into."
                            (indent (or (get-text-property
                                         start 'lean4-info-indent)
                                        ""))
-                           ;; A folded section's children are still in the
-                           ;; buffer, merely invisible; giving them a
-                           ;; chevron left one hanging under a section that
-                           ;; had just been folded shut.
-                           (chevron (cond ((not visible) "")
-                                          ((oref section hidden) closed)
-                                          (t open)))
+                           (chevron (if (oref section hidden) closed open))
                            (character (char-after start)))
                       (when character
-                        (put-text-property
-                         start (1+ start) 'display
-                         (concat indent chevron (string character)))
+                        ;; A folded section's children are still in the
+                        ;; buffer, merely invisible -- and Emacs draws a
+                        ;; `display' string even on an invisible
+                        ;; character, so one left on a hidden heading put
+                        ;; its indentation and first letter on screen with
+                        ;; nothing else.  Take it off rather than
+                        ;; shortening it.
+                        (if (not visible)
+                            (remove-text-properties start (1+ start)
+                                                    '(display nil))
+                          (put-text-property
+                           start (1+ start) 'display
+                           (concat indent chevron (string character))))
                         ;; The indentation comes with the chevron now, so
                         ;; the line must not carry it as well -- and that
                         ;; means `wrap-prefix' too, not just `line-prefix'.

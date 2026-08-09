@@ -188,10 +188,12 @@ had just been folded shut."
                          (list open (concat "  " open))))
           (magit-section-hide parent)
           (lean4-info--repaint-chevrons)
-          ;; The parent turns round; the child keeps its indentation but
-          ;; loses the chevron, having nowhere visible to show it.
-          (should (equal (lean4-info-test--chevrons)
-                         (list closed "  ")))
+          ;; The parent turns round; the child is drawn with nothing at
+          ;; all.  Emacs draws a `display' string even on an invisible
+          ;; character, so anything left on the hidden heading -- its
+          ;; indentation, its first letter -- would appear on screen with
+          ;; the rest of the heading gone.
+          (should (equal (lean4-info-test--chevrons) (list closed nil)))
           (magit-section-show parent)
           (lean4-info--repaint-chevrons)
           (should (equal (lean4-info-test--chevrons)
