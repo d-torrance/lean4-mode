@@ -203,6 +203,7 @@ to be added or removed from the hook variable.")
   (pcase-dolist (`(,hook . ,fn) lean4-hooks-alist)
     (add-hook hook fn nil 'local))
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-semantic-tokens nil 'local)
+  (lean4-info--maybe-auto-open)
   ;; Deliberately not conditional on finding a workspace root.  A file
   ;; outside any Lake package is still worth serving -- `lean4--server-command'
   ;; falls back to `lean --server' with elan's default toolchain for exactly

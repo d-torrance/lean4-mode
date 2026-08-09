@@ -1,6 +1,6 @@
 ;;; lean4-input-test.el --- Tests for the Lean input method  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2026 Lean4-Mode contributors
+;; Copyright (C) 2026 Doug Torrance
 
 ;; SPDX-License-Identifier: Apache-2.0
 

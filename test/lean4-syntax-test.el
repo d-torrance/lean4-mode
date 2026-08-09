@@ -1,6 +1,6 @@
 ;;; lean4-syntax-test.el --- Tests for Lean font-lock and syntax  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2026 Lean4-Mode contributors
+;; Copyright (C) 2026 Doug Torrance
 
 ;; SPDX-License-Identifier: Apache-2.0
 
@@ -24,7 +24,8 @@ Point starts at `point-min'.  Any Eglot/LSP startup is suppressed: these
 tests are about font-lock only."
   (declare (indent 1) (debug (form body)))
   `(with-temp-buffer
-     (let ((lean4-mode-hook nil))
+     (let ((lean4-mode-hook nil)
+           (lean4-info-auto-open nil))
        (lean4-mode))
      (insert ,text)
      (font-lock-ensure)

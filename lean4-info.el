@@ -777,6 +777,50 @@ KIND is \"definition\", \"declaration\" or \"type\"."
       (xref-pop-to-location (car items))
     (user-error "No type definition for the subterm at point")))
 
+(defcustom lean4-info-auto-open t
+  "Whether to show the goal display when a Lean file is opened.
+
+VS Code opens its InfoView automatically, and the proof state is the
+main thing one wants to see while writing Lean, so this matches it.
+
+The buffer is shown, not selected, and it goes through `display-buffer',
+so `display-buffer-alist' governs where it lands.  To put it in a side
+window on the right, for instance:
+
+  (add-to-list \\='display-buffer-alist
+               \\='(\"\\\\`\\\\*Lean Goal\\\\*\\\\\\='\"
+                 (display-buffer-in-side-window)
+                 (side . right)
+                 (window-width . 0.4)))"
+  :group 'lean4-info
+  :type 'boolean)
+
+(defun lean4-info-open ()
+  "Show the goal display without selecting it."
+  (interactive)
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (display-buffer lean4-info-buffer-name)
+  (lean4-info-buffer-refresh))
+
+(defun lean4-info--maybe-auto-open ()
+  "Show the goal display for a new Lean buffer, if that is wanted.
+
+Deferred rather than run from the mode body: at that point `find-file'
+has not finished, so the window configuration is still in flux and the
+Lean buffer itself may not be displayed yet.
+
+A plain timer, not an idle one: idle timers need Emacs to actually go
+idle, which never happens under \\=--batch, and that would make this
+untestable."
+  (when lean4-info-auto-open
+    (let ((buffer (current-buffer)))
+      (run-at-time
+       0 nil
+       (lambda ()
+         (when (and (buffer-live-p buffer) (get-buffer-window buffer t))
+           (with-current-buffer buffer
+             (lean4-info-open))))))))
+
 ;;;###autoload
 (defun lean4-toggle-info ()
   "Show infos at the current point."

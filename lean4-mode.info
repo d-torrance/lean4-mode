@@ -210,9 +210,20 @@ whichever toolchain elan selects.
    Type ‘#check id’ and the word ‘#check’ is underlined; point on ‘id’
 reports its type through ElDoc.
 
-   To view the proof state, run ‘lean4-toggle-info’ (‘C-c C-i’).  This
-displays the ‘*Lean Goal*’ buffer, the counterpart of the Info-View pane
-in VS Code.
+   The ‘*Lean Goal*’ buffer, the counterpart of the Info-View pane in VS
+Code, appears by itself and shows the proof state at point.  It is
+displayed, not selected, so point stays in the file.  ‘C-c C-i’ hides
+and shows it, and ‘lean4-info-auto-open’ turns the automatic opening
+off.
+
+   Where it appears is up to ‘display-buffer-alist’, as for any other
+buffer.  To put it in a side window on the right:
+
+     (add-to-list 'display-buffer-alist
+                  '("\\`\\*Lean Goal\\*\\'"
+                    (display-buffer-in-side-window)
+                    (side . right)
+                    (window-width . 0.4)))
 
 * Menu:
 
@@ -323,6 +334,8 @@ File: lean4-mode.info,  Node: Frequently used options,  Next: Semantic highlight
    • ‘lean4-auto-start-server’ (default ‘t’) - whether visiting a Lean
      file starts the language server.  Set to ‘nil’ to start it by hand
      with ‘M-x eglot’.
+   • ‘lean4-info-auto-open’ (default ‘t’) - whether the goal display
+     appears when a Lean file is opened, as VS Code's InfoView does.
    • ‘lean4-info-interactive’ (default ‘t’) - whether to fetch goals
      over Lean's interactive RPC.  With ‘nil’, goals are plain text and
      cannot be hovered or jumped from.
@@ -419,16 +432,16 @@ Node: Doom-Emacs4160
 Node: Straight4479
 Node: Upgrading from version 14836
 Node: Usage6133
-Node: Keys in a Lean buffer6949
-Node: Keys in the goal display8374
-Node: Errors and warnings9880
-Node: Completion10475
-Node: Configuration11077
-Node: Frequently used options11460
-Node: Semantic highlighting12786
-Node: Optional packages13372
-Node: Common Pitfalls13865
-Node: Acknowledgements14464
+Node: Keys in a Lean buffer7417
+Node: Keys in the goal display8842
+Node: Errors and warnings10348
+Node: Completion10943
+Node: Configuration11545
+Node: Frequently used options11928
+Node: Semantic highlighting13402
+Node: Optional packages13988
+Node: Common Pitfalls14481
+Node: Acknowledgements15080
 
 End Tag Table
 

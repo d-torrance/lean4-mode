@@ -1,6 +1,6 @@
 ;;; lean4-e2e-test.el --- End-to-end tests against a real Lean server  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2026 Lean4-Mode contributors
+;; Copyright (C) 2026 Doug Torrance
 
 ;; SPDX-License-Identifier: Apache-2.0
 
@@ -66,7 +66,8 @@ first.  Returns the value PREDICATE finally returned."
   "Open the fixture with a running Lean server and evaluate BODY.
 Point starts at `point-min'.  The server is shut down afterwards."
   (declare (indent 0) (debug (body)))
-  `(let ((buffer (find-file-noselect lean4-e2e--fixture-file)))
+  `(let* ((lean4-info-auto-open nil)
+          (buffer (find-file-noselect lean4-e2e--fixture-file)))
      (unwind-protect
          (with-current-buffer buffer
            (should (derived-mode-p 'lean4-mode))
@@ -440,6 +441,54 @@ This is what makes \\[xref-find-definitions] work in the goal buffer."
        (lambda ()
          (with-current-buffer lean4-info-buffer-name
            (string-search "goals accomplished" (buffer-string))))))))
+
+;;;; Opening the goal display
+
+(ert-deftest lean4-e2e-goal-display-opens-by-itself ()
+  "Visiting a Lean file shows the goal display without being asked.
+
+VS Code opens its InfoView on `lean4.infoview.autoOpen', which defaults
+to true, and the proof state is the point of the exercise.  The window
+must not be selected, though: opening a file should leave point in the
+file."
+  :tags '(:e2e)
+  (let (buffer)
+    (unwind-protect
+        (progn
+          (delete-other-windows)
+          (when-let* ((window (get-buffer-window lean4-info-buffer-name t)))
+            (quit-window nil window))
+          (let ((lean4-info-auto-open t))
+            (setq buffer (find-file-noselect lean4-e2e--fixture-file))
+            (set-window-buffer (selected-window) buffer)
+            ;; The open is deferred to an idle moment, so let timers run.
+            (lean4-e2e--wait-until
+             "the goal display to appear"
+             (lambda ()
+               (accept-process-output nil 0.05)
+               (get-buffer-window lean4-info-buffer-name t))))
+          (should (get-buffer-window lean4-info-buffer-name t))
+          ;; Shown, not selected.
+          (should (eq (window-buffer (selected-window)) buffer)))
+      (when buffer (kill-buffer buffer))
+      (delete-other-windows))))
+
+(ert-deftest lean4-e2e-goal-display-can-be-left-closed ()
+  "With `lean4-info-auto-open' nil, visiting a file opens nothing."
+  :tags '(:e2e)
+  (let (buffer)
+    (unwind-protect
+        (progn
+          (delete-other-windows)
+          (when-let* ((window (get-buffer-window lean4-info-buffer-name t)))
+            (quit-window nil window))
+          (let ((lean4-info-auto-open nil))
+            (setq buffer (find-file-noselect lean4-e2e--fixture-file))
+            (set-window-buffer (selected-window) buffer)
+            (dotimes (_ 20) (accept-process-output nil 0.05)))
+          (should-not (get-buffer-window lean4-info-buffer-name t)))
+      (when buffer (kill-buffer buffer))
+      (delete-other-windows))))
 
 ;;;; Files outside a project
 

@@ -117,9 +117,22 @@ whichever toolchain elan selects.
 Type =#check id= and the word =#check= is underlined; point on =id=
 reports its type through ElDoc.
 
-To view the proof state, run ~lean4-toggle-info~ (=C-c C-i=).  This
-displays the =*Lean Goal*= buffer, the counterpart of the Info-View
-pane in VS Code.
+The =*Lean Goal*= buffer, the counterpart of the Info-View pane in VS
+Code, appears by itself and shows the proof state at point.  It is
+displayed, not selected, so point stays in the file.  =C-c C-i= hides
+and shows it, and ~lean4-info-auto-open~ turns the automatic opening
+off.
+
+Where it appears is up to =display-buffer-alist=, as for any other
+buffer.  To put it in a side window on the right:
+
+#+begin_src elisp
+(add-to-list 'display-buffer-alist
+             '("\\`\\*Lean Goal\\*\\'"
+               (display-buffer-in-side-window)
+               (side . right)
+               (window-width . 0.4)))
+#+end_src
 
 ** Keys in a Lean buffer
 
@@ -192,6 +205,8 @@ Eglot's own configuration applies.
 - ~lean4-auto-start-server~ (default =t=) -- whether visiting a Lean
   file starts the language server.  Set to =nil= to start it by hand
   with =M-x eglot=.
+- ~lean4-info-auto-open~ (default =t=) -- whether the goal display
+  appears when a Lean file is opened, as VS Code's InfoView does.
 - ~lean4-info-interactive~ (default =t=) -- whether to fetch goals over
   Lean's interactive RPC.  With =nil=, goals are plain text and cannot
   be hovered or jumped from.

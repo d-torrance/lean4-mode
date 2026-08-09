@@ -210,9 +210,22 @@ whichever toolchain elan selects.
 Type @samp{#check id} and the word @samp{#check} is underlined; point on @samp{id}
 reports its type through ElDoc.
 
-To view the proof state, run @code{lean4-toggle-info} (@samp{C-c C-i}).  This
-displays the @samp{*Lean Goal*} buffer, the counterpart of the Info-View
-pane in VS Code.
+The @samp{*Lean Goal*} buffer, the counterpart of the Info-View pane in VS
+Code, appears by itself and shows the proof state at point.  It is
+displayed, not selected, so point stays in the file.  @samp{C-c C-i} hides
+and shows it, and @code{lean4-info-auto-open} turns the automatic opening
+off.
+
+Where it appears is up to @samp{display-buffer-alist}, as for any other
+buffer.  To put it in a side window on the right:
+
+@lisp
+(add-to-list 'display-buffer-alist
+             '("\\`\\*Lean Goal\\*\\'"
+               (display-buffer-in-side-window)
+               (side . right)
+               (window-width . 0.4)))
+@end lisp
 
 @menu
 * Keys in a Lean buffer::
@@ -340,6 +353,9 @@ Eglot's own configuration applies.
 @code{lean4-auto-start-server} (default @samp{t}) -- whether visiting a Lean
 file starts the language server.  Set to @samp{nil} to start it by hand
 with @samp{M-x eglot}.
+@item
+@code{lean4-info-auto-open} (default @samp{t}) -- whether the goal display
+appears when a Lean file is opened, as VS Code's InfoView does.
 @item
 @code{lean4-info-interactive} (default @samp{t}) -- whether to fetch goals over
 Lean's interactive RPC@.  With @samp{nil}, goals are plain text and cannot
