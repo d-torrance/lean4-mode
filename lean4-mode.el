@@ -51,6 +51,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'lisp-mnt)
 (require 'pcase)
 
 (require 'eri)
@@ -234,6 +235,139 @@ to be added or removed from the hook variable.")
     (re-search-forward
      (rx bol "Lean (version " (group (+ digit) (+ "." (+ digit)))))
     (version-to-list (match-string 1))))
+
+(defun lean4--library-version (library)
+  "Return the version of LIBRARY as a string, or a note saying it is absent.
+Prefers what package.el knows, since a built-in library carries no
+Version header worth reading."
+  (cond
+   ((not (locate-library (symbol-name library))) "NOT INSTALLED")
+   ((when-let* ((description (cadr (assq library package-alist))))
+      (package-version-join (package-desc-version description))))
+   ((ignore-errors
+      (lm-with-file (replace-regexp-in-string "\\.elc\\'" ".el"
+                                              (locate-library
+                                               (symbol-name library)))
+        (lm-header "version"))))
+   (t "built in")))
+
+(defun lean4--program-version (program)
+  "Return the first line PROGRAM prints for --version, or why it did not."
+  (let ((executable (lean4--program program)))
+    (if (not (or (file-name-absolute-p executable)
+                 (executable-find executable)))
+        (format "%s: not found on `exec-path'" executable)
+      (with-temp-buffer
+        (if (zerop (ignore-errors
+                     (call-process executable nil t nil "--version")))
+            (car (split-string (buffer-string) "\n"))
+          (format "%s: could not be run" executable))))))
+
+(defun lean4--diagnose-buffer ()
+  "Return the Lean buffer to report on: this one, or the likeliest other."
+  (if (derived-mode-p 'lean4-mode)
+      (current-buffer)
+    (seq-find (lambda (buffer)
+                (with-current-buffer buffer (derived-mode-p 'lean4-mode)))
+              (buffer-list))))
+
+;;;###autoload
+(defun lean4-diagnose ()
+  "Report how Lean4-Mode is set up, for troubleshooting.
+
+Reports on a Lean buffer even when run from elsewhere, since the answers
+that matter -- whether a server is running, and which -- are buffer
+local, and the buffer one happens to be in when the question arises is
+rarely the Lean one."
+  (interactive)
+  (let ((source (lean4--diagnose-buffer)))
+    (with-current-buffer (get-buffer-create "*lean4-diagnose*")
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert "Lean4-Mode setup\n"
+                "================\n\n")
+        (insert (format "Emacs           %s\n" emacs-version))
+        (dolist (library '(eglot eri magit-section jsonrpc))
+          (insert (format "%-15s %s\n" library
+                          (lean4--library-version library))))
+        (insert (format "%-15s %s\n" "lean4-mode"
+                        (lean4--library-version 'lean4-mode)))
+        (insert "\n")
+        (insert (format "%-15s %s\n" "lean"
+                        (lean4--program-version lean4-executable-name)))
+        (insert (format "%-15s %s\n" "lake"
+                        (lean4--program-version lean4-lake-name)))
+        (insert "\n")
+        (if (not source)
+            (insert "No Lean buffer is open, so there is nothing more to say.\n")
+          ;; Everything below is read in the Lean buffer and written here.
+          ;; Inserting while that buffer is current would write the report
+          ;; into the user's source file.
+          (let (facts diagnostics)
+            (with-current-buffer source
+              (let ((server (eglot-current-server)))
+                (setq facts
+                      (list (cons "Buffer" (buffer-name))
+                            (cons "Workspace"
+                                  (or (lean4--workspace-root) "none found"))
+                            (cons "Toolchain"
+                                  (or (lean4--toolchain-string)
+                                      "no lean-toolchain"))
+                            (cons "Server command"
+                                  (format "%S" (lean4--server-command
+                                                (lean4--workspace-root))))
+                            (cons "Server"
+                                  (if server
+                                      (format "%s" (eieio-object-class server))
+                                    "NOT RUNNING"))
+                            (cons "Lean extensions"
+                                  (if server
+                                      (format "%S"
+                                              (thread-first
+                                                (eglot--capabilities server)
+                                                (plist-get :experimental)))
+                                    "n/a"))
+                            (cons "Silent filter"
+                                  (if (lean4--silent-filter-installed-p)
+                                      "installed" "MISSING"))))
+                (setq diagnostics
+                      (mapcar (lambda (diagnostic)
+                                (let ((raw (lean4-diagnostic-lsp-data
+                                            diagnostic)))
+                                  (format "%-14s silent=%-5s tags=%-6s %s"
+                                          (flymake-diagnostic-type diagnostic)
+                                          (plist-get raw :isSilent)
+                                          (plist-get raw :leanTags)
+                                          (car (split-string
+                                                (lean4-diagnostic-message
+                                                 diagnostic)
+                                                "\n")))))
+                              (flymake-diagnostics)))))
+            (pcase-dolist (`(,label . ,value) facts)
+              (insert (format "%-15s %s\n" label value)))
+            (insert "\nDiagnostics\n-----------\n")
+            (if (null diagnostics)
+                (insert "none\n")
+              (dolist (line diagnostics) (insert line "\n")))))
+        (goto-char (point-min))
+        (special-mode))
+      (display-buffer (current-buffer)))))
+
+(defun lean4--toolchain-string ()
+  "Return the contents of the workspace's lean-toolchain file, or nil."
+  (when-let* ((root (lean4--workspace-root))
+              (file (expand-file-name "lean-toolchain" root))
+              ((file-readable-p file)))
+    (with-temp-buffer
+      (insert-file-contents file)
+      (string-trim (buffer-string)))))
+
+(defun lean4--silent-filter-installed-p ()
+  "Return non-nil if the silent-diagnostic filter is in place.
+Tested by whether its library is loaded rather than by looking the
+method up: `cl-find-method' wants specializer objects and is easy to
+call wrongly, and the library defines the method unconditionally."
+  (featurep 'lean4-diagnostics))
 
 (defun lean4-show-version ()
   "Print Lean 4 version."

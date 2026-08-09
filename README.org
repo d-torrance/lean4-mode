@@ -245,6 +245,18 @@ None of these are required, and none are declared as dependencies.
 - =company= or =corfu= -- a completion interface.
 - =consult-eglot= -- searching workspace symbols.
 
+* Troubleshooting
+
+=M-x lean4-diagnose= reports how things are set up: the versions of
+Emacs and of each dependency, the Lean and Lake executables it found,
+the workspace root and its toolchain, the command used to start the
+server and whether one is running, and the diagnostics currently in the
+buffer with Lean's own fields on each.  It reports on a Lean buffer even
+when run from somewhere else.
+
+Include its output when reporting a problem; the counterpart in VS Code
+is "Troubleshooting: Show Setup Information".
+
 * Common Pitfalls
 
 Lean4-Mode only supports version 4 of Lean.  For editing Lean version

@@ -35,6 +35,7 @@ leanprover-community organization; see *note Acknowledgements::.
 * Installation::
 * Usage::
 * Configuration::
+* Troubleshooting::
 * Common Pitfalls::
 * Acknowledgements::
 
@@ -309,7 +310,7 @@ buffer - Eglot's, and one for the Unicode abbreviations, so that typing
 Lean input method replaces it as soon as it is unambiguous.
 
 
-File: lean4-mode.info,  Node: Configuration,  Next: Common Pitfalls,  Prev: Usage,  Up: Top
+File: lean4-mode.info,  Node: Configuration,  Next: Troubleshooting,  Prev: Usage,  Up: Top
 
 3 Configuration
 ***************
@@ -383,9 +384,25 @@ None of these are required, and none are declared as dependencies.
    • ‘consult-eglot’ - searching workspace symbols.
 
 
-File: lean4-mode.info,  Node: Common Pitfalls,  Next: Acknowledgements,  Prev: Configuration,  Up: Top
+File: lean4-mode.info,  Node: Troubleshooting,  Next: Common Pitfalls,  Prev: Configuration,  Up: Top
 
-4 Common Pitfalls
+4 Troubleshooting
+*****************
+
+‘M-x lean4-diagnose’ reports how things are set up: the versions of
+Emacs and of each dependency, the Lean and Lake executables it found,
+the workspace root and its toolchain, the command used to start the
+server and whether one is running, and the diagnostics currently in the
+buffer with Lean's own fields on each.  It reports on a Lean buffer even
+when run from somewhere else.
+
+   Include its output when reporting a problem; the counterpart in VS
+Code is "Troubleshooting: Show Setup Information".
+
+
+File: lean4-mode.info,  Node: Common Pitfalls,  Next: Acknowledgements,  Prev: Troubleshooting,  Up: Top
+
+5 Common Pitfalls
 *****************
 
 Lean4-Mode only supports version 4 of Lean.  For editing Lean version 3,
@@ -399,7 +416,7 @@ major mode.
 
 File: lean4-mode.info,  Node: Acknowledgements,  Prev: Common Pitfalls,  Up: Top
 
-5 Acknowledgements
+6 Acknowledgements
 ******************
 
 Lean4-Mode was begun by Leonardo de Moura, Soonho Kong, Gabriel Ebner
@@ -423,25 +440,26 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation1743
-Node: Requirements1968
-Node: From source2716
-Node: With a source-based package manager3204
-Node: Native vc (Emacs 30 or later)3715
-Node: Doom-Emacs4160
-Node: Straight4479
-Node: Upgrading from version 14836
-Node: Usage6133
-Node: Keys in a Lean buffer7417
-Node: Keys in the goal display8842
-Node: Errors and warnings10348
-Node: Completion10943
-Node: Configuration11545
-Node: Frequently used options11928
-Node: Semantic highlighting13402
-Node: Optional packages13988
-Node: Common Pitfalls14481
-Node: Acknowledgements15080
+Node: Installation1763
+Node: Requirements1988
+Node: From source2736
+Node: With a source-based package manager3224
+Node: Native vc (Emacs 30 or later)3735
+Node: Doom-Emacs4180
+Node: Straight4499
+Node: Upgrading from version 14856
+Node: Usage6153
+Node: Keys in a Lean buffer7437
+Node: Keys in the goal display8862
+Node: Errors and warnings10368
+Node: Completion10963
+Node: Configuration11565
+Node: Frequently used options11948
+Node: Semantic highlighting13422
+Node: Optional packages14008
+Node: Troubleshooting14501
+Node: Common Pitfalls15151
+Node: Acknowledgements15752
 
 End Tag Table
 
