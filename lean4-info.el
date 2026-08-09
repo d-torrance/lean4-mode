@@ -130,7 +130,10 @@ and will hold the memory until told otherwise.")
   "TAB" #'lean4-info-toggle-fold
   "C-c C-t" #'lean4-info-goto-type-definition
   "C-c C-SPC" #'lean4-info-toggle-pause
-  "C-c C-s" #'lean4-info-toggle-pin)
+  "C-c C-s" #'lean4-info-toggle-pin
+  "C-c C-o" #'lean4-info-toggle-message-order
+  "C-c C-a" #'lean4-info-toggle-all-messages-pause
+  "C-c C-g" #'lean4-info-refresh-paused)
 
 (defun lean4-info-return ()
   "Act on whatever point is on.
@@ -511,14 +514,19 @@ text cursor\" under the name Emacs uses for the same thing."
   :type '(choice (const :tag "By position in the file" location)
                  (const :tag "By nearness to point" point)))
 
+(defcustom lean4-info-sort-icon nil
+  "Control for the order the file's messages are listed in.
+Nil means pick whichever candidate the frame can display."
+  :group 'lean4-info
+  :type '(choice (const :tag "Choose to suit the frame" nil) string))
+
 (defun lean4-info-sort-glyph ()
-  "Return the control showing how the messages are ordered."
-  ;; Unlike the pin and pause controls, this shows the state rather than
-  ;; the action: a sort control is read the way a sorted column heading
-  ;; is, and what it says has to be what is true of the list below it.
-  (if (eq lean4-info-message-order 'point)
-      (lean4-info--glyph nil '("⌖" "◎") "near")
-    (lean4-info--glyph nil '("⇅" "↕") "file")))
+  "Return the control for the order the messages are listed in."
+  ;; One glyph for both orders, as in VS Code.  Neither order is the
+  ;; action and neither is a state the reader has to be warned about, so
+  ;; the face carries which is in force and the tooltip says what a click
+  ;; would change it to.
+  (lean4-info--glyph lean4-info-sort-icon '("⇅" "↕") "S"))
 
 ;;;###autoload
 (defun lean4-info-toggle-message-order ()
@@ -1183,6 +1191,27 @@ Nil means pick whichever candidate the frame can display."
   :group 'lean4-info
   :type '(choice (const :tag "Choose to suit the frame" nil) string))
 
+(defcustom lean4-info-refresh-icon nil
+  "Control that updates a paused display once.
+Nil means pick whichever candidate the frame can display."
+  :group 'lean4-info
+  :type '(choice (const :tag "Choose to suit the frame" nil) string))
+
+(defun lean4-info-refresh-glyph ()
+  "Return the refresh control for this frame."
+  (lean4-info--glyph lean4-info-refresh-icon '("⟳" "↻" "⭮") "R"))
+
+;;;###autoload
+(defun lean4-info-refresh-paused ()
+  "Bring a paused display up to date, without unpausing it.
+
+Pausing is for reading something while working elsewhere, which does not
+always mean wanting it stale for good.  This is VS Code's \"refresh
+paused state\"."
+  (interactive)
+  (lean4-info--redisplay-source)
+  (lean4-info-buffer-refresh))
+
 (defun lean4-info-goto-glyph ()
   "Return the go-to-position control for this frame."
   ;; VS Code uses a codicon of a page with an arrow leaving it.  Unicode
@@ -1285,6 +1314,16 @@ would do nothing and only take up room."
   "Return the goal display's controls, as one string."
   (concat
    (lean4-info--pin-goto-button)
+   ;; Only while paused: nothing else leaves the display out of date, so
+   ;; anywhere else this would be a control with nothing to do.  Between
+   ;; the way back to the pinned position and the pin, as in VS Code.
+   (if lean4-info-paused
+       (concat (lean4-info--button
+                (lean4-info-refresh-glyph)
+                "mouse-1: bring the paused display up to date"
+                #'lean4-info-refresh-paused)
+               "  ")
+     "")
    (lean4-info--button
     (if lean4-info--pin
         (lean4-info-unpin-glyph)

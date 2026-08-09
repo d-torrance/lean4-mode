@@ -559,6 +559,23 @@ control offers by mouse, the file name being a label now."
         (lean4-info-return)
         (should-not lean4-info-paused)))))
 
+(ert-deftest lean4-info-refresh-control-appears-only-while-paused ()
+  "Nothing else leaves the display out of date, so nothing else offers this."
+  (with-temp-buffer
+    (rename-buffer "Refresh.lean" 'unique)
+    (let ((lean4-info--pin nil))
+      (let* ((lean4-info-paused nil)
+             (heading (substring-no-properties
+                       (lean4-info--heading (lean4-info--location-string)))))
+        (should-not (string-search (lean4-info-refresh-glyph) heading)))
+      (let* ((lean4-info-paused t)
+             (heading (substring-no-properties
+                       (lean4-info--heading (lean4-info--location-string)))))
+        (should (string-search (lean4-info-refresh-glyph) heading))
+        ;; Before the pause control it belongs to, and before the pin.
+        (should (< (string-search (lean4-info-refresh-glyph) heading)
+                   (string-search (lean4-info-pin-glyph) heading)))))))
+
 (ert-deftest lean4-info-messages-are-ordered-by-where-they-start ()
   "Two messages about one declaration come out as they are written.
 
@@ -580,12 +597,15 @@ order they start in."
     (let ((lean4-info-message-order 'point))
       (should (equal (lean4-info--sort-messages both 40) (list near far))))))
 
-(ert-deftest lean4-info-sort-control-shows-the-order-in-force ()
-  "Unlike pin and pause, a sort control has to say what is true now."
-  (let ((lean4-info-message-order 'location))
-    (let ((by-file (lean4-info-sort-glyph)))
-      (let ((lean4-info-message-order 'point))
-        (should-not (equal by-file (lean4-info-sort-glyph)))))))
+(ert-deftest lean4-info-sort-control-keeps-one-glyph ()
+  "One glyph for both orders, as in VS Code; the face carries the state."
+  (let ((by-file (let ((lean4-info-message-order 'location))
+                   (lean4-info-sort-glyph)))
+        (by-point (let ((lean4-info-message-order 'point))
+                    (lean4-info-sort-glyph))))
+    (should (equal by-file by-point)))
+  (let ((lean4-info-sort-icon "%"))
+    (should (equal (lean4-info-sort-glyph) "%"))))
 
 (ert-deftest lean4-info-caption-can-carry-controls ()
   "The file's message heading has room for its own controls."

@@ -152,6 +152,9 @@ and which is what this mode did before."
   "C-c C-r"     #'eglot-reconnect
   "C-c C-s"     #'lean4-info-toggle-pin
   "C-c C-SPC"   #'lean4-info-toggle-pause
+  "C-c C-o"     #'lean4-info-toggle-message-order
+  "C-c C-a"     #'lean4-info-toggle-all-messages-pause
+  "C-c C-g"     #'lean4-info-refresh-paused
   "TAB"         #'lean4-tab-indent)
 
 (easy-menu-define lean4-mode-menu lean4-mode-map
@@ -170,6 +173,16 @@ and which is what this mode did before."
      :label (if lean4-info-paused
                 "Unpause goal display"
               "Pause goal display")]
+    ["Refresh paused display" lean4-info-refresh-paused
+     :enable lean4-info-paused]
+    ["Pause all messages" lean4-info-toggle-all-messages-pause
+     :label (if lean4-info-all-messages-paused
+                "Unpause all messages"
+              "Pause all messages")]
+    ["Order all messages" lean4-info-toggle-message-order
+     :label (if (eq lean4-info-message-order 'point)
+                "Order all messages by position in the file"
+              "Order all messages by nearness to point")]
     ["List of errors"       flymake-show-buffer-diagnostics   flymake-mode]
     ["Restart lean process" eglot-reconnect                   t]
     ["Customize lean4-mode" (customize-group 'lean4)          t]))
