@@ -148,7 +148,8 @@ Also choose settings used for the *Lean Goal* buffer."
       (add-hook 'post-command-hook
                 #'lean4-info-highlight-subterm nil 'local)
       (eldoc-mode 1)
-      (setq buffer-read-only t))))
+      (setq buffer-read-only t)
+      (lean4-info--update-header))))
 
 (defun lean4-toggle-info-buffer (buffer)
   "Create or delete BUFFER.
@@ -299,6 +300,23 @@ empty."
                                             lean4-info--trace-expansion))
                     "\n")))))))
 
+(defun lean4-info--add-visibility-indicators ()
+  "Draw the fold indicators on the sections just inserted.
+
+`magit-section' updates them only from `magit-section-show' and
+`magit-section-hide', so a section that has never been toggled carries
+no indicator: the buffer looks as though nothing folds until something
+is folded, after which that one section gains a chevron and the rest
+still do not."
+  (when (and (fboundp 'magit-section-maybe-update-visibility-indicator)
+             (bound-and-true-p magit-root-section))
+    (letrec ((walk
+              (lambda (section)
+                (magit-section-maybe-update-visibility-indicator section)
+                (dolist (child (oref section children))
+                  (funcall walk child)))))
+      (funcall walk magit-root-section))))
+
 (defun lean4-info-buffer-redisplay (&optional force)
   "Re-render the Lean info buffer from the last goals and diagnostics.
 
@@ -349,7 +367,8 @@ Lean buffer to be the selected one, which it is not in that case."
             (lean4-info--mk-message-section
              'errors-below "Messages below:" below buffer)
             (lean4-info--mk-message-section
-             'errors-above "Messages above:" above buffer)))))))
+             'errors-above "Messages above:" above buffer))
+          (lean4-info--add-visibility-indicators))))))
 
 ;;;; Refresh
 
@@ -555,26 +574,66 @@ the pinned location rather than at point."
 ;; header line, because a goal buffer that has quietly stopped following
 ;; point is indistinguishable from a broken one.
 
+(defface lean4-info-button
+  '((t :inherit mode-line-buffer-id))
+  "Face for the clickable controls in the goal display's header line."
+  :group 'lean4-info)
+
+(defun lean4-info--button (label help command)
+  "Return LABEL as a header-line button running COMMAND, described by HELP."
+  (propertize
+   label
+   'face 'lean4-info-button
+   'mouse-face 'highlight
+   'help-echo help
+   'keymap (let ((map (make-sparse-keymap)))
+             ;; `header-line' has to be in the event prefix: a header-line
+             ;; click is not a plain mouse-1.
+             (keymap-set map "<header-line> <mouse-1>" command)
+             map)))
+
+(defun lean4-info--pinned-description ()
+  "Describe where the display is pinned, or nil if it is not."
+  (when lean4-info--pin
+    (let ((source (marker-buffer lean4-info--pin)))
+      (if (buffer-live-p source)
+          (format "%s:%d" (buffer-name source)
+                  (with-current-buffer source
+                    (line-number-at-pos lean4-info--pin)))
+        "a closed buffer"))))
+
 (defun lean4-info--update-header ()
-  "Show the pinned or paused state in the info buffer's header line."
+  "Rebuild the goal display's header line.
+
+Always present, because it carries the controls as well as the state:
+VS Code puts pin and pause where you are already looking, and a control
+that only appears once you have found the keybinding is not much of a
+control."
   (when-let* ((buffer (get-buffer lean4-info-buffer-name)))
     (with-current-buffer buffer
       (setq header-line-format
-            (cond
-             (lean4-info-paused
-              (propertize " Paused " 'face 'warning))
-             (lean4-info--pin
-              (let ((source (marker-buffer lean4-info--pin)))
-                (propertize
-                 (format " Pinned to %s:%s "
-                         (if (buffer-live-p source)
-                             (buffer-name source)
-                           "a closed buffer")
-                         (if (buffer-live-p source)
-                             (with-current-buffer source
-                               (line-number-at-pos lean4-info--pin))
-                           "?"))
-                 'face 'warning)))))
+            (list
+             " "
+             (lean4-info--button
+              (if lean4-info--pin "[Unpin]" "[Pin]")
+              (if lean4-info--pin
+                  "mouse-1: follow point again"
+                "mouse-1: keep showing this position")
+              #'lean4-info-toggle-pin)
+             " "
+             (lean4-info--button
+              (if lean4-info-paused "[Unpause]" "[Pause]")
+              (if lean4-info-paused
+                  "mouse-1: start updating again"
+                "mouse-1: stop updating")
+              #'lean4-info-toggle-pause)
+             (cond
+              (lean4-info-paused (propertize "  Paused" 'face 'warning))
+              (lean4-info--pin
+               (propertize (format "  Pinned to %s"
+                                   (lean4-info--pinned-description))
+                           'face 'warning))
+              (t ""))))
       (force-mode-line-update))))
 
 ;;;###autoload

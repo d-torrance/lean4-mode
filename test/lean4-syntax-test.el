@@ -139,5 +139,48 @@ see the whole thing as one symbol.  That is a known limitation."
   (lean4-syntax-test--with-buffer ""
     (should (equal (string-trim comment-start) "--"))))
 
+;;;; Menu
+
+(defun lean4-syntax-test--menu-item (command)
+  "Return the `menu-item' entry bound to COMMAND in the Lean menu."
+  (let ((submenu (lookup-key lean4-mode-map
+                             (vector 'menu-bar (intern "lean 4"))))
+        found)
+    (when (keymapp submenu)
+      (map-keymap (lambda (_key item)
+                    (when (and (consp item) (memq command item))
+                      (setq found item)))
+                  submenu))
+    found))
+
+(ert-deftest lean4-menu-pin-label-is-dynamic ()
+  "The pin menu item says what the next invocation will do.
+
+Regression test.  Easymenu has two vector forms -- [NAME CMD ENABLE]
+and [NAME CMD :keyword value ...] -- and mixing them silently drops
+every keyword after the positional ENABLE.  Written that way the label
+was a constant string, so the menu offered to pin whatever the state.
+Easymenu puts a dynamic label in place of the item name, so what this
+checks is that the name is a form rather than a string."
+  (let ((item (lean4-syntax-test--menu-item 'lean4-info-toggle-pin)))
+    (should item)
+    (should-not (stringp (nth 1 item)))
+    (should (consp (nth 1 item)))
+    ;; And that it actually reads both ways.
+    (let ((lean4-info--pin nil))
+      (should (equal (eval (nth 1 item) t) "Pin goal display")))
+    (let ((lean4-info--pin (point-marker)))
+      (should (equal (eval (nth 1 item) t) "Unpin goal display")))))
+
+(ert-deftest lean4-menu-pause-label-is-dynamic ()
+  "The pause menu item likewise says what it will do."
+  (let ((item (lean4-syntax-test--menu-item 'lean4-info-toggle-pause)))
+    (should item)
+    (should (consp (nth 1 item)))
+    (let ((lean4-info-paused nil))
+      (should (equal (eval (nth 1 item) t) "Pause goal display")))
+    (let ((lean4-info-paused t))
+      (should (equal (eval (nth 1 item) t) "Unpause goal display")))))
+
 (provide 'lean4-syntax-test)
 ;;; lean4-syntax-test.el ends here

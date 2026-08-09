@@ -158,11 +158,14 @@ and which is what this mode did before."
   `("Lean 4"
     ["Execute lean"         lean4-execute                     t]
     ["Toggle info display"  lean4-toggle-info                 t]
-    ;; `:label' is evaluated each time the menu is opened, so these say
-    ;; what the next invocation will do rather than naming the command.
-    ["Pin goal display"     lean4-info-toggle-pin             t
+    ;; `:label' is evaluated each time the menu is drawn, so these say what
+    ;; the next invocation will do rather than naming the command.  Note
+    ;; that easymenu's two vector forms cannot be mixed: ["NAME" CMD ENABLE]
+    ;; or ["NAME" CMD :keyword value ...], never a positional ENABLE
+    ;; followed by keywords, which are silently dropped.
+    ["Pin goal display" lean4-info-toggle-pin
      :label (if lean4-info--pin "Unpin goal display" "Pin goal display")]
-    ["Pause goal display"   lean4-info-toggle-pause           t
+    ["Pause goal display" lean4-info-toggle-pause
      :label (if lean4-info-paused
                 "Unpause goal display"
               "Pause goal display")]

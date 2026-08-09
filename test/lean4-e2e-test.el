@@ -778,7 +778,10 @@ A goal buffer that has quietly stopped updating looks broken."
               (should (string-search "Paused" (format "%s" header-line-format))))
             (lean4-info-toggle-pause)
             (with-current-buffer lean4-info-buffer-name
-              (should-not header-line-format))
+              ;; The header line stays: it carries the controls as well as
+              ;; the state.  What goes away is the word.
+              (should-not (string-search "Paused"
+                                         (format "%s" header-line-format))))
             (lean4-e2e--goto-line lean4-e2e--sorry-line)
             (lean4-info-toggle-pin)
             (with-current-buffer lean4-info-buffer-name
