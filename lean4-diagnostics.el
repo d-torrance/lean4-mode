@@ -68,10 +68,7 @@
 
 ;;;; Capabilities
 
-;; Announce what we can handle.  Lean checks each of these before sending
-;; the corresponding field, so asking is what turns the feature on.
-;;
-;; `incrementalDiagnosticSupport' is deliberately *not* asked for.  It is not
+;; `incrementalDiagnosticSupport' is deliberately not asked for.  It is not
 ;; a hint: with it, Lean starts sending partial batches marked
 ;; `isIncremental' that the client is required to append to what it already
 ;; has.  Eglot replaces instead, so each batch discards the previous one and
@@ -80,6 +77,13 @@
 ;; warning as soon as the type error further down arrived.  Honouring it
 ;; needs version-keyed accumulation ahead of Eglot's own handler; until that
 ;; exists, not asking is what keeps diagnostics correct.
+;;
+;; `silentDiagnosticSupport' *is* asked for, and both halves of that matter.
+;; Without the capability Lean withholds silent diagnostics entirely -- drop
+;; it and the "Goals accomplished!" report vanishes.  But asking is not
+;; enough either: silent diagnostics are never *pushed*.  They arrive only
+;; through `Lean.Widget.getInteractiveDiagnostics'.  Both verified against
+;; Lean 4.32.2 by removing each in turn.
 (setq lean4-client-capabilities
       (append lean4-client-capabilities '(:silentDiagnosticSupport t)))
 
@@ -122,22 +126,17 @@ before they are filtered away."
           (overlay-put overlay 'evaporate t)
           (push overlay lean4-diagnostics--accomplished-overlays))))))
 
-(cl-defmethod eglot-handle-notification :around
-  ((server lean4-eglot-lsp-server)
-   (method (eql textDocument/publishDiagnostics))
-   &rest params &key uri diagnostics &allow-other-keys)
-  "Act on Lean's own diagnostic fields, then hand the rest to Eglot.
+(defun lean4-diagnostics-update-markers (diagnostics)
+  "Refresh the goals-accomplished markers from DIAGNOSTICS.
 
-Silent diagnostics are dropped: Lean uses them to tell the InfoView
-things -- notably that a proof is complete -- that must not appear as
-squiggles in the editor.  Their tags are read first, because that is
-where the goals-accomplished marker comes from."
-  (lean4-with-uri-buffers server uri
-    (lean4-diagnostics--mark-accomplished diagnostics))
-  (let ((visible (seq-remove #'lean4-diagnostics-silent-p
-                             (append diagnostics nil))))
-    (apply #'cl-call-next-method server method
-           (plist-put (copy-sequence params) :diagnostics (vconcat visible)))))
+DIAGNOSTICS must be the *interactive* ones, from
+`Lean.Widget.getInteractiveDiagnostics'.  That is not a detail: Lean
+reports a finished proof as a silent diagnostic, and silent diagnostics
+are precisely the ones it does not push over
+`textDocument/publishDiagnostics'.  Verified against Lean 4.32.2, where
+`isSilent' and `leanTags' appear on the interactive diagnostics and on
+no pushed one."
+  (lean4-diagnostics--mark-accomplished diagnostics))
 
 ;;;; Navigation
 

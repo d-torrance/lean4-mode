@@ -6,14 +6,10 @@
 
 ;;; Commentary:
 
-;; Lean 4.32.2 does not set `leanTags' or `isSilent' on the diagnostics it
-;; produces for this package's fixture, even though the `:lean' capability
-;; block reaches it -- confirmed by the server echoing back the RPC wire
-;; format negotiated in the same block.  So these fields are exercised here
-;; with synthetic diagnostics of the documented shape rather than end to end.
-;;
-;; That is a deliberate limit on what is claimed: the handling is correct if
-;; a server sends the fields, and does nothing if it does not.
+;; The predicates are exercised here with synthetic diagnostics of the
+;; documented shape.  That they fire on real data is covered end to end in
+;; lean4-e2e-test.el, against the *interactive* diagnostics -- which is the
+;; only place Lean puts `isSilent' and `leanTags'.
 
 ;;; Code:
 
@@ -52,7 +48,13 @@ back without implementing version-keyed accumulation first."
                          :incrementalDiagnosticSupport)))
 
 (ert-deftest lean4-diagnostics-requests-silent-support ()
-  "`silentDiagnosticSupport' is advertised, since it is acted on."
+  "`silentDiagnosticSupport' is advertised.
+
+Regression test.  Without it Lean withholds silent diagnostics
+altogether and the \"Goals accomplished!\" report never arrives --
+verified against 4.32.2 by removing it.  Asking is only half of it: they
+are never pushed either, and reach us only through
+`Lean.Widget.getInteractiveDiagnostics'."
   (should (plist-get lean4-client-capabilities :silentDiagnosticSupport)))
 
 (provide 'lean4-diagnostics-test)

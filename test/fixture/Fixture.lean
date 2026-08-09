@@ -8,3 +8,8 @@ theorem admitted : 2 + 2 = 4 := by
   sorry
 
 def bad : Nat := "not a number"
+
+-- Produces a nested, collapsible trace.  Appended at the end so the line
+-- numbers asserted above stay valid.
+set_option trace.Meta.synthInstance true in
+example : Inhabited (Nat × Nat) := inferInstance

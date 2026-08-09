@@ -48,6 +48,7 @@
 (require 'xref)
 
 (require 'lean4-eglot)
+(require 'lean4-diagnostics)
 (require 'lean4-render)
 (require 'lean4-rpc)
 (require 'lean4-settings)
@@ -413,7 +414,19 @@ Returns RENDERED so this can wrap a render call."
        (receive (lambda (result)
                   (setq lean4-term-goal (lean4-render-term-goal result)))
                 (lambda (result)
-                  (lean4-render-collect-refs (plist-get result :type))))))))
+                  (lean4-render-collect-refs (plist-get result :type)))))
+      ;; Interactive diagnostics carry the fields Lean never pushes:
+      ;; `isSilent' and `leanTags', and so the report that a proof is
+      ;; complete.  Fetched here rather than from a notification handler
+      ;; because this is the one place already holding an RPC handle.
+      (lean4-rpc-get-interactive-diagnostics
+       handle
+       (lambda (diagnostics)
+         (when (buffer-live-p buffer)
+           (with-current-buffer buffer
+             (when (eq generation lean4-info--generation)
+               (lean4-diagnostics-update-markers diagnostics)))))
+       #'ignore))))
 
 (defun lean4-info--refresh-plain (server generation)
   "Fetch goals as plain text from SERVER, dropping replies before GENERATION."

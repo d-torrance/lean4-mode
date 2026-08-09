@@ -22,6 +22,7 @@
 (require 'lean4-mode)
 (require 'lean4-rpc)
 (require 'lean4-render)
+(require 'lean4-diagnostics)
 
 (defconst lean4-e2e--fixture-directory
   (expand-file-name
@@ -38,6 +39,8 @@
 The goal stands *at* the token: just past it Lean reports \"no goals\",
 so these tests place point at the start of the line's indentation.")
 (defconst lean4-e2e--error-line 9 "Line of the type error in the fixture.")
+(defconst lean4-e2e--trace-line 14
+  "Line of the declaration producing a nested trace in the fixture.")
 
 (defconst lean4-e2e--timeout 180
   "Seconds to allow for the server to start and elaborate the fixture.
@@ -437,6 +440,65 @@ This is what makes \\[xref-find-definitions] work in the goal buffer."
        (lambda ()
          (with-current-buffer lean4-info-buffer-name
            (string-search "goals accomplished" (buffer-string))))))))
+
+;;;; Interactive diagnostics
+
+(ert-deftest lean4-e2e-interactive-diagnostics-carry-lean-fields ()
+  "`isSilent' and `leanTags' arrive on the interactive diagnostics.
+
+They are on no pushed diagnostic: Lean does not send silent ones over
+`textDocument/publishDiagnostics' at all.  Reading them from the wrong
+source is why the goals-accomplished marker first did nothing."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--sorry-line)
+    (back-to-indentation)
+    (let* ((handle (lean4-rpc-open))
+           (diagnostics
+            (lean4-e2e--rpc
+             (lambda (success failure)
+               (lean4-rpc-get-interactive-diagnostics handle success failure))))
+           (accomplished
+            (seq-find #'lean4-diagnostics-goals-accomplished-p
+                      (append diagnostics nil))))
+      ;; The fixture's first theorem is proved outright.
+      (should accomplished)
+      (should (lean4-diagnostics-silent-p accomplished)))))
+
+(ert-deftest lean4-e2e-has-widgets-yields-structured-messages ()
+  "With `hasWidgets', messages arrive as trees rather than flat text.
+
+Without it Lean pre-renders everything: no `MsgEmbed' tags at all, so a
+trace cannot be folded and a term inside an error message cannot be
+hovered.  This asserts both embeds the fixture produces."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--trace-line)
+    (back-to-indentation)
+    (let* ((handle (lean4-rpc-open))
+           (diagnostics
+            (lean4-e2e--rpc
+             (lambda (success failure)
+               (lean4-rpc-get-interactive-diagnostics handle success failure))))
+           embeds)
+      (letrec ((walk
+                (lambda (node)
+                  (cond
+                   ((null node))
+                   ((plist-member node :append)
+                    (seq-doseq (child (plist-get node :append))
+                      (funcall walk child)))
+                   ((plist-member node :tag)
+                    (let ((embed (elt (plist-get node :tag) 0)))
+                      (dolist (key '(:expr :trace :goal))
+                        (when (plist-member embed key) (push key embeds))))
+                    (funcall walk (elt (plist-get node :tag) 1)))))))
+        (seq-doseq (diagnostic diagnostics)
+          (funcall walk (plist-get diagnostic :message))))
+      ;; A term inside the type-mismatch message, and the synthInstance
+      ;; trace at the end of the fixture.
+      (should (memq :expr embeds))
+      (should (memq :trace embeds)))))
 
 ;;;; Pinning and pausing
 

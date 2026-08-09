@@ -144,6 +144,18 @@ The decision is made from the workspace root instead."
                (cons '(lean4-mode :language-id "lean4")
                      #'lean4--server-contact)))
 
+;;;; Initialization options
+
+(cl-defmethod eglot-initialization-options
+  ((_server lean4-eglot-lsp-server))
+  "Tell Lean this client can display interactive content.
+
+Without `hasWidgets', the server flattens messages before sending them:
+traces arrive as pre-indented text rather than as tree nodes, and no
+`MsgEmbed' tags appear at all, so nothing in a message can be folded or
+interacted with."
+  (list :hasWidgets t))
+
 ;;;; Client capabilities
 
 (defvar lean4-client-capabilities
