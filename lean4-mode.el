@@ -16,7 +16,7 @@
 ;; Package-Requires: ((emacs "29.1") (eglot "1.12") (eri "1.0") (magit-section "3.3.0"))
 ;; URL: https://github.com/leanprover-community/lean4-mode
 ;; SPDX-License-Identifier: Apache-2.0
-;; Version: 2.0.0-pre
+;; Version: 2.0.0
 
 ;; This file is not part of GNU Emacs.
 

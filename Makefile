@@ -12,7 +12,8 @@ EL    = $(wildcard lean4-*.el)
 ELC   = $(EL:.el=.elc)
 TESTS = $(wildcard test/lean4-*-test.el)
 
-.PHONY: all help deps compile checkdoc lint test e2e docs clean distclean
+.PHONY: all help deps compile checkdoc lint test e2e docs abbreviations \
+	clean distclean
 
 all: compile checkdoc test
 
@@ -25,6 +26,7 @@ help:
 	@echo '  test      run the ERT suite (no language server required)'
 	@echo '  e2e       run the end-to-end suite against a real "lake serve"'
 	@echo '  docs      regenerate lean4-mode.texi and lean4-mode.info'
+	@echo '  abbreviations  refresh data/abbreviations.json from vscode-lean4'
 	@echo '  clean     remove byte-compiled files'
 
 deps:
@@ -51,6 +53,13 @@ test: compile
 e2e: compile
 	@$(BATCH) -L test -l test/lean4-e2e-test.el \
 	  --eval "(ert-run-tests-batch-and-exit '(tag :e2e))"
+
+# The table stays checked in -- package managers need it, and a build that
+# reaches the network is a build that fails offline -- but refreshing it
+# should not be manual.  .github/workflows/update-abbr.yml does this on a
+# schedule; this is the same thing by hand.
+abbreviations:
+	@$(BATCH) -l build.el -f lean4-build-abbreviations
 
 # GNU- and NonGNU-Elpa accept Org files as package documentation but Melpa
 # does not.  As long as lean4-mode is not distributed on GNU- or NonGNU-Elpa,

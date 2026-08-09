@@ -77,6 +77,55 @@ Makefile never has to be kept in sync with it by hand."
         (package-install name)))))
   (kill-emacs 0))
 
+;;; Abbreviations
+
+(defconst lean4-build--abbreviations-url
+  "https://raw.githubusercontent.com/leanprover/vscode-lean4/master/lean4-unicode-input/src/abbreviations.json"
+  "Where the Unicode abbreviation table is maintained.
+It belongs to the VS Code extension; keeping our copy in step with it is
+what stops the two editors disagreeing about what \\=\\alpha means.")
+
+(defun lean4-build-abbreviations ()
+  "Refresh data/abbreviations.json from vscode-lean4.
+
+The file stays checked in -- package managers need it present, and a
+build that reaches the network is a build that fails on a train -- but
+refreshing it should not be a manual copy-and-paste.  The CI workflow
+in .github/workflows/update-abbr.yml does the same thing on a schedule.
+
+Entries containing $CURSOR are dropped: that is the extension's way of
+saying where to leave point after expanding, and Quail has no
+equivalent, so keeping them would insert the literal text."
+  (require 'url)
+  (require 'json)
+  (let ((target (expand-file-name "data/abbreviations.json" lean4-build--dir))
+        (kept 0) (dropped 0))
+    (with-temp-buffer
+      (url-insert-file-contents lean4-build--abbreviations-url)
+      (goto-char (point-min))
+      (let* ((table (let ((json-key-type 'string))
+                      (if (fboundp 'json-parse-buffer)
+                          (json-parse-buffer :object-type 'alist)
+                        (json-read))))
+             (filtered (seq-remove
+                        (lambda (entry)
+                          (if (string-match-p "\\$CURSOR" (cdr entry))
+                              (progn (cl-incf dropped) t)
+                            (cl-incf kept) nil))
+                        table)))
+        (with-temp-file target
+          (insert "{\n")
+          (insert (mapconcat
+                   (lambda (entry)
+                     (format "  %s: %s"
+                             (json-encode-string (car entry))
+                             (json-encode-string (cdr entry))))
+                   filtered ",\n"))
+          (insert "\n}\n"))))
+    (message "abbreviations: kept %d, dropped %d containing $CURSOR"
+             kept dropped)
+    (kill-emacs 0)))
+
 ;;; Targets
 
 (defun lean4-build-compile ()

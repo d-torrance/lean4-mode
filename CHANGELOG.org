@@ -1,6 +1,69 @@
 #+title: Lean4-Mode - Changelog
 #+language: en
 
+* Version 2.0.0
+
+Lean4-Mode now uses [[https://www.gnu.org/software/emacs/manual/html_node/eglot/][Eglot]], the LSP client built into Emacs, instead of
+lsp-mode.  Everything reaches the user through the extension points
+Emacs already has, so the interfaces they already use apply:
+diagnostics through Flymake, completion through
+~completion-at-point-functions~, hover through ElDoc, jumping through
+xref, project roots through =project.el=.
+
+** Breaking
+
+- lsp-mode is replaced by Eglot.  Requires Emacs 29.1 or later.  Any
+  lsp-mode configuration for Lean can be removed.  Version =1.1.2=
+  remains tagged for anyone not ready to move.
+- Dependencies: =dash= and =compat= are gone; =eri= and =magit-section=
+  remain.  Indentation cycling now comes from the =eri= package on
+  Melpa, which is the upstream of the copy this package used to vendor.
+- Diagnostics come from Flymake rather than Flycheck.
+- The ~lean4-keybinding-*~ options are gone.  Keys live in
+  ~lean4-mode-map~ and are rebound the ordinary way.
+- ~lean4-mode-hook~ is an ordinary mode hook again; whether the server
+  starts automatically is now ~lean4-auto-start-server~, default =t=.
+- ~lean4-extra-arguments~ is renamed ~lean4-server-arguments~, with the
+  old name kept as an alias.
+- Lean 3 autodetection is removed, along with ~lean4-autodetect-lean3~.
+  It ran =lean -v= on every =.lean= file opened.
+
+** Added
+
+- Interactive goals.  Goals arrive as trees in which every subterm is
+  labelled, so point can rest on a subterm and get its type through
+  ElDoc, or jump to its definition through xref.  The extent of the
+  subterm under point is highlighted.
+- Collapsible traces.  Lean does not send the children of a trace node
+  until asked, so unfolding one fetches it.
+- Messages in the goal display are interactive too: a term inside a type
+  mismatch behaves like a term inside a goal.
+- Pinning and pausing the goal display, both shown in its header line.
+- Indentation that guesses from the layout, with =TAB= cycling through
+  the alternatives when the guess is wrong.  ~lean4-indent-function~
+  restores the previous cycle-only behaviour.
+- Completion for Unicode abbreviations through
+  ~completion-at-point-functions~, so =\\al= offers =\\alpha=.
+- Semantic highlighting, when the available Eglot provides it; Eglot
+  gained semantic tokens in version 1.20.
+- A test suite: 134 unit tests, and 24 end-to-end tests that run against
+  a real Lean server.
+
+** Fixed
+
+- Files outside a Lake package are now served, by =lean --server= with
+  elan's default toolchain.
+- The server command is chosen from the workspace root rather than by
+  running =lake --version= in whatever directory happens to be current,
+  which asked the wrong toolchain in a multi-toolchain checkout.
+- Workspace discovery walks to the outermost =lean-toolchain=, so a
+  package vendored under =.lake/packages= is elaborated by the toolchain
+  of the project that pulled it in.
+- File watching is off by default.  Lean asks to watch every =*.ilean=
+  file, which on Mathlib is tens of thousands of them.
+- Menu entries pointed at a customize group that did not exist, and the
+  README documented commands and a buffer name that did not either.
+
 * Version 1.1.2
 
 - Fix occasional errors like "The connected server(s) does not support
