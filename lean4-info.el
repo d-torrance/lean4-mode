@@ -718,11 +718,16 @@ also what `magit-section' keeps its own markers into."
                          start (1+ start) 'display
                          (concat indent chevron (string character)))
                         ;; The indentation comes with the chevron now, so
-                        ;; the line must not also carry it.
-                        (put-text-property
-                         start (save-excursion (goto-char start)
-                                               (line-end-position))
-                         'line-prefix ""))))
+                        ;; the line must not carry it as well -- and that
+                        ;; means `wrap-prefix' too, not just `line-prefix'.
+                        ;; A heading that follows a folded section
+                        ;; continues that section's display line, and a
+                        ;; continued line is drawn with its `wrap-prefix',
+                        ;; which indented such a heading a second time.
+                        (let ((end (save-excursion (goto-char start)
+                                                   (line-end-position))))
+                          (put-text-property start end 'line-prefix "")
+                          (put-text-property start end 'wrap-prefix "")))))
                   (let ((visible (and visible (not (oref section hidden)))))
                     (dolist (child (oref section children))
                       (funcall walk child visible))))))

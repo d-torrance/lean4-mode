@@ -147,7 +147,17 @@ it."
           ;; The folded one turns round; the one below keeps both its
           ;; indicator and its indentation.
           (should (equal (lean4-info-test--chevrons)
-                         (list (concat "  " closed) (concat "  " open))))))
+                         (list (concat "  " closed) (concat "  " open))))
+          ;; And is indented once, not twice.  A heading following a
+          ;; folded section continues that section's display line, and a
+          ;; continued line is drawn with its `wrap-prefix' -- so a
+          ;; heading carrying its indentation in both places got it
+          ;; twice.
+          (dolist (section (list a (nth 1 (oref magit-root-section
+                                                children))))
+            (let ((start (oref section start)))
+              (should (equal (get-text-property start 'line-prefix) ""))
+              (should (equal (get-text-property start 'wrap-prefix) ""))))))
     (kill-buffer lean4-info-buffer-name)))
 
 (ert-deftest lean4-info-folding-leaves-no-chevron-hanging ()
