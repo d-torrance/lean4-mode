@@ -324,5 +324,119 @@ This is what backs jumping from the goal buffer to a definition."
                                                         success failure)))))
         (should (lean4-render-goals (plist-get result :goals)))))))
 
+;;;; The interactive info buffer
+
+(defmacro lean4-e2e--with-info-window (&rest body)
+  "Show the info buffer beside the Lean buffer and evaluate BODY.
+Both windows must exist for `lean4-info-buffer-active' to be satisfied;
+see `lean4-e2e-info-buffer-shows-the-goal'."
+  (declare (indent 0) (debug (body)))
+  `(progn
+     (delete-other-windows)
+     (set-window-buffer (selected-window) (current-buffer))
+     (lean4-ensure-info-buffer lean4-info-buffer-name)
+     ;; The buffer outlives each test, and every test connects a fresh
+     ;; server.  Left as it was, its contents would satisfy the next test's
+     ;; wait immediately, and its handle would point at a dead connection.
+     (with-current-buffer lean4-info-buffer-name
+       (let ((inhibit-read-only t)) (erase-buffer))
+       (setq lean4-info--handle nil
+             lean4-info--source-buffer nil))
+     (set-window-buffer (split-window) lean4-info-buffer-name)
+     (unwind-protect (progn ,@body)
+       (delete-other-windows))))
+
+(defun lean4-e2e--show-goal-at (line)
+  "Put point on zero-based LINE and wait for the info buffer to catch up."
+  (lean4-e2e--goto-line line)
+  (back-to-indentation)
+  (lean4-info-buffer-refresh)
+  (lean4-e2e--wait-until
+   "the goal to reach the info buffer"
+   (lambda ()
+     (with-current-buffer lean4-info-buffer-name
+       (string-search "⊢" (buffer-string))))))
+
+(ert-deftest lean4-e2e-info-buffer-goals-are-interactive ()
+  "Goals in the info buffer carry per-subterm information.
+Without this, nothing in the buffer can be hovered or jumped from."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (lean4-e2e--show-goal-at lean4-e2e--sorry-line)
+      (with-current-buffer lean4-info-buffer-name
+        (goto-char (point-min))
+        (should (search-forward "2 + 2 = 4" nil t))
+        (goto-char (match-beginning 0))
+        (should (get-text-property (point) 'lean4-info))
+        (should (get-text-property (point) 'lean4-subexpr-pos))))))
+
+(ert-deftest lean4-e2e-info-buffer-subterm-bounds ()
+  "The subterm under point spans the whole of the term it belongs to.
+Point on the `+' should select `2 + 2', not just the operator."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (lean4-e2e--show-goal-at lean4-e2e--sorry-line)
+      (with-current-buffer lean4-info-buffer-name
+        (goto-char (point-min))
+        (should (search-forward "2 + 2 = 4" nil t))
+        ;; Move onto the "+".
+        (goto-char (+ (match-beginning 0) 2))
+        (let ((bounds (lean4-info-subterm-bounds)))
+          (should bounds)
+          (should (equal (buffer-substring-no-properties
+                          (car bounds) (cdr bounds))
+                         "2 + 2")))))))
+
+(ert-deftest lean4-e2e-info-buffer-eldoc-reports-a-type ()
+  "ElDoc reports the type of the subterm under point."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (lean4-e2e--show-goal-at lean4-e2e--sorry-line)
+      (with-current-buffer lean4-info-buffer-name
+        (goto-char (point-min))
+        (should (search-forward "2 + 2 = 4" nil t))
+        (goto-char (match-beginning 0))
+        (let (reported)
+          (should (lean4-info-eldoc-function
+                   (lambda (text &rest _) (setq reported text))))
+          (lean4-e2e--wait-until "ElDoc to report a type"
+                                 (lambda () reported))
+          (should (string-search "Nat" reported)))))))
+
+(ert-deftest lean4-e2e-info-buffer-xref-finds-a-definition ()
+  "xref resolves the subterm under point to a source location.
+This is what makes \\[xref-find-definitions] work in the goal buffer."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (lean4-e2e--show-goal-at lean4-e2e--sorry-line)
+      (with-current-buffer lean4-info-buffer-name
+        (goto-char (point-min))
+        (should (search-forward "2 + 2 = 4" nil t))
+        ;; The "+" resolves to the definition of addition.
+        (goto-char (+ (match-beginning 0) 2))
+        (should (eq (lean4-info-xref-backend) 'lean4-info))
+        (let ((items (xref-backend-definitions 'lean4-info nil)))
+          (should items)
+          (should (xref-item-location (car items))))))))
+
+(ert-deftest lean4-e2e-info-buffer-reports-accomplished-goals ()
+  "A finished proof says so rather than showing nothing."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      ;; Just past the `rfl' that closes the first theorem.
+      (lean4-e2e--goto-line 4)
+      (end-of-line)
+      (lean4-info-buffer-refresh)
+      (lean4-e2e--wait-until
+       "the info buffer to report the proof is done"
+       (lambda ()
+         (with-current-buffer lean4-info-buffer-name
+           (string-search "goals accomplished" (buffer-string))))))))
+
 (provide 'lean4-e2e-test)
 ;;; lean4-e2e-test.el ends here

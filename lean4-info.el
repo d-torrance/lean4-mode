@@ -24,11 +24,13 @@
 ;; The `*Lean Goal*' buffer: the proof state and the messages at point, the
 ;; counterpart of VS Code's InfoView.
 ;;
-;; Goals are fetched with `$/lean/plainGoal' and `$/lean/plainTermGoal',
-;; which the Lean server documents as existing for editors without an
-;; interactive InfoView.  They return pre-rendered strings, so nothing here
-;; can offer hovering or navigation on a subterm; that needs Lean's RPC
-;; layer and arrives later.
+;; Goals are fetched over Lean's interactive RPC, which returns them as
+;; trees in which every subterm is labelled.  That is what lets point rest
+;; on a subterm and get its type, or jump to where it is defined.  Hover is
+;; offered through ElDoc and jumping through xref, so the user's own
+;; frontends present both.  When the server is too old for RPC, or
+;; `lean4-info-interactive' is nil, the display falls back to
+;; `$/lean/plainGoal', which is plain text and supports neither.
 ;;
 ;; Diagnostics come from Flymake, since that is what Eglot reports to.  The
 ;; raw LSP object is recovered from the Flymake diagnostic in order to read
@@ -42,8 +44,12 @@
 (require 'flymake)
 (require 'seq)
 (require 'magit-section)
+(require 'eldoc)
+(require 'xref)
 
 (require 'lean4-eglot)
+(require 'lean4-render)
+(require 'lean4-rpc)
 (require 'lean4-settings)
 (require 'lean4-syntax)
 
@@ -65,10 +71,28 @@
 (defconst lean4-info-buffer-name "*Lean Goal*")
 
 (defvar-local lean4-goals nil
-  "Goals reported for point, as a vector of pre-rendered strings.")
+  "Goals at point: a rendered string, `accomplished', or nil for none.")
 
 (defvar-local lean4-term-goal nil
-  "Expected type at point, as a pre-rendered string.")
+  "Expected type at point, as a rendered string, or nil.")
+
+(defvar-local lean4-info--handle nil
+  "RPC handle the goals on display were fetched through.")
+
+(defvar-local lean4-info--source-buffer nil
+  "The Lean buffer the goals on display came from.")
+
+(defvar-local lean4-info--refs nil
+  "Server-side references owned by the goals currently on display.
+Released when the next set replaces them; Lean reference counts these
+and will hold the memory until told otherwise.")
+
+(defvar-keymap lean4-info-buffer-map
+  :doc "Keymap for the *Lean Goal* buffer."
+  ;; `M-.' comes free from the xref backend; RET is the convenience the
+  ;; VS Code InfoView offers for the same thing.
+  "RET" #'xref-find-definitions
+  "C-c C-t" #'lean4-info-goto-type-definition)
 
 (defun lean4-ensure-info-buffer (buffer)
   "Create BUFFER if it does not exist.
@@ -78,6 +102,17 @@ Also choose settings used for the *Lean Goal* buffer."
       (buffer-disable-undo)
       (magit-section-mode)
       (set-syntax-table lean4-syntax-table)
+      (use-local-map (make-composed-keymap lean4-info-buffer-map
+                                           (current-local-map)))
+      ;; Hover and jumping are offered through the standard hooks, so the
+      ;; user's own ElDoc and xref frontends handle presentation.
+      (add-hook 'eldoc-documentation-functions
+                #'lean4-info-eldoc-function nil 'local)
+      (add-hook 'xref-backend-functions
+                #'lean4-info-xref-backend nil 'local)
+      (add-hook 'post-command-hook
+                #'lean4-info-highlight-subterm nil 'local)
+      (eldoc-mode 1)
       (setq buffer-read-only t))))
 
 (defun lean4-toggle-info-buffer (buffer)
@@ -154,11 +189,23 @@ declaration stays visible while point moves through it."
 ;;;; Rendering
 
 (defun lean4-info--fontify-string (text)
-  "Return TEXT fontified as Lean source."
+  "Return TEXT fontified as Lean source, with inaccessible names dimmed.
+Used for goals arriving as plain text.  Interactive goals are already
+propertized by `lean4-render', which dims those names itself."
   (with-temp-buffer
     (delay-mode-hooks (lean4-info-mode))
     (insert text)
     (font-lock-ensure)
+    (when lean4-highlight-inaccessible-names
+      (goto-char (point-min))
+      ;; Lean marks a hypothesis you may not name with a dagger.  Drop the
+      ;; dagger and say the same thing with a face.
+      (while (re-search-forward "\\(\\sw+\\)✝\\([¹²³⁴-⁹⁰]*\\)" nil t)
+        (replace-match
+         (propertize (concat (match-string-no-properties 1)
+                             (match-string-no-properties 2))
+                     'font-lock-face 'font-lock-comment-face)
+         'fixedcase 'literal)))
     (buffer-string)))
 
 (defun lean4-info--error-button-action (data)
@@ -173,30 +220,6 @@ LINE counted from one and COLUMN from zero."
       (goto-char (point-min))
       (forward-line (1- line))
       (forward-char column))))
-
-(defun lean4-info--insert-highlight-inaccessible-names (&rest text)
-  "Insert TEXT, dimming the names Lean marks as inaccessible.
-When `lean4-highlight-inaccessible-names' is non-nil, a name suffixed
-with the dagger Lean uses for inaccessible hypotheses is stripped of the
-dagger and shown in `font-lock-comment-face' instead."
-  (let ((begin (point)))
-    (apply #'insert text)
-    (when lean4-highlight-inaccessible-names
-      (let ((end (point-marker)))
-        (goto-char begin)
-        (while (re-search-forward "\\(\\sw+\\)✝\\([¹²³⁴-⁹⁰]*\\)" end t)
-          (replace-match
-           (propertize (concat (match-string-no-properties 1)
-                               (match-string-no-properties 2))
-                       'font-lock-face 'font-lock-comment-face)
-           'fixedcase 'literal))
-        (goto-char end)))))
-
-(defun lean4--insert-goal-text (text delimiter)
-  "Insert goal TEXT fontified as Lean, followed by DELIMITER."
-  (lean4-info--insert-highlight-inaccessible-names
-   (lean4-info--fontify-string text)
-   delimiter))
 
 (defun lean4-info--mk-message-section (value caption messages buffer)
   "Add a section with id VALUE, caption CAPTION and contents MESSAGES.
@@ -218,8 +241,7 @@ empty."
              'button-data (list buffer line column)
              'face 'magit-section-heading
              'help-echo "mouse-2: visit this file, line and column")
-            (lean4-info--insert-highlight-inaccessible-names
-             "\n" (lean4-diagnostic-message diagnostic) "\n")))))))
+            (insert "\n" (lean4-diagnostic-message diagnostic) "\n")))))))
 
 (defun lean4-info-buffer-redisplay ()
   "Re-render the Lean info buffer from the last goals and diagnostics.
@@ -230,6 +252,9 @@ Does nothing unless the info buffer is currently being displayed."
            (buffer (current-buffer))
            (goals lean4-goals)
            (term-goal lean4-term-goal)
+           ;; Carried across so that ElDoc and xref, which run in the info
+           ;; buffer, can make RPC calls about what is displayed there.
+           (handle lean4-info--handle)
            (line (1- (line-number-at-pos nil 'absolute)))
            (diagnostics (sort (flymake-diagnostics)
                               (lambda (a b)
@@ -238,22 +263,22 @@ Does nothing unless the info buffer is currently being displayed."
       (pcase-let ((`(,above ,here ,below)
                    (lean4-info--split-diagnostics diagnostics line)))
         (with-current-buffer lean4-info-buffer-name
+          (setq lean4-info--handle handle
+                lean4-info--source-buffer buffer)
           (erase-buffer)
           (magit-insert-section (magit-section 'root)
             (when goals
               (magit-insert-section (magit-section 'goals)
                 (magit-insert-heading "Goals:")
                 (magit-insert-section-body
-                  (if (> (length goals) 0)
-                      (seq-doseq (goal goals)
-                        (magit-insert-section (magit-section)
-                          (lean4--insert-goal-text goal "\n\n")))
-                    (insert "goals accomplished\n\n")))))
+                  (if (eq goals 'accomplished)
+                      (insert "goals accomplished\n\n")
+                    (insert goals "\n\n")))))
             (when term-goal
               (magit-insert-section (magit-section 'term-goal)
                 (magit-insert-heading "Expected type:")
                 (magit-insert-section-body
-                  (lean4--insert-goal-text term-goal "\n"))))
+                  (insert term-goal "\n"))))
             (lean4-info--mk-message-section
              'errors-here "Messages here:" here buffer)
             (lean4-info--mk-message-section
@@ -309,6 +334,97 @@ is still elaborating, and there is nothing useful to report."
      :error-fn #'ignore
      :timeout-fn #'ignore)))
 
+;;;; Interactive goals
+;;
+;; `$/lean/plainGoal' returns text.  `Lean.Widget.getInteractiveGoals'
+;; returns the same goal as a tree in which every subterm is labelled, which
+;; is what makes hovering and jumping possible.  Lean's own protocol notes
+;; describe the plain requests as being there for editors that cannot do
+;; this, so the interactive path is the one to prefer where it works.
+
+(defcustom lean4-info-interactive t
+  "Whether to fetch goals over Lean's interactive RPC.
+When nil, or when the server does not offer RPC, the goal display falls
+back to `$/lean/plainGoal', which yields plain text: no hovering a
+subterm for its type and no jumping from one to its definition."
+  :group 'lean4-info
+  :type 'boolean)
+
+(defun lean4-info--goals-value (result goals render)
+  "Decide what the goal display should hold for RESULT.
+
+Three outcomes have to stay distinct, because they mean different
+things to the reader: nil when point is not inside a proof at all and
+the section should be absent; `accomplished' when Lean returned a proof
+state with nothing left to prove; and the text RENDER makes of GOALS
+otherwise."
+  (cond ((null result) nil)
+        ((seq-empty-p goals) 'accomplished)
+        (t (funcall render goals))))
+
+(defun lean4-info--release-refs ()
+  "Give back the references held by the goals being replaced."
+  (when (and lean4-info--handle lean4-info--refs)
+    (lean4-rpc-release (lean4-rpc-handle-session lean4-info--handle)
+                       lean4-info--refs))
+  (setq lean4-info--refs nil))
+
+(defun lean4-info--adopt (rendered refs)
+  "Take ownership of REFS, which belong to the goals RENDERED.
+Returns RENDERED so this can wrap a render call."
+  (setq lean4-info--refs (append refs lean4-info--refs))
+  rendered)
+
+(defun lean4-info--refresh-interactive (generation)
+  "Fetch and render interactive goals; drop replies older than GENERATION."
+  (let ((handle (lean4-rpc-open))
+        (buffer (current-buffer)))
+    (lean4-info--release-refs)
+    (setq lean4-info--handle handle)
+    (cl-flet ((receive (setter collect)
+                (lambda (result)
+                  (when (buffer-live-p buffer)
+                    (with-current-buffer buffer
+                      (when (eq generation lean4-info--generation)
+                        (lean4-info--adopt nil (funcall collect result))
+                        (funcall setter result)
+                        (lean4-info-buffer-redisplay)))))))
+      (lean4-rpc-get-interactive-goals
+       handle
+       (receive (lambda (result)
+                  (setq lean4-goals (lean4-info--goals-value
+                                     result (plist-get result :goals)
+                                     #'lean4-render-goals)))
+                (lambda (result)
+                  (seq-mapcat
+                   (lambda (goal)
+                     (lean4-render-collect-refs (plist-get goal :type)))
+                   (plist-get result :goals) #'list))))
+      (lean4-rpc-get-interactive-term-goal
+       handle
+       (receive (lambda (result)
+                  (setq lean4-term-goal (lean4-render-term-goal result)))
+                (lambda (result)
+                  (lean4-render-collect-refs (plist-get result :type))))))))
+
+(defun lean4-info--refresh-plain (server generation)
+  "Fetch goals as plain text from SERVER, dropping replies before GENERATION."
+  (lean4-info--request
+   server :$/lean/plainGoal generation
+   (lambda (result)
+     (setq lean4-goals
+           (lean4-info--goals-value
+            result (plist-get result :goals)
+            (lambda (goals)
+              (mapconcat #'lean4-info--fontify-string
+                         (append goals nil) "\n\n"))))))
+  (lean4-info--request
+   server :$/lean/plainTermGoal generation
+   (lambda (result)
+     (setq lean4-term-goal
+           (when-let* ((goal (plist-get result :goal)))
+             (lean4-info--fontify-string goal))))))
+
 (defun lean4-info-buffer-refresh ()
   "Refresh the goals shown in the Lean info buffer.
 Does nothing unless the info buffer is on display: the requests are not
@@ -316,12 +432,140 @@ free, and Lean is slow to answer them while a file is elaborating."
   (when (lean4-info-buffer-active lean4-info-buffer-name)
     (when-let* ((server (eglot-current-server))
                 (generation (cl-incf lean4-info--generation)))
-      (lean4-info--request
-       server :$/lean/plainGoal generation
-       (lambda (result) (setq lean4-goals (plist-get result :goals))))
-      (lean4-info--request
-       server :$/lean/plainTermGoal generation
-       (lambda (result) (setq lean4-term-goal (plist-get result :goal)))))))
+      (if lean4-info-interactive
+          ;; A server too old for RPC, or a file worker that has just
+          ;; died, should degrade to plain goals rather than blank out.
+          (condition-case nil
+              (lean4-info--refresh-interactive generation)
+            (error (lean4-info--refresh-plain server generation)))
+        (lean4-info--refresh-plain server generation)))))
+
+;;;; Subterms
+;;
+;; Everything below works off the two text properties `lean4-render' leaves
+;; on the goal: `lean4-info' names the subterm to the server, and
+;; `lean4-subexpr-pos' says where it sits in the term tree.
+;;
+;; Nothing here defines a user interface.  Hovering goes through ElDoc and
+;; jumping goes through xref, so whatever the user already runs -- the echo
+;; area or eldoc-box, the xref buffer or consult -- is what they get.
+
+(defface lean4-info-subterm
+  '((t :inherit highlight))
+  "Face marking the extent of the subterm under point."
+  :group 'lean4-info)
+
+(defvar-local lean4-info--subterm-overlay nil)
+
+(defun lean4-info-subterm-bounds (&optional position)
+  "Return the bounds of the subterm at POSITION as a cons, or nil.
+
+Grows outward while the neighbouring text belongs to a subterm of which
+this one is an ancestor, which is what makes the highlight cover the
+whole of `1 + 1' when point is on the `+' rather than just the operator."
+  (let ((position (or position (point))))
+    (when-let* ((path (get-text-property position 'lean4-subexpr-pos)))
+      (let ((start position)
+            (end position))
+        (while (and (> start (point-min))
+                    (lean4-render-subexpr-ancestor-p
+                     path (get-text-property (1- start) 'lean4-subexpr-pos)))
+          (setq start (1- start)))
+        (while (and (< end (point-max))
+                    (lean4-render-subexpr-ancestor-p
+                     path (get-text-property end 'lean4-subexpr-pos)))
+          (setq end (1+ end)))
+        (cons start end)))))
+
+(defun lean4-info-highlight-subterm ()
+  "Highlight the subterm under point in the info buffer."
+  (when lean4-info--subterm-overlay
+    (delete-overlay lean4-info--subterm-overlay))
+  (when-let* ((bounds (lean4-info-subterm-bounds)))
+    (setq lean4-info--subterm-overlay
+          (make-overlay (car bounds) (cdr bounds)))
+    (overlay-put lean4-info--subterm-overlay 'face 'lean4-info-subterm)))
+
+(defun lean4-info--live-handle ()
+  "Return a usable RPC handle for the goals on display, or nil.
+
+The handle captured when the goals were fetched is preferred, but a
+server can exit between a goal being displayed and the reader hovering
+over it, so fall back to opening a fresh one against the Lean buffer
+these goals came from."
+  (cond ((lean4-rpc-handle-live-p lean4-info--handle) lean4-info--handle)
+        ((buffer-live-p lean4-info--source-buffer)
+         (with-current-buffer lean4-info--source-buffer
+           (when (eglot-current-server)
+             (setq-local lean4-info--handle nil)
+             (ignore-errors (lean4-rpc-open)))))))
+
+(defun lean4-info-eldoc-function (callback &rest _)
+  "Report the type of the subterm under point through CALLBACK.
+Intended for `eldoc-documentation-functions'."
+  (when-let* ((info (get-text-property (point) 'lean4-info))
+              (handle (lean4-info--live-handle)))
+    (lean4-rpc-info-to-interactive
+     handle info
+     (lambda (popup)
+       (let ((type (lean4-render-tagged-text (plist-get popup :type)))
+             (documentation (plist-get popup :doc)))
+         (funcall callback
+                  (concat type
+                          (when (and documentation
+                                     (not (string-empty-p documentation)))
+                            (concat "\n\n" documentation)))))))
+    ;; Tell ElDoc an answer is coming; it is asynchronous.
+    t))
+
+;;;; xref
+
+(defun lean4-info--xref-location (kind)
+  "Return an `xref-item' for the subterm under point, of KIND.
+KIND is \"definition\", \"declaration\" or \"type\"."
+  (when-let* ((info (get-text-property (point) 'lean4-info))
+              (handle (lean4-info--live-handle))
+              (locations (lean4-rpc-call-sync
+                          handle "Lean.Widget.getGoToLocation"
+                          (list :kind kind :info info))))
+    (mapcar
+     (lambda (location)
+       (let* ((uri (plist-get location :targetUri))
+              (range (or (plist-get location :targetSelectionRange)
+                         (plist-get location :targetRange)))
+              (start (plist-get range :start))
+              (file (lean4--uri-to-path uri)))
+         (xref-make (or file uri)
+                    (xref-make-file-location
+                     file
+                     (1+ (or (plist-get start :line) 0))
+                     (or (plist-get start :character) 0)))))
+     (append locations nil))))
+
+(defun lean4-info-xref-backend ()
+  "Return the xref backend for the Lean info buffer."
+  (when (get-text-property (point) 'lean4-info) 'lean4-info))
+
+(cl-defmethod xref-backend-identifier-at-point ((_backend (eql lean4-info)))
+  "Return the subterm under point, as text for xref to echo."
+  (when-let* ((bounds (lean4-info-subterm-bounds)))
+    (buffer-substring-no-properties (car bounds) (cdr bounds))))
+
+(cl-defmethod xref-backend-definitions ((_backend (eql lean4-info)) _identifier)
+  "Return where the subterm under point is defined."
+  (lean4-info--xref-location "definition"))
+
+(cl-defmethod xref-backend-identifier-completion-table
+  ((_backend (eql lean4-info)))
+  "Return nil: there is nothing to complete over in a goal display."
+  nil)
+
+(defun lean4-info-goto-type-definition ()
+  "Jump to the definition of the type of the subterm under point."
+  (interactive)
+  (if-let* ((items (lean4-info--xref-location "type")))
+      (xref-pop-to-location (car items))
+    (user-error "No type definition for the subterm at point")))
 
 ;;;###autoload
 (defun lean4-toggle-info ()

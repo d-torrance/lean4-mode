@@ -44,6 +44,10 @@ bound to a stand-in object."
          (connection (make-symbol "stub-connection")))
      (cl-letf (((symbol-function 'eglot--capabilities)
                 (lambda (_connection) (lean4-rpc-test--capabilities ,wire-format)))
+               ;; The stand-in connection is not a real jsonrpc object, so
+               ;; answer the liveness check on its behalf.  Tests about a
+               ;; dead server override this again.
+               ((symbol-function 'jsonrpc-running-p) (lambda (_connection) t))
                ((symbol-function 'jsonrpc-notify)
                 (lambda (_connection method params)
                   (push (list method params) lean4-rpc-test--sent)))
@@ -276,6 +280,53 @@ The server has already discarded everything belonging to it."
       (should-not (memq :$/lean/rpc/release (lean4-rpc-test--methods)))
       ;; And it is out of the registry, so the next call reconnects.
       (should-not (gethash "file:///a.lean" lean4-rpc--sessions)))))
+
+;;;; A server that has gone away
+
+(ert-deftest lean4-rpc-dead-connection-fails-rather-than-signals ()
+  "A call on a connection that has exited reports, it does not signal.
+
+Callers here are display code, ElDoc and post-command hooks.  An error
+raised from one of those is far worse than a blank goal buffer, and a
+Lean server exiting -- or being restarted -- is routine."
+  (lean4-rpc-test--with-stub "v1"
+    (setq lean4-rpc-test--connect-response '(:success (:sessionId 7)))
+    (let ((handle (lean4-rpc--handle-create
+                   :session (lean4-rpc--session-for connection "file:///a.lean")
+                   :position '(:textDocument (:uri "file:///a.lean"))))
+          (failures nil))
+      (cl-letf (((symbol-function 'jsonrpc-running-p) (lambda (_) nil)))
+        (should-not (lean4-rpc-handle-live-p handle))
+        (lean4-rpc-call handle "Test.method" nil #'ignore
+                        (lambda (error) (push error failures))))
+      (should failures)
+      (should (lean4-rpc-dead-code-p
+               (lean4-rpc--error-code (car failures)))))))
+
+(ert-deftest lean4-rpc-jsonrpc-signal-becomes-a-failure ()
+  "An error raised by jsonrpc itself is reported through the callback."
+  (lean4-rpc-test--with-stub "v1"
+    (setq lean4-rpc-test--connect-response '(:success (:sessionId 7)))
+    (let ((handle (lean4-rpc--handle-create
+                   :session (lean4-rpc--session-for connection "file:///a.lean")
+                   :position '(:textDocument (:uri "file:///a.lean"))))
+          (failures nil))
+      (cl-letf (((symbol-function 'jsonrpc-async-request)
+                 (lambda (&rest _) (error "Process not running: killed"))))
+        (lean4-rpc-call handle "Test.method" nil #'ignore
+                        (lambda (error) (push error failures))))
+      (should (= (length failures) 1)))))
+
+(ert-deftest lean4-rpc-live-handle-predicate ()
+  "A handle is live only while its session and connection both are."
+  (lean4-rpc-test--with-stub "v1"
+    (setq lean4-rpc-test--connect-response '(:success (:sessionId 7)))
+    (let* ((session (lean4-rpc--session-for connection "file:///a.lean"))
+           (handle (lean4-rpc--handle-create :session session :position nil)))
+      (should (lean4-rpc-handle-live-p handle))
+      (lean4-rpc--close session)
+      (should-not (lean4-rpc-handle-live-p handle))))
+  (should-not (lean4-rpc-handle-live-p nil)))
 
 (provide 'lean4-rpc-test)
 ;;; lean4-rpc-test.el ends here

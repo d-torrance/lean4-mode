@@ -188,21 +188,26 @@ the first call is what triggers the connect."
                   :uri uri
                   :ref-key (lean4-rpc--negotiated-ref-key connection))))
     (puthash uri session lean4-rpc--sessions)
-    (jsonrpc-async-request
-     connection :$/lean/rpc/connect (list :uri uri)
-     :success-fn
-     (lambda (result)
-       (setf (lean4-rpc-session-id session) (plist-get result :sessionId)
-             (lean4-rpc-session-settled session) t)
-       (lean4-rpc--start-keepalive session)
-       (lean4-rpc--flush-pending session))
-     :error-fn
-     (lambda (error)
-       (setf (lean4-rpc-session-error session) error
-             (lean4-rpc-session-settled session) t)
-       (lean4-rpc--close session)
-       ;; Still flush: the queued calls need to fail rather than hang.
-       (lean4-rpc--flush-pending session)))
+    (cl-flet ((fail (error)
+                (setf (lean4-rpc-session-error session) error
+                      (lean4-rpc-session-settled session) t)
+                (lean4-rpc--close session)
+                ;; Still flush: queued calls must fail rather than hang.
+                (lean4-rpc--flush-pending session)))
+      ;; The handshake itself can signal if the server exited between the
+      ;; caller deciding to connect and this call being made.
+      (condition-case error
+          (jsonrpc-async-request
+           connection :$/lean/rpc/connect (list :uri uri)
+           :success-fn
+           (lambda (result)
+             (setf (lean4-rpc-session-id session) (plist-get result :sessionId)
+                   (lean4-rpc-session-settled session) t)
+             (lean4-rpc--start-keepalive session)
+             (lean4-rpc--flush-pending session))
+           :error-fn #'fail)
+        (error (fail (list :code lean4-rpc-worker-exited
+                           :message (error-message-string error))))))
     session))
 
 (defun lean4-rpc--session-for (connection uri)
@@ -213,7 +218,8 @@ server restart the id it holds means nothing."
     (if (and existing
              (not (lean4-rpc-session-closed existing))
              (not (lean4-rpc-session-error existing))
-             (eq (lean4-rpc-session-connection existing) connection))
+             (eq (lean4-rpc-session-connection existing) connection)
+             (lean4-rpc-connection-live-p connection))
         existing
       (lean4-rpc--connect connection uri))))
 
@@ -290,6 +296,20 @@ Requires a Lean server managing the current buffer."
   "Return the `RpcRef' plist key in force for HANDLE."
   (lean4-rpc-session-ref-key (lean4-rpc-handle-session handle)))
 
+(defun lean4-rpc-connection-live-p (connection)
+  "Return non-nil if CONNECTION can still carry a request."
+  (and connection
+       (or (not (fboundp 'jsonrpc-running-p))
+           (jsonrpc-running-p connection))))
+
+(defun lean4-rpc-handle-live-p (handle)
+  "Return non-nil if HANDLE can still be used."
+  (and handle
+       (let ((session (lean4-rpc-handle-session handle)))
+         (and (not (lean4-rpc-session-closed session))
+              (lean4-rpc-connection-live-p
+               (lean4-rpc-session-connection session))))))
+
 (defun lean4-rpc--send (session position method params success failure)
   "Send METHOD with PARAMS on a settled SESSION at POSITION."
   (cond
@@ -298,21 +318,35 @@ Requires a Lean server managing the current buffer."
    ((lean4-rpc-session-closed session)
     (funcall failure (list :code lean4-rpc-needs-reconnect
                            :message "Lean RPC session is closed")))
+   ;; A server that has exited takes its sessions with it.  Report that the
+   ;; way a dead session is reported rather than letting jsonrpc signal:
+   ;; callers here are display code and hover popups, and an error raised
+   ;; from a timer or a post-command hook is much worse than a blank.
+   ((not (lean4-rpc-connection-live-p (lean4-rpc-session-connection session)))
+    (lean4-rpc--close session)
+    (funcall failure (list :code lean4-rpc-worker-exited
+                           :message "Lean server is not running")))
    (t
-    (jsonrpc-async-request
-     (lean4-rpc-session-connection session)
-     :$/lean/rpc/call
-     (append position
-             (list :sessionId (lean4-rpc-session-id session)
-                   :method method
-                   :params (or params eglot--{})))
-     :success-fn success
-     :error-fn (lambda (error)
-                 (when (lean4-rpc-dead-code-p (lean4-rpc--error-code error))
-                   (lean4-rpc--close session))
-                 (funcall failure error))
-     :timeout-fn (lambda ()
-                   (funcall failure (list :code -32000 :message "timed out")))))))
+    (condition-case error
+        (jsonrpc-async-request
+         (lean4-rpc-session-connection session)
+         :$/lean/rpc/call
+         (append position
+                 (list :sessionId (lean4-rpc-session-id session)
+                       :method method
+                       :params (or params eglot--{})))
+         :success-fn success
+         :error-fn (lambda (error)
+                     (when (lean4-rpc-dead-code-p (lean4-rpc--error-code error))
+                       (lean4-rpc--close session))
+                     (funcall failure error))
+         :timeout-fn (lambda ()
+                       (funcall failure (list :code -32000
+                                              :message "timed out"))))
+      (error
+       (lean4-rpc--close session)
+       (funcall failure (list :code lean4-rpc-worker-exited
+                              :message (error-message-string error))))))))
 
 (defun lean4-rpc-call (handle method params success &optional failure)
   "Call Lean RPC METHOD with PARAMS through HANDLE.
@@ -353,6 +387,30 @@ callers would mean every caller reimplementing this."
                                          success on-failure))
                       (lean4-rpc-session-pending session)))))))
       (funcall attempt))))
+
+(defconst lean4-rpc-sync-timeout 2.0
+  "Seconds to wait for a synchronous RPC call before giving up.
+Only user-initiated commands wait; nothing on a redisplay path does.")
+
+(defun lean4-rpc-call-sync (handle method params)
+  "Call METHOD with PARAMS through HANDLE and wait for the result.
+
+Returns the result, or signals if the call fails or does not answer
+within `lean4-rpc-sync-timeout'.  Reserved for commands the user
+invoked, such as jumping to a definition, where an answer is the whole
+point and where `xref' and friends require one synchronously.  Display
+code must use `lean4-rpc-call' instead: blocking while Lean elaborates a
+Mathlib file would freeze Emacs for seconds."
+  (let ((deadline (+ (float-time) lean4-rpc-sync-timeout))
+        result failure done)
+    (lean4-rpc-call handle method params
+                    (lambda (value) (setq result value done t))
+                    (lambda (error) (setq failure error done t)))
+    (while (and (not done) (< (float-time) deadline))
+      (accept-process-output nil 0.02))
+    (cond (failure (error "Lean RPC call %s failed: %S" method failure))
+          ((not done) (error "Lean RPC call %s timed out" method))
+          (t result))))
 
 ;;;; The methods Lean provides
 
