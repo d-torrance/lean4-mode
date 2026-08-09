@@ -265,6 +265,36 @@ about any of them.")
   (let ((uri (plist-get textDocument :uri)))
     (run-hook-with-args 'lean4-file-progress-functions server uri processing)))
 
+;;;; Semantic tokens
+
+;; Lean leans on semantic tokens far more than most languages: almost nothing
+;; in a Lean file can be classified without elaborating it, so regexp
+;; font-lock can only ever colour keywords.
+;;
+;; Eglot grew `eglot-semantic-tokens-mode' in 1.20, which is newer than the
+;; Eglot bundled with either Emacs 29 (1.12) or Emacs 30 (1.17).  We ask for
+;; it when it is there and say nothing when it is not, rather than shipping a
+;; second implementation of a standard LSP feature: `M-x package-install RET
+;; eglot' gets a user on any supported Emacs the upstream one.
+
+(defface lean4-semantic-leanSorryLike
+  '((t :inherit font-lock-warning-face))
+  "Face for `sorry' and other proof-admitting syntax.
+Lean reports these with its own `leanSorryLike' semantic token type;
+they abandon a proof, so they should be hard to miss."
+  :group 'lean4)
+
+(defun lean4--setup-semantic-tokens ()
+  "Turn on Eglot's semantic-token highlighting, if this Eglot has it."
+  (when (and (fboundp 'eglot-semantic-tokens-mode)
+             (boundp 'eglot-semantic-token-types))
+    ;; `leanSorryLike' is Lean's own token type, so Eglot does not know to
+    ;; ask for it.  Its face is found by name, hence the defface above.
+    (unless (member "leanSorryLike" eglot-semantic-token-types)
+      (setq eglot-semantic-token-types
+            (append eglot-semantic-token-types '("leanSorryLike"))))
+    (eglot-semantic-tokens-mode 1)))
+
 ;;;; Diagnostics
 
 (defcustom lean4-diagnostics-delay 0.05

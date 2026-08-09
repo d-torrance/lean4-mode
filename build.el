@@ -44,15 +44,15 @@
 ;;; Dependencies
 
 (defun lean4-build--requirements ()
-  "Return the package's dependencies as a list of `package-desc' requirements.
+  "Return the package's dependencies as a list of (NAME VERSION-LIST).
 Reads the Package-Requires header of `lean4-mode.el' so that the
 Makefile never has to be kept in sync with it by hand."
   (with-temp-buffer
     (insert-file-contents lean4-build--main)
-    (let ((deps (lm-header "package-requires")))
-      (when deps
-        (package--prepare-dependencies
-         (package-read-from-string deps))))))
+    (when-let* ((header (lm-header "package-requires")))
+      (mapcar (lambda (dep)
+                (list (car dep) (version-to-list (cadr dep))))
+              (package-read-from-string header)))))
 
 (defun lean4-build-deps ()
   "Install the package's dependencies into `package-user-dir'."
@@ -63,8 +63,10 @@ Makefile never has to be kept in sync with it by hand."
   (package-initialize)
   (package-refresh-contents)
   ;; package-lint is a build-time tool rather than a runtime dependency, so
-  ;; it is not in Package-Requires.
-  (dolist (req (cons '(package-lint "0") (lean4-build--requirements)))
+  ;; it is not in Package-Requires.  Its version is a list, not a string:
+  ;; that is what `package--prepare-dependencies' produces, and what
+  ;; `package-installed-p' expects.
+  (dolist (req (cons '(package-lint (0)) (lean4-build--requirements)))
     (let ((name (car req)))
       (cond
        ((eq name 'emacs))

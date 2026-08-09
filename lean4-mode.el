@@ -13,7 +13,7 @@
 ;; Maintainer: Yury G. Kudryashov <urkud@urkud.name>
 ;; Created: Jan 09, 2014
 ;; Keywords: languages
-;; Package-Requires: ((emacs "29.1") (magit-section "3.3.0"))
+;; Package-Requires: ((emacs "29.1") (eglot "1.12") (eri "1.0") (magit-section "3.3.0"))
 ;; URL: https://github.com/leanprover-community/lean4-mode
 ;; SPDX-License-Identifier: Apache-2.0
 ;; Version: 2.0.0-pre
@@ -47,7 +47,7 @@
 (require 'cl-lib)
 (require 'pcase)
 
-(require 'lean4-eri)
+(require 'eri)
 (require 'lean4-util)
 (require 'lean4-settings)
 (require 'lean4-syntax)
@@ -62,6 +62,10 @@
 (defvar markdown-code-lang-modes)
 (declare-function flymake-proc-init-create-temp-buffer-copy "flymake-proc")
 (declare-function quail-show-key "quail")
+;; lean4-input is loaded lazily from the mode body: building the Quail
+;; package parses the whole abbreviation table, which is not worth doing
+;; until a Lean buffer actually exists.
+(declare-function lean4-input-completion-at-point "lean4-input")
 
 (defun lean4-compile-string (lake-name exe-name args file-name)
   "Command to run EXE-NAME with extra ARGS and FILE-NAME.
@@ -110,7 +114,7 @@ FILE-NAME."
   "Lean 4 function for TAB indent."
   (interactive)
   (cond ((looking-back (rx line-start (* white)) nil)
-         (lean4-eri-indent))
+         (eri-indent))
         (t (indent-for-tab-command))))
 
 (define-abbrev-table 'lean4-abbrev-table
@@ -166,9 +170,14 @@ to be added or removed from the hook variable.")
   (set 'compilation-mode-font-lock-keywords '())
   (require 'lean4-input)
   (set-input-method "Lean")
+  ;; Offered alongside whatever Eglot contributes; the user's own
+  ;; completion frontend decides how to present them.
+  (add-hook 'completion-at-point-functions
+            #'lean4-input-completion-at-point nil 'local)
   (electric-indent-local-mode -1)
   (pcase-dolist (`(,hook . ,fn) lean4-hooks-alist)
     (add-hook hook fn nil 'local))
+  (add-hook 'eglot-managed-mode-hook #'lean4--setup-semantic-tokens nil 'local)
   (when (and lean4-auto-start-server
              buffer-file-name
              (lean4--workspace-root))

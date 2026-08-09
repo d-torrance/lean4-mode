@@ -88,5 +88,58 @@ letting one through would insert the literal text \"$CURSOR\"."
     (lean4-input-setup))
   (should-not (lean4-input-test--strings-for "lean4testsym")))
 
+;;;; Completion at point
+
+(defun lean4-input-test--capf-in (text)
+  "Return `lean4-input-completion-at-point' with TEXT before point."
+  (with-temp-buffer
+    (insert text)
+    (lean4-input-completion-at-point)))
+
+(ert-deftest lean4-input-capf-recognises-an-abbreviation ()
+  "The capf claims the backslash-prefixed word before point."
+  (with-temp-buffer
+    (insert "def f := \\alph")
+    (let ((capf (lean4-input-completion-at-point)))
+      (should capf)
+      (pcase-let ((`(,start ,end ,table . ,_) capf))
+        ;; The completed region is the backslash and what follows it, not
+        ;; the whole word before point.
+        (should (equal (buffer-substring-no-properties start end) "\\alph"))
+        (should (member "\\alpha" (all-completions "\\alph" table)))))))
+
+(ert-deftest lean4-input-capf-declines-without-a-backslash ()
+  "Ordinary words are left to other completion sources."
+  (should-not (lean4-input-test--capf-in "def foo"))
+  (should-not (lean4-input-test--capf-in "")))
+
+(ert-deftest lean4-input-capf-is-not-exclusive ()
+  "Other capfs, Eglot's above all, still get a turn."
+  (let ((capf (lean4-input-test--capf-in "\\al")))
+    (should (eq (plist-get (nthcdr 3 capf) :exclusive) 'no))))
+
+(ert-deftest lean4-input-capf-exit-inserts-the-character ()
+  "Choosing a candidate replaces the abbreviation with its character."
+  (with-temp-buffer
+    (insert "def f := \\alpha")
+    (let* ((capf (lean4-input-completion-at-point))
+           (exit (plist-get (nthcdr 3 capf) :exit-function)))
+      (should (functionp exit))
+      (funcall exit "\\alpha" 'finished)
+      (should (equal (buffer-string) "def f := α")))))
+
+(ert-deftest lean4-input-capf-exit-leaves-partial-input-alone ()
+  "A candidate chosen mid-typing is not yet replaced."
+  (with-temp-buffer
+    (insert "def f := \\alpha")
+    (let* ((capf (lean4-input-completion-at-point))
+           (exit (plist-get (nthcdr 3 capf) :exit-function)))
+      (funcall exit "\\alpha" 'try-again)
+      (should (equal (buffer-string) "def f := \\alpha")))))
+
+(ert-deftest lean4-input-capf-annotates-with-the-character ()
+  "Candidates are annotated with what they produce."
+  (should (string-search "α" (lean4-input--annotate "\\alpha"))))
+
 (provide 'lean4-input-test)
 ;;; lean4-input-test.el ends here

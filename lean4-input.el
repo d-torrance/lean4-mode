@@ -218,6 +218,76 @@ that contains all translations from QP Except for those corresponding to ASCII."
       (quail-build-decode-map (list (quail-map)) "" decode-map 0)
       (cdr decode-map))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Completion
+
+;; The Quail method replaces an abbreviation only once it is unambiguous, so
+;; it cannot tell you what is available while you are still typing.  Offering
+;; the same table through `completion-at-point-functions' fills that gap and
+;; leaves the choice of interface -- company, corfu, the default buffer -- to
+;; the user, which is where it belongs.
+
+(defvar lean4-input--completion-cache nil
+  "Cached completion candidates, as an alist of (KEY . TRANSLATIONS).
+Building this walks the whole Quail map, which is slow enough to be
+worth doing once.  `lean4-input-setup' clears it.")
+
+(defun lean4-input--completion-candidates ()
+  "Return the abbreviation table as an alist of (KEY . TRANSLATIONS).
+KEY includes its leading backslash.  TRANSLATIONS is a list of strings."
+  (or lean4-input--completion-cache
+      (setq lean4-input--completion-cache
+            (mapcar
+             (lambda (rule)
+               (cons (car rule) (lean4-input--translation-strings (cdr rule))))
+             (lean4-input-get-translations "Lean")))))
+
+(defun lean4-input--translation-strings (translation)
+  "Normalise a Quail TRANSLATION to a list of strings.
+`quail-build-decode-map' yields a character for a single one-character
+translation, a string for a longer one, and a vector mixing the two when
+a key sequence has several translations."
+  (cond ((null translation) nil)
+        ((integerp translation) (list (string translation)))
+        ((stringp translation) (list translation))
+        (t (seq-mapcat #'lean4-input--translation-strings translation #'list))))
+
+(defun lean4-input--annotate (key)
+  "Return the annotation shown beside completion candidate KEY."
+  (when-let* ((translations (cdr (assoc key (lean4-input--completion-candidates)))))
+    (concat " " (string-join translations " "))))
+
+(defun lean4-input--exit (key status)
+  "Replace the inserted abbreviation KEY with the character it denotes.
+Does nothing unless STATUS is `finished', so that a candidate chosen
+only to keep typing is left alone."
+  (when (eq status 'finished)
+    (when-let* ((translations (cdr (assoc key (lean4-input--completion-candidates))))
+                (translation (car translations)))
+      (delete-char (- (length key)))
+      (insert translation))))
+
+;;;###autoload
+(defun lean4-input-completion-at-point ()
+  "Complete the Lean Unicode abbreviation before point.
+Meant for `completion-at-point-functions'.  Completes text like
+\\='\\alpha\\=' and, once chosen, replaces it with the character it
+stands for."
+  (when-let* ((end (point))
+              (start (save-excursion
+                       ;; An abbreviation is a backslash and the
+                       ;; non-whitespace after it, on one line.
+                       (skip-chars-backward "^ \t\n\\\\")
+                       (when (eq (char-before) ?\\)
+                         (1- (point))))))
+    (list start end
+          (completion-table-dynamic
+           (lambda (_) (mapcar #'car (lean4-input--completion-candidates))))
+          :annotation-function #'lean4-input--annotate
+          :exit-function #'lean4-input--exit
+          ;; Other sources -- Eglot's, above all -- still get a say.
+          :exclusive 'no)))
+
 (defun lean4-input-show-translations (qp)
   "Display all translations used by the Quail package QP (a string).
 \(Except for those corresponding to ASCII)."
@@ -263,6 +333,7 @@ a list of such pairs."
 (defun lean4-input-setup ()
   "Set up the Lean input method.
 Use customisable variables and parent input methods to setup Lean input method."
+  (setq lean4-input--completion-cache nil)
 
   ;; Create (or reset) the input method.
   (with-temp-buffer
