@@ -253,6 +253,11 @@ Key              Description                                      Command
 ‘M-.’ or ‘RET’   Jump to the definition of the subterm at point   ‘xref-find-definitions’
 ‘C-c C-t’        Jump to the definition of its type               ‘lean4-info-goto-type-definition’
 ‘TAB’            Fold or unfold the trace or section at point     ‘lean4-info-toggle-fold’
+‘C-c C-s’        Pin the display to point, or unpin it            ‘lean4-info-toggle-pin’
+‘C-c C-SPC’      Freeze or unfreeze the display                   ‘lean4-info-toggle-pause’
+
+   The last two are bound here as well as in the Lean buffer, so the
+display can be pinned or frozen without leaving it.
 
    The type and docstring of the subterm at point are reported through
 ElDoc, so they appear wherever ElDoc is configured to put them: the echo
@@ -416,14 +421,14 @@ Node: Upgrading from version 14836
 Node: Usage6133
 Node: Keys in a Lean buffer6949
 Node: Keys in the goal display8374
-Node: Errors and warnings9560
-Node: Completion10155
-Node: Configuration10757
-Node: Frequently used options11140
-Node: Semantic highlighting12466
-Node: Optional packages13052
-Node: Common Pitfalls13545
-Node: Acknowledgements14144
+Node: Errors and warnings9880
+Node: Completion10475
+Node: Configuration11077
+Node: Frequently used options11460
+Node: Semantic highlighting12786
+Node: Optional packages13372
+Node: Common Pitfalls13865
+Node: Acknowledgements14464
 
 End Tag Table
 

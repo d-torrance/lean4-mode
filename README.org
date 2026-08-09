@@ -140,11 +140,16 @@ pane in VS Code.
 Goals arrive as trees in which every subterm is labelled, so point can
 rest on any part of a goal and ask about it.
 
-| Key         | Description                                       | Command                        |
-|-------------+---------------------------------------------------+--------------------------------|
-| =M-.= or =RET= | Jump to the definition of the subterm at point | ~xref-find-definitions~        |
-| =C-c C-t=   | Jump to the definition of its type                | ~lean4-info-goto-type-definition~ |
-| =TAB=       | Fold or unfold the trace or section at point      | ~lean4-info-toggle-fold~       |
+| Key            | Description                                    | Command                           |
+|----------------+------------------------------------------------+-----------------------------------|
+| =M-.= or =RET= | Jump to the definition of the subterm at point | ~xref-find-definitions~           |
+| =C-c C-t=      | Jump to the definition of its type             | ~lean4-info-goto-type-definition~ |
+| =TAB=          | Fold or unfold the trace or section at point   | ~lean4-info-toggle-fold~          |
+| =C-c C-s=      | Pin the display to point, or unpin it          | ~lean4-info-toggle-pin~           |
+| =C-c C-SPC=    | Freeze or unfreeze the display                 | ~lean4-info-toggle-pause~         |
+
+The last two are bound here as well as in the Lean buffer, so the
+display can be pinned or frozen without leaving it.
 
 The type and docstring of the subterm at point are reported through
 ElDoc, so they appear wherever ElDoc is configured to put them: the
