@@ -596,35 +596,63 @@ the pinned location rather than at point."
 ;; Unicode with a fallback, the way `magit-section' picks its own
 ;; indicators.  Emacs runs in terminals and on machines with no emoji font,
 ;; so a glyph that is merely likely to work is not good enough on its own.
-;; Both are single-width; the obvious 📌 is double-width, which makes the
-;; right-hand column jump about.
+;;
+;; Chosen per frame rather than once at load: `char-displayable-p' answers
+;; for the frame it is asked in, and one Emacs can serve a graphical frame
+;; and a terminal at the same time.  Deciding at load time would give
+;; whichever frame happened to come first.
 
-(defcustom lean4-info-pin-icon
-  (if (char-displayable-p ?🖈) "🖈" "P")
+(defun lean4-info--displayable-p (string)
+  "Return non-nil if every character of STRING can be displayed here."
+  (seq-every-p #'char-displayable-p (string-to-list string)))
+
+(defun lean4-info--glyph (configured candidates fallback)
+  "Return CONFIGURED, or the first of CANDIDATES this frame can show.
+FALLBACK is used when it can show none of them."
+  (or configured
+      (seq-find #'lean4-info--displayable-p candidates)
+      fallback))
+
+(defcustom lean4-info-pin-icon nil
   "Control shown in the goal display for pinning.
+Nil means pick whichever candidate the frame can display.
 
 One glyph for both states, distinguished by `lean4-info-button-active'.
 VS Code turns its pin on its side when pinned, but that is a codicon
-font; Unicode has no rotated-pin pair, and the nearest alternatives
-differ in width, which would make the column jump on every toggle."
+font, and Unicode has no rotated-pin pair."
   :group 'lean4-info
-  :type 'string)
+  :type '(choice (const :tag "Choose to suit the frame" nil) string))
 
-(defcustom lean4-info-pause-icon
-  (if (char-displayable-p ?⏸) "⏸" "||")
+(defcustom lean4-info-pause-icon nil
   "Control shown in the goal display while it is updating.
-Clicking it pauses, so it shows the pause symbol."
+Clicking it pauses, so it shows the pause symbol.  Nil means pick
+whichever candidate the frame can display."
   :group 'lean4-info
-  :type 'string)
+  :type '(choice (const :tag "Choose to suit the frame" nil) string))
 
-(defcustom lean4-info-resume-icon
-  (if (char-displayable-p ?⏵) "⏵" ">")
+(defcustom lean4-info-resume-icon nil
   "Control shown in the goal display while it is paused.
 Clicking it resumes, so it shows the play symbol -- the pair being the
 one place a glyph can say what the click does rather than what the state
-is."
+is.  Nil means pick whichever candidate the frame can display."
   :group 'lean4-info
-  :type 'string)
+  :type '(choice (const :tag "Choose to suit the frame" nil) string))
+
+(defun lean4-info-pin-glyph ()
+  "Return the pin control for this frame."
+  ;; U+1F4CC first: the pin-shaped U+1F588 is missing from many fonts and
+  ;; renders as a box.  U+2316, POSITION INDICATOR, is the terminal-safe
+  ;; one -- it is in the same block as the media controls, which terminal
+  ;; fonts that have any of this tend to cover.
+  (lean4-info--glyph lean4-info-pin-icon '("📌" "🖈" "⌖") "P"))
+
+(defun lean4-info-pause-glyph ()
+  "Return the pause control for this frame."
+  (lean4-info--glyph lean4-info-pause-icon '("⏸" "‖") "||"))
+
+(defun lean4-info-resume-glyph ()
+  "Return the resume control for this frame."
+  (lean4-info--glyph lean4-info-resume-icon '("⏵" "▶" "▸") ">"))
 
 (defun lean4-info--button (label help command &optional active)
   "Return LABEL as a clickable control running COMMAND, described by HELP.
@@ -641,7 +669,7 @@ ACTIVE marks the control as engaged, which shows in its face."
   "Return the pin and pause controls, as one string."
   (concat
    (lean4-info--button
-    lean4-info-pin-icon
+    (lean4-info-pin-glyph)
     (if lean4-info--pin
         "mouse-1: unpin, and follow point again"
       "mouse-1: pin the display to this position")
@@ -649,7 +677,9 @@ ACTIVE marks the control as engaged, which shows in its face."
     lean4-info--pin)
    "  "
    (lean4-info--button
-    (if lean4-info-paused lean4-info-resume-icon lean4-info-pause-icon)
+    (if lean4-info-paused
+        (lean4-info-resume-glyph)
+      (lean4-info-pause-glyph))
     (if lean4-info-paused
         "mouse-1: unpause, and start updating again"
       "mouse-1: pause updating")
@@ -685,7 +715,13 @@ need not be single-width."
                       (t ""))))
     (concat location state
             (propertize " " 'display
-                        `(space :align-to (- right ,(1+ (string-width controls)))))
+                        ;; Two columns of margin, not one: the right edge
+                        ;; is where the fringe or a scroll bar begins, and
+                        ;; an emoji can be rendered wider than
+                        ;; `string-width' accounts for, so a control set
+                        ;; flush against it bleeds off the side.
+                        `(space :align-to
+                                (- right ,(+ (string-width controls) 2))))
             controls)))
 
 ;;;###autoload

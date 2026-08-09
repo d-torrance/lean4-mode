@@ -72,6 +72,8 @@ Usage
 Configuration
 
 * Frequently used options::
+* The goal display's controls::
+* Older Lean versions::
 * Semantic highlighting::
 * Optional packages::
 
@@ -342,6 +344,8 @@ Eglot's own configuration applies.
 
 @menu
 * Frequently used options::
+* The goal display's controls::
+* Older Lean versions::
 * Semantic highlighting::
 * Optional packages::
 @end menu
@@ -379,6 +383,36 @@ of Mathlib that is tens of thousands of files.
 to treat as workspace roots, and directories in which never to start a
 server.
 @end itemize
+
+@node The goal display's controls
+@section The goal display's controls
+
+The pin and pause controls are drawn with whichever glyphs the frame can
+display, decided each time they are drawn rather than once at startup,
+so one Emacs serving both a graphical frame and a terminal gets the
+right thing in each.  A graphical frame usually gets @samp{📌 ⏸ ⏵}, a
+terminal @samp{⌖ ⏸ ⏵}, and a display with nothing but ASCII gets @samp{P || >}.
+Set @code{lean4-info-pin-icon}, @code{lean4-info-pause-icon} or
+@code{lean4-info-resume-icon} to override.
+
+@node Older Lean versions
+@section Older Lean versions
+
+Some of what this package reads was added to the Lean server over time,
+and it degrades quietly where a field is absent.
+
+Lean marks its completed-proof report as being for the goal display
+rather than for the editor, and marks a finished declaration with a tag.
+Servers older than those fields -- 4.26 sets neither, even when asked --
+send the report as an ordinary note, where it would appear as a problem
+against every finished proof.  For those, the message is recognised by
+its wording instead; set @code{lean4-hide-goals-accomplished} to nil to see
+it as sent.
+
+Interactive references are encoded in a format negotiated with the
+server; version 1 arrived in Lean 4.30.  Older servers keep to version
+0, which this package reads too.  @samp{M-x lean4-diagnose} reports which
+extensions the running server offers.
 
 @node Semantic highlighting
 @section Semantic highlighting

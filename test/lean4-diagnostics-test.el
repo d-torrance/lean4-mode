@@ -57,5 +57,44 @@ are never pushed either, and reach us only through
 `Lean.Widget.getInteractiveDiagnostics'."
   (should (plist-get lean4-client-capabilities :silentDiagnosticSupport)))
 
+(ert-deftest lean4-diagnostics-recognises-the-report-by-wording ()
+  "The completed-proof report is recognised on servers that do not mark it.
+
+Lean 4.26 sets neither `isSilent' nor `leanTags', even when the client
+asks: the message is all there is.  Matching on wording is confined to
+this one message, which is fixed rather than a template."
+  (should (lean4-diagnostics-goals-accomplished-text-p
+           '(:message "Goals accomplished!")))
+  (should (lean4-diagnostics-goals-accomplished-text-p
+           '(:message "goals accomplished")))
+  ;; Not anything that merely mentions it.
+  (should-not (lean4-diagnostics-goals-accomplished-text-p
+               '(:message "Goals accomplished, but there is a warning")))
+  (should-not (lean4-diagnostics-goals-accomplished-text-p
+               '(:message "declaration uses `sorry`"))))
+
+(ert-deftest lean4-diagnostics-suppresses-both-ways ()
+  "A report is kept out of the editor whether marked or merely worded."
+  ;; Marked, as a current server sends it.
+  (should (lean4-diagnostics-suppressed-p '(:isSilent t :message "anything")))
+  ;; Unmarked, as 4.26 sends it.
+  (should (lean4-diagnostics-suppressed-p '(:message "Goals accomplished!")))
+  ;; Real diagnostics are untouched either way.
+  (should-not (lean4-diagnostics-suppressed-p
+               '(:message "declaration uses `sorry`")))
+  ;; And the fallback can be turned off.
+  (let ((lean4-hide-goals-accomplished nil))
+    (should-not (lean4-diagnostics-suppressed-p
+                 '(:message "Goals accomplished!")))
+    ;; The marked case still works, since that is the real mechanism.
+    (should (lean4-diagnostics-suppressed-p '(:isSilent t)))))
+
+(ert-deftest lean4-diagnostics-marker-works-without-tags ()
+  "The goals-accomplished marker fires on an unmarked report too."
+  (should (lean4-diagnostics-goals-accomplished-p
+           '(:message "Goals accomplished!")))
+  (should (lean4-diagnostics-goals-accomplished-p
+           `(:leanTags [,lean4-diagnostics-tag-goals-accomplished]))))
+
 (provide 'lean4-diagnostics-test)
 ;;; lean4-diagnostics-test.el ends here

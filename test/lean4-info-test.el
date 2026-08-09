@@ -103,8 +103,8 @@ every ordinary line is proved."
            (lean4-info-paused nil)
            (heading (lean4-info--heading (lean4-info--location-string)))
            (plain (substring-no-properties heading))
-           (pin (string-search lean4-info-pin-icon plain))
-           (pause (string-search lean4-info-pause-icon plain)))
+           (pin (string-search (lean4-info-pin-glyph) plain))
+           (pause (string-search (lean4-info-pause-glyph) plain)))
       (should pin)
       (should pause)
       (should (eq (keymap-lookup (get-text-property pin 'keymap heading)
@@ -132,15 +132,15 @@ defaults are chosen with `char-displayable-p' and can be overridden."
   (with-temp-buffer
     (rename-buffer "Icons.lean" 'unique)
     (let ((lean4-info--pin nil) (lean4-info-paused nil))
-      (should (string-search lean4-info-pause-icon
+      (should (string-search (lean4-info-pause-glyph)
                              (substring-no-properties
                               (lean4-info--heading
                                (lean4-info--location-string))))))
     (let ((lean4-info--pin nil) (lean4-info-paused t))
       (let ((plain (substring-no-properties
                     (lean4-info--heading (lean4-info--location-string)))))
-        (should (string-search lean4-info-resume-icon plain))
-        (should-not (string-search lean4-info-pause-icon plain))))))
+        (should (string-search (lean4-info-resume-glyph) plain))
+        (should-not (string-search (lean4-info-pause-glyph) plain))))))
 
 (ert-deftest lean4-info-pin-control-shows-its-state-by-face ()
   "The pin control is faced differently when engaged.
@@ -154,13 +154,40 @@ glyph."
                 (let* ((heading (lean4-info--heading
                                  (lean4-info--location-string)))
                        (index (string-search
-                               lean4-info-pin-icon
+                               (lean4-info-pin-glyph)
                                (substring-no-properties heading))))
                   (get-text-property index 'face heading))))
       (let ((lean4-info--pin nil) (lean4-info-paused nil))
         (should (eq (pin-face) 'lean4-info-button)))
       (let ((lean4-info--pin (point-marker)) (lean4-info-paused nil))
         (should (eq (pin-face) 'lean4-info-button-active))))))
+
+(ert-deftest lean4-info-glyphs-suit-the-frame ()
+  "The controls are chosen for the frame they are drawn in.
+
+One Emacs can serve a graphical frame and a terminal at once, so
+deciding at load time would give both whichever came up first."
+  (let ((lean4-info-pin-icon nil)
+        (lean4-info-pause-icon nil)
+        (lean4-info-resume-icon nil))
+    ;; A terminal with the media controls but no emoji.
+    (cl-letf (((symbol-function 'char-displayable-p)
+               (lambda (character)
+                 (or (< character 128) (<= #x2300 character #x23FF)))))
+      (should (equal (lean4-info-pin-glyph) "⌖"))
+      (should (equal (lean4-info-pause-glyph) "⏸")))
+    ;; A terminal that can show nothing but ASCII.
+    (cl-letf (((symbol-function 'char-displayable-p)
+               (lambda (character) (< character 128))))
+      (should (equal (lean4-info-pin-glyph) "P"))
+      (should (equal (lean4-info-pause-glyph) "||"))
+      (should (equal (lean4-info-resume-glyph) ">")))))
+
+(ert-deftest lean4-info-configured-glyph-wins ()
+  "An explicitly configured control is used whatever the frame can show."
+  (let ((lean4-info-pin-icon "PIN"))
+    (cl-letf (((symbol-function 'char-displayable-p) (lambda (_) t)))
+      (should (equal (lean4-info-pin-glyph) "PIN")))))
 
 (provide 'lean4-info-test)
 ;;; lean4-info-test.el ends here

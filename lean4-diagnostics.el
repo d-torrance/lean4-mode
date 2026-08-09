@@ -61,10 +61,50 @@
   "Return non-nil if raw LSP DIAGNOSTIC is meant only for the goal display."
   (eq (plist-get diagnostic :isSilent) t))
 
+(defcustom lean4-hide-goals-accomplished t
+  "Whether to keep Lean's completed-proof report out of the editor.
+
+Lean marks it `isSilent', meaning it is for the goal display rather than
+for the editor, and that is what this normally reads.  Servers older
+than that capability -- 4.26 sets neither `isSilent' nor `leanTags' --
+send it as an ordinary note instead, where it appears as a problem
+against every finished proof.  For those, the message itself is the only
+thing left to go on.
+
+Set to nil to see it as Lean sends it."
+  :group 'lean4
+  :type 'boolean)
+
+(defconst lean4-diagnostics--goals-accomplished-regexp
+  (rx bos (any "Gg") "oals accomplished" (* (any "!.")) eos)
+  "Lean's report that a proof is complete.
+
+Matching on wording is not something to do lightly, and it is confined
+to this one message: it is fixed, it is not a template, and on servers
+that do not mark it there is nothing else to recognise it by.")
+
+(defun lean4-diagnostics-goals-accomplished-text-p (diagnostic)
+  "Return non-nil if raw LSP DIAGNOSTIC reads as a completed-proof report.
+Only pushed diagnostics carry their message as a string; an interactive
+one carries a tree, and is not what this is for."
+  (let ((message (plist-get diagnostic :message)))
+    (and (stringp message)
+         (string-match-p lean4-diagnostics--goals-accomplished-regexp
+                         (string-trim message))
+         t)))
+
+(defun lean4-diagnostics-suppressed-p (diagnostic)
+  "Return non-nil if raw LSP DIAGNOSTIC should be kept out of the editor."
+  (or (lean4-diagnostics-silent-p diagnostic)
+      (and lean4-hide-goals-accomplished
+           (lean4-diagnostics-goals-accomplished-text-p diagnostic))))
+
 (defun lean4-diagnostics-goals-accomplished-p (diagnostic)
   "Return non-nil if raw LSP DIAGNOSTIC reports a finished proof."
-  (memq lean4-diagnostics-tag-goals-accomplished
-        (lean4-diagnostics-tags diagnostic)))
+  (or (memq lean4-diagnostics-tag-goals-accomplished
+            (lean4-diagnostics-tags diagnostic))
+      ;; Servers predating `leanTags' say it in words instead.
+      (lean4-diagnostics-goals-accomplished-text-p diagnostic)))
 
 ;;;; Capabilities
 
@@ -143,7 +183,7 @@ reported precisely as a silent diagnostic and that is what the
 goals-accomplished marker is made of."
   (lean4-with-uri-buffers server uri
     (lean4-diagnostics--mark-accomplished diagnostics))
-  (let ((visible (seq-remove #'lean4-diagnostics-silent-p
+  (let ((visible (seq-remove #'lean4-diagnostics-suppressed-p
                              (append diagnostics nil))))
     (apply #'cl-call-next-method server method
            (plist-put (copy-sequence params) :diagnostics (vconcat visible)))))
