@@ -42,8 +42,8 @@
 (require 'quail)
 (require 'cl-lib)
 (require 'subr-x)
-(require 'dash)
 (require 'map)
+(require 'seq)
 
 ;; Quail is quite stateful, so be careful when editing this code.  Note
 ;; that with-temp-buffer is used below whenever buffer-local state is
@@ -320,11 +320,10 @@ leanprover.github.io/tutorial/js/input-method.js"
       (get-buffer-create "*lean4-translations*")
     (let ((exclude-list '("\\newline")))
       (insert "var corrections = {")
-      (--each
-          (--filter (not (member (car it) exclude-list))
-                    (lean4-input-get-translations "Lean"))
-        (let* ((input (substring (car it) 1))
-               (outputs (cdr it)))
+      (dolist (rule (seq-remove (lambda (rule) (member (car rule) exclude-list))
+                                (lean4-input-get-translations "Lean")))
+        (let ((input (substring (car rule) 1))
+              (outputs (cdr rule)))
           (insert (format "%s:\"" (prin1-to-string input)))
           (cond ((vectorp outputs)
                  (insert (elt outputs 0)))

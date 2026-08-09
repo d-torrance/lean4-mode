@@ -22,38 +22,19 @@
 
 ;;; Code:
 
-(require 'compat)
 (require 'lean4-settings)
 
-(defun lean4-setup-rootdir ()
-  "Search for lean executable in variable `exec-path'.
-Try to find an executable named `lean4-executable-name' in variable `exec-path'.
-On succsess, return path to the directory with this executable."
-  (let ((root (executable-find lean4-executable-name)))
-    (when root
-      (setq lean4-rootdir (file-name-directory
-                           (directory-file-name
-                            (file-name-directory root)))))
-    lean4-rootdir))
+(defun lean4--program (name)
+  "Return how to invoke the Lean toolchain program NAME.
 
-(defun lean4-get-rootdir ()
-  "Search for lean executable in `lean4-rootdir' and variable `exec-path'.
-First try to find an executable named `lean4-executable-name' in
-`lean4-rootdir'.  On failure, search in variable `exec-path'."
+Normally NAME is returned unchanged and resolved through the variable
+`exec-path', which is what an elan installation wants: elan's shims read the
+project's \"lean-toolchain\" and dispatch to the right version, so
+pinning an absolute path defeats it.  `lean4-rootdir' overrides this for
+installations that are not on the variable `exec-path'."
   (if lean4-rootdir
-      (let ((lean4-path (expand-file-name lean4-executable-name (expand-file-name "bin" lean4-rootdir))))
-        (unless (file-exists-p lean4-path)
-          (error "Incorrect `lean4-rootdir' value, path '%s' does not exist" lean4-path))
-        lean4-rootdir)
-    (or
-     (lean4-setup-rootdir)
-     (error
-      (concat "Lean was not found in the `exec-path' and `lean4-rootdir' is not defined. "
-              "Please set it via M-x customize-variable RET lean4-rootdir RET.")))))
-
-(defun lean4-get-executable (exe-name)
-  "Return fullpath of lean executable EXE-NAME."
-  (file-name-concat (lean4-get-rootdir) "bin" exe-name))
+      (expand-file-name name (expand-file-name "bin" lean4-rootdir))
+    name))
 
 (defun lean4-whitespace-cleanup ()
   "Delete trailing whitespace if `lean4-delete-trailing-whitespace' is t."

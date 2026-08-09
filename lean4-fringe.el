@@ -1,6 +1,7 @@
 ;;; lean4-fringe.el --- Lean4-Mode Processing Progress in Fringe  -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2016 Microsoft Corporation. All rights reserved.
+;; Copyright (C) 2026 Lean4-Mode contributors
 
 ;; This file is not part of GNU Emacs.
 
@@ -18,23 +19,20 @@
 
 ;;; Commentary:
 
-;; Show Lean processing progress in the editor fringe
+;; Show Lean processing progress in the editor fringe, the counterpart of the
+;; orange gutter bar in VS Code.
+;;
+;; Lean elaborates a file incrementally and reports which ranges are still in
+;; flight with `$/lean/fileProgress'.  `lean4-eglot' turns that notification
+;; into a call of `lean4-file-progress-functions'; this library subscribes and
+;; maintains one overlay per outstanding range.
 
 ;;; Code:
 
+(require 'seq)
+
 (require 'lean4-settings)
-(require 'lsp-mode)
-(require 'lsp-protocol)
-
-(eval-and-compile
-  (lsp-interface
-   (lean:LeanFileProgressProcessingInfo (:range :kind) nil)
-   (lean:LeanFileProgressParams (:textDocument :processing) nil)))
-
-(defvar-local lean4-fringe-delay-timer nil)
-
-(lsp-defun lean4-fringe-region ((&lean:LeanFileProgressProcessingInfo :range))
-  (lsp--range-to-region range))
+(require 'lean4-eglot)
 
 (defface lean4-fringe-face
   nil
@@ -42,8 +40,8 @@
   :group 'lean4)
 
 (if (fboundp 'define-fringe-bitmap)
-  (define-fringe-bitmap 'lean4-fringe-fringe-bitmap
-    (vector) 16 8))
+    (define-fringe-bitmap 'lean4-fringe-fringe-bitmap
+      (vector) 16 8))
 
 (defface lean4-fringe-fringe-processing-face
   '((((class color) (background light))
@@ -63,41 +61,61 @@
   "Face to highlight the fringe of Lean file fatal errors."
   :group 'lean4)
 
-(lsp-defun lean4-fringe-fringe-face ((&lean:LeanFileProgressProcessingInfo :kind))
-  (cond
-   ((eq kind 1) 'lean4-fringe-fringe-processing-face)
-   (t 'lean4-fringe-fringe-fatal-error-face)))
+(defconst lean4-fringe--processing-kind 1
+  "Value of `LeanFileProgressKind.processing' on the wire.
+Any other value means the file worker hit a fatal error.")
 
-(defvar-local lean4-fringe-data nil)
+(defun lean4-fringe-face (item)
+  "Return the fringe face for progress ITEM."
+  (if (eq (plist-get item :kind) lean4-fringe--processing-kind)
+      'lean4-fringe-fringe-processing-face
+    'lean4-fringe-fringe-fatal-error-face))
+
+(defvar-local lean4-fringe-data nil
+  "Ranges the server is still elaborating in this buffer.")
+
+(defvar-local lean4-fringe-delay-timer nil
+  "Timer coalescing progress redraws in this buffer.")
+
+(defconst lean4-fringe-delay 0.3
+  "Seconds to wait before redrawing progress overlays.
+Progress notifications arrive continuously while a file elaborates;
+redrawing on each one costs more than it communicates.")
 
 (defun lean4-fringe-update-progress-overlays ()
   "Update processing bars in the current buffer."
-  (dolist (ov (flatten-tree (overlay-lists)))
+  (setq lean4-fringe-delay-timer nil)
+  (dolist (ov (overlays-in (point-min) (point-max)))
     (when (eq (overlay-get ov 'face) 'lean4-fringe-face)
       (delete-overlay ov)))
   (when lean4-show-file-progress
     (seq-doseq (item lean4-fringe-data)
-      (let* ((reg (lean4-fringe-region item))
-             (ov (make-overlay (car reg) (cdr reg))))
+      (when-let* ((region (ignore-errors
+                            (lean4--range-region (plist-get item :range))))
+                  (ov (make-overlay (car region) (cdr region))))
         (overlay-put ov 'face 'lean4-fringe-face)
         (overlay-put ov 'line-prefix
                      (propertize " " 'display
-                                 `(left-fringe lean4-fringe-fringe-bitmap ,(lean4-fringe-fringe-face item))))
-        (overlay-put ov 'help-echo (format "processing..."))))))
+                                 `(left-fringe lean4-fringe-fringe-bitmap
+                                               ,(lean4-fringe-face item))))
+        (overlay-put ov 'help-echo "Lean is processing this region")))))
 
-(lsp-defun lean4-fringe-update (workspace (&lean:LeanFileProgressParams :processing :text-document (&VersionedTextDocumentIdentifier :uri)))
-  (dolist (buf (lsp--workspace-buffers workspace))
-    (lsp-with-current-buffer buf
-      (when (equal (lsp--buffer-uri) uri)
-        (setq lean4-fringe-data processing)
-        (save-match-data
-          (when (not (memq lean4-fringe-delay-timer timer-list))
-            (setq lean4-fringe-delay-timer
-                  (run-at-time "300 milliseconds" nil
-                               (lambda (buf)
-                                 (with-current-buffer buf
-                                   (lean4-fringe-update-progress-overlays)))
-                               (current-buffer)))))))))
+(defun lean4-fringe-update (server uri processing)
+  "Record SERVER's PROCESSING ranges for the buffer visiting URI.
+Suitable for `lean4-file-progress-functions'."
+  (lean4-with-uri-buffers server uri
+    (setq lean4-fringe-data processing)
+    (unless lean4-fringe-delay-timer
+      (setq lean4-fringe-delay-timer
+            (run-with-timer
+             lean4-fringe-delay nil
+             (lambda (buffer)
+               (when (buffer-live-p buffer)
+                 (with-current-buffer buffer
+                   (lean4-fringe-update-progress-overlays))))
+             (current-buffer))))))
+
+(add-hook 'lean4-file-progress-functions #'lean4-fringe-update)
 
 (provide 'lean4-fringe)
 ;;; lean4-fringe.el ends here

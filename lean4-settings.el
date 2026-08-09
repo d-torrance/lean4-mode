@@ -23,7 +23,6 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'lsp-mode)
 
 (defgroup lean4 nil
   "Major mode for Lean4 programming language and theorem prover."
@@ -34,11 +33,6 @@
           "https://github.com/leanprover-community/lean4-mode")
   :link '(emacs-library-link :tag "Library Source" "lean4-mode.el")
   :prefix "lean4-")
-
-(defgroup lean4-keybinding nil
-  "Keybindings for lean4-mode."
-  :prefix "lean4-"
-  :group 'lean4)
 
 (defconst lean4-default-executable-name
   (cl-case system-type
@@ -52,16 +46,20 @@
     (t          "lake"))
   "Default executable name of Lake.")
 
-(defcustom lean4-mode-hook (list #'lsp)
-  "Hook run after entering `lean4-mode'."
-  :options '(flycheck-mode lsp)
-  :type 'hook
-  :group 'lean4)
+(defcustom lean4-auto-start-server t
+  "Whether to start the Lean language server on visiting a Lean file.
+Set to nil to start it by hand with \\[eglot]."
+  :group 'lean4
+  :type 'boolean)
 
 (defcustom lean4-rootdir nil
-  "Full pathname of lean root directory.  It should be defined by user."
+  "Directory holding the Lean toolchain.
+Only needed when Lean is not found through the variable `exec-path'.
+Leave this nil when Lean is installed with elan, which is the usual
+case: elan's shims select the toolchain a project pins, and naming a
+directory here bypasses that."
   :group 'lean4
-  :type 'string)
+  :type '(choice (const :tag "Find on `exec-path'" nil) directory))
 
 (defcustom lean4-executable-name lean4-default-executable-name
   "Name of lean executable."
@@ -72,23 +70,6 @@
   "Name of lake executable."
   :group 'lean4
   :type 'string)
-
-(defcustom lean4-memory-limit 1024
-  "Memory limit for lean process in megabytes."
-  :group 'lean4
-  :type 'number)
-
-(defcustom lean4-timeout-limit 100000
-  "Deterministic timeout limit.
-
-It is approximately the maximum number of memory allocations in thousands."
-  :group 'lean4
-  :type 'number)
-
-(defcustom lean4-extra-arguments nil
-  "Extra command-line arguments to the lean process."
-  :group 'lean4
-  :type '(list string))
 
 (defcustom lean4-delete-trailing-whitespace nil
   "Automatically delete trailing whitespace.
@@ -109,37 +90,6 @@ using `font-lock-comment-face' instead of the `✝` suffix used by Lean."
   "Highlight file progress in the current buffer."
   :group 'lean4
   :type 'boolean)
-
-
-(defcustom lean4-autodetect-lean3 nil
-  "Autodetect Lean version.
-Use elan to check if current project uses Lean 3 or Lean 4 and initialize the
-right mode when visiting a file.  If elan has a default Lean version, Lean files
-outside a project will default to that mode."
-  :group 'lean4
-  :type 'boolean)
-
-(defcustom lean4-keybinding-std-exe1 (kbd "C-c C-x")
-  "Main Keybinding for `lean4-std-exe'."
-  :group 'lean4-keybinding :type 'key-sequence)
-(defcustom lean4-keybinding-std-exe2 (kbd "C-c C-l")
-  "Alternative Keybinding for `lean4-std-exe'."
-  :group 'lean4-keybinding  :type 'key-sequence)
-(defcustom lean4-keybinding-show-key (kbd "C-c C-k")
-  "Lean Keybinding for `quail-show-key'."
-  :group 'lean4-keybinding  :type 'key-sequence)
-(defcustom lean4-keybinding-tab-indent (kbd "TAB")
-  "Lean Keybinding for `lean4-tab-indent'."
-  :group 'lean4-keybinding  :type 'key-sequence)
-(defcustom lean4-keybinding-lean4-toggle-info (kbd "C-c C-i")
-  "Lean Keybinding for `lean4-toggle-info'."
-  :group 'lean4-keybinding  :type 'key-sequence)
-(defcustom lean4-keybinding-lake-build (kbd "C-c C-p C-l")
-  "Lean Keybinding for `lean4-lake-build'."
-  :group 'lean4-keybinding :type 'key-sequence)
-(defcustom lean4-keybinding-refresh-file-dependencies (kbd "C-c C-d")
-  "Lean Keybinding for `lean4-refresh-file-dependencies'."
-  :group 'lean4-keybinding :type 'key-sequence)
 
 (provide 'lean4-settings)
 ;;; lean4-settings.el ends here

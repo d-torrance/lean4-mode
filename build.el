@@ -77,24 +77,9 @@ Makefile never has to be kept in sync with it by hand."
 
 ;;; Targets
 
-(defconst lean4-build--suppressed-warnings
-  ;; `lsp-interface' expands into accessors whose generated docstrings exceed
-  ;; 80 columns.  That is lsp-mode's macro output, not our source, so there is
-  ;; nothing to fix here.  Drop this once lean4-info.el no longer uses
-  ;; `lsp-interface' -- i.e. once the eglot port lands.
-  ;;
-  ;; Emacs 29 files the width check under `docstrings'; Emacs 30 split it out
-  ;; into `docstrings-wide'.  Intersect with the categories this Emacs knows
-  ;; about so the list stays valid on both.
-  '(docstrings docstrings-wide)
-  "Byte-compiler warning categories that do not fail the build.")
-
 (defun lean4-build-compile ()
   "Byte-compile every library, treating warnings as errors."
-  (let* ((known (seq-intersection lean4-build--suppressed-warnings
-                                  byte-compile-warning-types))
-         (byte-compile-warnings (cons 'not known))
-         (byte-compile-error-on-warn t)
+  (let* ((byte-compile-error-on-warn t)
          failures)
     (dolist (file (lean4-build--libraries))
       (unless (byte-compile-file file)

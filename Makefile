@@ -41,12 +41,14 @@ checkdoc:
 lint:
 	@$(BATCH) -l build.el -f lean4-build-lint
 
-test:
+# Both depend on `compile': a stale .elc silently shadows the .el it was
+# built from, so tests would otherwise exercise the previous edit.
+test: compile
 	@$(BATCH) -L test $(patsubst %,-l %,$(TESTS)) \
 	  -f ert-run-tests-batch-and-exit
 
 # Kept out of `test' because it needs a Lean toolchain and takes minutes.
-e2e:
+e2e: compile
 	@$(BATCH) -L test -l test/lean4-e2e-test.el \
 	  --eval "(ert-run-tests-batch-and-exit '(tag :e2e))"
 

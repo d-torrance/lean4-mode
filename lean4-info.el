@@ -1,6 +1,9 @@
-;;; lean4-info.el --- Lean4-Mode Info View  -*- lexical-binding: t; -*-
+;;; lean4-info.el --- Emacs mode for Lean theorem prover  -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2016 Gabriel Ebner. All rights reserved.
+;; Copyright (C) 2023 Buster Copley
+;; Copyright (C) 2024 Paul D. Nelson
+;; Copyright (C) 2026 Lean4-Mode contributors
 
 ;; This file is not part of GNU Emacs.
 
@@ -18,16 +21,31 @@
 
 ;;; Commentary:
 
-;; This library provides an advanced LSP feature for `lean4-mode'.
+;; The `*Lean Goal*' buffer: the proof state and the messages at point, the
+;; counterpart of VS Code's InfoView.
+;;
+;; Goals are fetched with `$/lean/plainGoal' and `$/lean/plainTermGoal',
+;; which the Lean server documents as existing for editors without an
+;; interactive InfoView.  They return pre-rendered strings, so nothing here
+;; can offer hovering or navigation on a subterm; that needs Lean's RPC
+;; layer and arrives later.
+;;
+;; Diagnostics come from Flymake, since that is what Eglot reports to.  The
+;; raw LSP object is recovered from the Flymake diagnostic in order to read
+;; Lean's non-standard `fullRange': Lean underlines only the first line of a
+;; multi-line error, but the InfoView shows the message whenever point is
+;; anywhere within its full extent.
 
 ;;; Code:
 
-(require 'dash)
-(require 'lean4-syntax)
-(require 'lean4-settings)
-(require 'lsp-mode)
-(require 'lsp-protocol)
+(require 'cl-lib)
+(require 'flymake)
+(require 'seq)
 (require 'magit-section)
+
+(require 'lean4-eglot)
+(require 'lean4-settings)
+(require 'lean4-syntax)
 
 (defgroup lean4-info nil
   "Lean4-Mode Info."
@@ -40,11 +58,17 @@
   "Major mode for Lean4-Mode Info Buffer."
   :syntax-table lean4-syntax-table
   :group 'lean4
-  (set (make-local-variable 'font-lock-defaults) lean4-info-font-lock-defaults)
-  (set (make-local-variable 'indent-tabs-mode) nil)
-  (set 'compilation-mode-font-lock-keywords '())
-  (set (make-local-variable 'lisp-indent-function)
-       'common-lisp-indent-function))
+  (setq-local font-lock-defaults lean4-info-font-lock-defaults)
+  (setq-local indent-tabs-mode nil)
+  (setq-local lisp-indent-function 'common-lisp-indent-function))
+
+(defconst lean4-info-buffer-name "*Lean Goal*")
+
+(defvar-local lean4-goals nil
+  "Goals reported for point, as a vector of pre-rendered strings.")
+
+(defvar-local lean4-term-goal nil
+  "Expected type at point, as a pre-rendered string.")
 
 (defun lean4-ensure-info-buffer (buffer)
   "Create BUFFER if it does not exist.
@@ -59,7 +83,7 @@ Also choose settings used for the *Lean Goal* buffer."
 (defun lean4-toggle-info-buffer (buffer)
   "Create or delete BUFFER.
 The buffer is supposed to be the *Lean Goal* buffer."
-  (-if-let (window (get-buffer-window buffer))
+  (if-let* ((window (get-buffer-window buffer)))
       (quit-window nil window)
     (lean4-ensure-info-buffer buffer)
     (display-buffer buffer)))
@@ -72,23 +96,70 @@ The buffer is supposed to be the *Lean Goal* buffer."
    ;; current window of current buffer is selected (i.e., in focus)
    (eq (current-buffer) (window-buffer))))
 
-(eval-and-compile
-  (lsp-interface
-   (lean:PlainGoal (:goals) nil)
-   (lean:PlainTermGoal (:goal) nil)
-   (lean:Diagnostic
-    (:range :fullRange :message)
-    (:code :relatedInformation :severity :source :tags))))
+;;;; Diagnostics
 
-(defconst lean4-info-buffer-name "*Lean Goal*")
+(defun lean4-diagnostic-lsp-data (diagnostic)
+  "Return the raw LSP object behind Flymake DIAGNOSTIC, or nil.
+Eglot stashes the server's original `Diagnostic' there, which is the
+only way to reach Lean's extensions to it."
+  (alist-get 'eglot-lsp-diag (flymake-diagnostic-data diagnostic)))
 
-(defvar lean4-goals nil)
-(defvar lean4-term-goal nil)
+(defun lean4-diagnostic-full-range (diagnostic)
+  "Return the `fullRange' of Flymake DIAGNOSTIC, falling back to `range'.
+Lean reports two extents per diagnostic: `range', which is what gets
+underlined, and `fullRange', which covers the whole construct the
+message is about.  Servers older than the extension send only `range'."
+  (let ((lsp (lean4-diagnostic-lsp-data diagnostic)))
+    (or (plist-get lsp :fullRange)
+        (plist-get lsp :range))))
 
-(lsp-defun lean4-diagnostic-full-start-line ((&lean:Diagnostic :full-range (&Range :start (&Position :line))))
-  line)
-(lsp-defun lean4-diagnostic-full-end-line ((&lean:Diagnostic :full-range (&Range :end (&Position :line))))
-  line)
+(defun lean4-diagnostic-full-start-line (diagnostic)
+  "Return the zero-based line DIAGNOSTIC's full range starts on."
+  (thread-first (lean4-diagnostic-full-range diagnostic)
+                (plist-get :start)
+                (plist-get :line)))
+
+(defun lean4-diagnostic-full-end-line (diagnostic)
+  "Return the zero-based line DIAGNOSTIC's full range ends on."
+  (thread-first (lean4-diagnostic-full-range diagnostic)
+                (plist-get :end)
+                (plist-get :line)))
+
+(defun lean4-diagnostic-message (diagnostic)
+  "Return the message text of Flymake DIAGNOSTIC.
+Prefers the server's own wording: Eglot prefixes the text it hands
+Flymake with the server name, which is useful in the echo area but only
+noise in a buffer that shows nothing but Lean diagnostics."
+  (or (plist-get (lean4-diagnostic-lsp-data diagnostic) :message)
+      (let ((text (flymake-diagnostic-text diagnostic)))
+        ;; Eglot 1.12 stores a string here; later versions store the list
+        ;; (SOURCE CODE MESSAGE).
+        (if (listp text) (car (last text)) text))))
+
+(defun lean4-info--split-diagnostics (diagnostics line)
+  "Partition DIAGNOSTICS relative to zero-based LINE.
+Returns a list (ABOVE HERE BELOW).  A diagnostic is \"here\" when LINE
+falls within its full range, which is how a message about a multi-line
+declaration stays visible while point moves through it."
+  (let (above here below)
+    (dolist (diagnostic diagnostics)
+      (cond
+       ((< (lean4-diagnostic-full-end-line diagnostic) line)
+        (push diagnostic above))
+       ((<= (lean4-diagnostic-full-start-line diagnostic) line)
+        (push diagnostic here))
+       (t (push diagnostic below))))
+    (list (nreverse above) (nreverse here) (nreverse below))))
+
+;;;; Rendering
+
+(defun lean4-info--fontify-string (text)
+  "Return TEXT fontified as Lean source."
+  (with-temp-buffer
+    (delay-mode-hooks (lean4-info-mode))
+    (insert text)
+    (font-lock-ensure)
+    (buffer-string)))
 
 (defun lean4-info--error-button-action (data)
   "Jump to the source location a diagnostic button points at.
@@ -124,7 +195,7 @@ dagger and shown in `font-lock-comment-face' instead."
 (defun lean4--insert-goal-text (text delimiter)
   "Insert goal TEXT fontified as Lean, followed by DELIMITER."
   (lean4-info--insert-highlight-inaccessible-names
-   (lsp--fontlock-with-mode text 'lean4-info-mode)
+   (lean4-info--fontify-string text)
    delimiter))
 
 (defun lean4-info--mk-message-section (value caption messages buffer)
@@ -132,197 +203,127 @@ dagger and shown in `font-lock-comment-face' instead."
 Each message is rendered as a button jumping into BUFFER at the
 message's own line and column.  Nothing is inserted when MESSAGES is
 empty."
-  (when-let (msgs messages) ;; captured for deferred rendering
+  (when messages
     (magit-insert-section (magit-section value)
       (magit-insert-heading caption)
       (magit-insert-section-body
-        (dolist (e msgs)
-          (-let (((&Diagnostic :message :range (&Range :start (&Position :line :character))) e))
-            (let ((ln (1+ (lsp-translate-line line)))
-                  (col (lsp-translate-column character)))
-              (insert-text-button (format "%d:%d:" ln col)
-                                  'action #'lean4-info--error-button-action
-                                  'button-data (list buffer ln col)
-                                  'face 'magit-section-heading
-                                  'help-echo "mouse-2: visit this file, line and column"))
-            (lean4-info--insert-highlight-inaccessible-names "\n" message "\n")))))))
+        (dolist (diagnostic messages)
+          (let* ((range (plist-get (lean4-diagnostic-lsp-data diagnostic) :range))
+                 (start (plist-get range :start))
+                 (line (1+ (or (plist-get start :line) 0)))
+                 (column (or (plist-get start :character) 0)))
+            (insert-text-button
+             (format "%d:%d:" line column)
+             'action #'lean4-info--error-button-action
+             'button-data (list buffer line column)
+             'face 'magit-section-heading
+             'help-echo "mouse-2: visit this file, line and column")
+            (lean4-info--insert-highlight-inaccessible-names
+             "\n" (lean4-diagnostic-message diagnostic) "\n")))))))
 
 (defun lean4-info-buffer-redisplay ()
   "Re-render the Lean info buffer from the last goals and diagnostics.
 Does nothing unless the info buffer is currently being displayed."
   (when (lean4-info-buffer-active lean4-info-buffer-name)
-    (-let* ((deactivate-mark) ; keep transient mark
-            (inhibit-read-only t)
-            (buffer (current-buffer))
-            (line (lsp--cur-line))
-            (errors (lsp--get-buffer-diagnostics))
-            (errors (-sort (-on #'< #'lean4-diagnostic-full-end-line) errors))
-            ((errors-above errors)
-             (--split-with (< (lean4-diagnostic-full-end-line it) line) errors))
-            ((errors-here errors-below)
-             (--split-with (<= (lean4-diagnostic-full-start-line it) line) errors)))
-      (with-current-buffer lean4-info-buffer-name
-        (progn
+    (let* ((deactivate-mark)            ; keep transient mark
+           (inhibit-read-only t)
+           (buffer (current-buffer))
+           (goals lean4-goals)
+           (term-goal lean4-term-goal)
+           (line (1- (line-number-at-pos nil 'absolute)))
+           (diagnostics (sort (flymake-diagnostics)
+                              (lambda (a b)
+                                (< (lean4-diagnostic-full-end-line a)
+                                   (lean4-diagnostic-full-end-line b))))))
+      (pcase-let ((`(,above ,here ,below)
+                   (lean4-info--split-diagnostics diagnostics line)))
+        (with-current-buffer lean4-info-buffer-name
           (erase-buffer)
           (magit-insert-section (magit-section 'root)
-            (when-let ((goals lean4-goals)) ;; capture for deferred rendering
+            (when goals
               (magit-insert-section (magit-section 'goals)
                 (magit-insert-heading "Goals:")
                 (magit-insert-section-body
-                (if (> (length goals) 0)
-                    (seq-doseq (g goals)
-                      (magit-insert-section (magit-section)
-                        (lean4--insert-goal-text g "\n\n")))
-                  (insert "goals accomplished\n\n")))))
-            (when-let ((term-goal lean4-term-goal)) ;; capture for deferred rendering
+                  (if (> (length goals) 0)
+                      (seq-doseq (goal goals)
+                        (magit-insert-section (magit-section)
+                          (lean4--insert-goal-text goal "\n\n")))
+                    (insert "goals accomplished\n\n")))))
+            (when term-goal
               (magit-insert-section (magit-section 'term-goal)
                 (magit-insert-heading "Expected type:")
                 (magit-insert-section-body
                   (lean4--insert-goal-text term-goal "\n"))))
-            (lean4-info--mk-message-section 'errors-here "Messages here:" errors-here buffer)
-            (lean4-info--mk-message-section 'errors-below "Messages below:" errors-below buffer)
-            (lean4-info--mk-message-section 'errors-above "Messages above:" errors-above buffer)))))))
+            (lean4-info--mk-message-section
+             'errors-here "Messages here:" here buffer)
+            (lean4-info--mk-message-section
+             'errors-below "Messages below:" below buffer)
+            (lean4-info--mk-message-section
+             'errors-above "Messages above:" above buffer)))))))
 
-;; Debouncing
-;; ~~~~~~~~~~~
-;; We want to update the Lean4 info buffer as seldom as possible,
-;; since magit-section is slow at rendering. We
-;; wait a small duration (`debounce-delay-sec') when we get a
-;; redisplay request, to see if there is a redisplay request in the
-;; future that invalidates the current request (debouncing).
-;; Pictorially,
-;; (a) One request:
-;; --r1
-;; --r1.wait
-;; ----------r1.render
-;; (b) Two requests in quick succession:
-;; --r1
-;; --r1.wait
-;; --------r2(cancel r1.wait)
-;; --------r2.wait
-;; ---------------r2.render
-;; (c) Two requests, not in succession:
-;; --r1
-;; --r1.wait
-;; ---------r1.render
-;; ------------------r2
-;; ------------------r2.wait
-;; -------------------------r2.render
-;; This delaying can lead to a pathological case where we continually
-;; stagger, while not rendering anything:
-;; --r1
-;; --r1.wait
-;; --------r2(cancel r1.wait)
-;; --------r2.wait
-;; --------------r3(cancel r2.wait)
-;; ---------------r3.wait
-;; ---------------------r4(cancel r3.wait)
-;; ---------------------...
-;; We prevent this pathological case by keeping track of when
-;; when we began debouncing in `lean4-info-buffer-debounce-begin-time'.
-;; If we have been debouncing for longer than
-;; `lean4-info-buffer-debounce-upper-bound-sec', then we
-;; immediately write instead of debouncing;
-;; `max-debounces' times. Upon trying to stagger the
-;; `max-debounces'th request, we immediately render:
-;; begin-time:nil----t0----------------nil-------
-;;            -------r1                |
-;;            -------r1.wait           |
-;;            -------|-----r2(cancel r1.wait)
-;;            -------|-----r2.wait     |
-;;            -------|-----------r3(cancel r2.wait)
-;;            -------|-----------r3.wait
-;;            -------|-----------------r4(cancel r3.wait)
-;;            -------|-----------------|
-;;                   >-----------------<
-;;                   >longer than `debounce-upper-bound-sec'<
-;;            -------------------------r4.render(FORCED)
+;;;; Refresh
 
-
-(defcustom lean4-info-buffer-debounce-delay-sec 0.1
-  "Duration of time we wait before writing to *Lean Goal*."
+(defcustom lean4-info-debounce-delay 0.1
+  "Seconds of quiet before the info buffer is re-rendered.
+`magit-section' rendering is not cheap, and point moves in bursts."
   :group 'lean4-info
   :type 'number)
 
+(defvar lean4-info--debounce-timer nil)
 
-(defvar lean4-info-buffer-debounce-timer nil
-  "Timer that is used to debounce Lean4 info view refresh.")
-
-
-(defvar lean4-info-buffer-debounce-begin-time nil
-  "Return the time we have begun debouncing.
-
-The returned value is nil if we are not currently debouncing.
-Otherwise, is a timestamp as given by `current-time'.")
-
-(defcustom lean4-info-buffer-debounce-upper-bound-sec
-  0.5
-  "Maximum time we are allowed to stagger debouncing.
-
-If we recieve a request such that we have been debouncing for longer
-than `lean4-info-buffer-debounce-begin-time', then we immediately run
-the request."
-  :group 'lean4-info
-  :type 'number)
-
-;;  Debounce implementation modifed from lsp-lens
-;; https://github.com/emacs-lsp/lsp-mode/blob/2f0ea2e396ec9a570f2a2aeb097c304ddc61ebee/lsp-lens.el#L140
 (defun lean4-info-buffer-redisplay-debounced ()
-  "Debounced version of `lean4-info-buffer-redisplay'.
+  "Schedule a redisplay of the info buffer, coalescing rapid requests."
+  (when (timerp lean4-info--debounce-timer)
+    (cancel-timer lean4-info--debounce-timer))
+  (let ((buffer (current-buffer)))
+    (setq lean4-info--debounce-timer
+          (run-with-idle-timer
+           lean4-info-debounce-delay nil
+           (lambda ()
+             (setq lean4-info--debounce-timer nil)
+             (when (buffer-live-p buffer)
+               (with-current-buffer buffer
+                 (lean4-info-buffer-redisplay))))))))
 
-This version ensures that info buffer is not repeatedly written to.
-This is to prevent lag, because magit is quite slow at building
-sections."
-  ;;  if we have not begun debouncing, setup debouncing begin time.
-  (if (not lean4-info-buffer-debounce-begin-time)
-      (setq lean4-info-buffer-debounce-begin-time (current-time)))
-  ;; if time since we began debouncing is too long...
-  (if (>= (time-to-seconds
-	   (time-subtract (current-time)
-			  lean4-info-buffer-debounce-begin-time))
-	  lean4-info-buffer-debounce-upper-bound-sec)
-      ;;  then redisplay immediately.
-      (progn
-	;;  We have stopped debouncing.
-	(setq lean4-info-buffer-debounce-begin-time nil)
-	(lean4-info-buffer-redisplay))
-    ;; else cancel current timer, create new debounced timer.
-    (-some-> lean4-info-buffer-debounce-timer cancel-timer)
-    (setq lean4-info-buffer-debounce-timer ; set new timer
-	  (run-with-timer
-	   lean4-info-buffer-debounce-delay-sec
-	   nil				; don't repeat timer
-	   (lambda ()
-	     ;; We have stopped debouncing.
-	     (setq lean4-info-buffer-debounce-begin-time nil)
-	     (lean4-info-buffer-redisplay))))))
+(defvar-local lean4-info--generation 0
+  "Counter used to discard replies that arrive out of order.
+Goal requests are asynchronous and Lean does not answer them in the
+order they were sent, so a reply for a position point has already left
+would otherwise overwrite a newer one.")
 
+(defun lean4-info--request (server method generation setter)
+  "Ask SERVER for METHOD at point and pass the result to SETTER.
+The reply is dropped unless GENERATION is still current.  Errors are
+ignored: the server routinely rejects position requests for a region it
+is still elaborating, and there is nothing useful to report."
+  (let ((buffer (current-buffer)))
+    (jsonrpc-async-request
+     server method (eglot--TextDocumentPositionParams)
+     :success-fn
+     (lambda (result)
+       (when (buffer-live-p buffer)
+         (with-current-buffer buffer
+           (when (eq generation lean4-info--generation)
+             (funcall setter result)
+             (lean4-info-buffer-redisplay)))))
+     :error-fn #'ignore
+     :timeout-fn #'ignore)))
 
 (defun lean4-info-buffer-refresh ()
-  "Refresh the *Lean Goal* buffer."
+  "Refresh the goals shown in the Lean info buffer.
+Does nothing unless the info buffer is on display: the requests are not
+free, and Lean is slow to answer them while a file is elaborating."
   (when (lean4-info-buffer-active lean4-info-buffer-name)
-    (lsp-request-async
-     "$/lean/plainGoal"
-     (lsp--text-document-position-params)
-     (-lambda ((ignored &as &lean:PlainGoal? :goals))
-       (setq lean4-goals goals)
-       (lean4-info-buffer-redisplay-debounced))
-     :error-handler #'ignore
-     :mode 'tick
-     :cancel-token :plain-goal)
-    (lsp-request-async
-     "$/lean/plainTermGoal"
-     (lsp--text-document-position-params)
-     (-lambda ((ignored &as &lean:PlainTermGoal? :goal))
-       (setq lean4-term-goal goal)
-       (lean4-info-buffer-redisplay-debounced))
-     :error-handler #'ignore
-     :mode 'tick
-     :cancel-token :plain-term-goal)
-    ;; may lead to flickering
-    ;(lean4-info-buffer-redisplay)
-    ))
+    (when-let* ((server (eglot-current-server))
+                (generation (cl-incf lean4-info--generation)))
+      (lean4-info--request
+       server :$/lean/plainGoal generation
+       (lambda (result) (setq lean4-goals (plist-get result :goals))))
+      (lean4-info--request
+       server :$/lean/plainTermGoal generation
+       (lambda (result) (setq lean4-term-goal (plist-get result :goal)))))))
 
+;;;###autoload
 (defun lean4-toggle-info ()
   "Show infos at the current point."
   (interactive)

@@ -46,7 +46,8 @@
   "Call lake build."
   (interactive)
   (let ((default-directory (file-name-as-directory (lean4-lake-find-dir-safe))))
-    (compile (concat (lean4-get-executable lean4-lake-name) " build"))))
+    (compile (concat (shell-quote-argument (lean4--program lean4-lake-name))
+                     " build"))))
 
 (provide 'lean4-lake)
 ;;; lean4-lake.el ends here
