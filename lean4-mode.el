@@ -197,9 +197,12 @@ to be added or removed from the hook variable.")
   (pcase-dolist (`(,hook . ,fn) lean4-hooks-alist)
     (add-hook hook fn nil 'local))
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-semantic-tokens nil 'local)
-  (when (and lean4-auto-start-server
-             buffer-file-name
-             (lean4--workspace-root))
+  ;; Deliberately not conditional on finding a workspace root.  A file
+  ;; outside any Lake package is still worth serving -- `lean4--server-command'
+  ;; falls back to `lean --server' with elan's default toolchain for exactly
+  ;; this case, and VS Code serves such files too.  Requiring a root meant a
+  ;; scratch .lean file got no server at all.
+  (when (and lean4-auto-start-server buffer-file-name)
     (eglot-ensure)))
 
 (defun lean4--version ()

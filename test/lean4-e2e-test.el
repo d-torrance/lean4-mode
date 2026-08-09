@@ -441,6 +441,51 @@ This is what makes \\[xref-find-definitions] work in the goal buffer."
          (with-current-buffer lean4-info-buffer-name
            (string-search "goals accomplished" (buffer-string))))))))
 
+;;;; Files outside a project
+
+(ert-deftest lean4-e2e-loose-file-gets-a-server ()
+  "A Lean file outside any Lake package is still served.
+
+Regression test.  Starting the server only when a workspace root was
+found meant a scratch .lean file got none at all, even though
+`lean4--server-command' already falls back to `lean --server' with
+elan's default toolchain for exactly that case.  VS Code serves such
+files, and so should this."
+  :tags '(:e2e)
+  (let* ((directory (make-temp-file "lean4-loose" 'directory))
+         (file (expand-file-name "Loose.lean" directory))
+         buffer)
+    (unwind-protect
+        (progn
+          (write-region "def loose : Nat := 1\n" nil file nil 'silent)
+          (setq buffer (find-file-noselect file))
+          (with-current-buffer buffer
+            (should (derived-mode-p 'lean4-mode))
+            ;; No lean-toolchain anywhere above it.
+            (should-not (lean4--workspace-root))
+            (should (equal (lean4--server-command nil)
+                           (list lean4-executable-name "--server")))
+            (let ((eglot-sync-connect t))
+              (apply #'eglot--connect (eglot--guess-contact)))
+            (should (eglot-managed-p))
+            ;; And it answers Lean's own requests, not just standard LSP.
+            (goto-char (point-min))
+            (end-of-line)
+            (let (answered)
+              (jsonrpc-async-request
+               (eglot-current-server) :$/lean/plainTermGoal
+               (eglot--TextDocumentPositionParams)
+               :success-fn (lambda (_) (setq answered t))
+               :error-fn (lambda (_) (setq answered t)))
+              (lean4-e2e--wait-until "the server to answer"
+                                     (lambda () answered)))))
+      (when buffer
+        (when-let* ((server (with-current-buffer buffer
+                              (eglot-current-server))))
+          (eglot-shutdown server nil nil 'preserve-buffers))
+        (kill-buffer buffer))
+      (delete-directory directory 'recursive))))
+
 ;;;; Interactive diagnostics
 
 (ert-deftest lean4-e2e-interactive-diagnostics-carry-lean-fields ()
