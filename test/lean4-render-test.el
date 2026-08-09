@@ -192,6 +192,92 @@ it would strike out every goal in the buffer.  Only per-subterm
                      (:goalPrefix "⊢ " :hyps [] :type (:text "B"))])))
     (should (equal (substring-no-properties rendered) "⊢ A\n\n⊢ B"))))
 
+;;;; Messages and traces
+
+(defconst lean4-render-test--trace
+  ;; Shape captured from Lean 4.32.2 answering getInteractiveDiagnostics on
+  ;; a `set_option trace.Meta.synthInstance true' declaration.
+  '(:tag [(:trace (:children (:lazy (:__rpcref "8"))
+                   :cls "Meta.synthInstance"
+                   :collapsed t
+                   :indent 0
+                   :msg (:text "Inhabited (Nat × Nat)")))
+          (:text "")])
+  "A real collapsed trace node with lazily fetchable children.")
+
+(ert-deftest lean4-render-message-plain-text ()
+  "A message with no embeds renders as its text."
+  (should (equal (lean4-render-message '(:text "boom")) "boom"))
+  (should (equal (lean4-render-message
+                  '(:append [(:text "a") (:text "b")]))
+                 "ab")))
+
+(ert-deftest lean4-render-message-expr-embed-is-interactive ()
+  "A term embedded in a message keeps its subterm tagging.
+This is what makes a subterm of a type mismatch as hoverable as one
+inside a goal."
+  (let ((rendered (lean4-render-message
+                   `(:tag [(:expr ,lean4-render-test--one-plus-one)
+                           (:text "")]))))
+    (should (equal (substring-no-properties rendered) "1 + 1 = 2"))
+    (should (equal (get-text-property 0 'lean4-subexpr-pos rendered)
+                   "/0/1/0/1"))))
+
+(ert-deftest lean4-render-message-unknown-embed-falls-back ()
+  "An embed we do not handle still shows the text that came with it.
+Lean grows new `MsgEmbed' variants; showing nothing would be worse."
+  (should (equal (lean4-render-message
+                  '(:tag [(:someFutureEmbed 1) (:text "fallback")]))
+                 "fallback")))
+
+(ert-deftest lean4-render-trace-starts-collapsed ()
+  "A trace the server marked collapsed renders as a header alone."
+  (let ((rendered (lean4-render-message lean4-render-test--trace)))
+    (should (string-search lean4-render-collapsed-marker rendered))
+    (should (string-search "[Meta.synthInstance]" rendered))
+    (should (string-search "Inhabited (Nat × Nat)" rendered))))
+
+(ert-deftest lean4-render-trace-header-carries-what-unfolding-needs ()
+  "The header records its path and how to obtain its children."
+  (let* ((rendered (lean4-render-message lean4-render-test--trace))
+         ;; The marker is indented past the leading whitespace.
+         (index (string-search lean4-render-collapsed-marker rendered)))
+    (should (equal (get-text-property index 'lean4-trace-children rendered)
+                   '(lazy . (:__rpcref "8"))))
+    (should-not (get-text-property index 'lean4-trace-open rendered))
+    ;; A path is present, so an expansion table can be keyed on it.
+    (should (listp (get-text-property index 'lean4-trace-path rendered)))))
+
+(ert-deftest lean4-render-trace-expands-from-the-table ()
+  "Children supplied in the expansion table are shown under the header."
+  (let ((expanded (make-hash-table :test #'equal)))
+    ;; The trace sits at the root of this message, so its path is ().
+    (puthash '() (vector '(:text "a child")) expanded)
+    (let ((rendered (lean4-render-message lean4-render-test--trace
+                                          nil expanded)))
+      (should (string-search lean4-render-expanded-marker rendered))
+      (should (string-search "a child" rendered)))))
+
+(ert-deftest lean4-render-trace-strict-children-open-by-default ()
+  "A node whose children arrived inline, and which is not marked
+collapsed, is shown open: that is how Lean asked for it to appear."
+  (let ((rendered (lean4-render-message
+                   '(:tag [(:trace (:children (:strict [(:text "inline")])
+                                    :cls "Test" :collapsed :json-false
+                                    :indent 0 :msg (:text "head")))
+                           (:text "")]))))
+    (should (string-search lean4-render-expanded-marker rendered))
+    (should (string-search "inline" rendered))))
+
+(ert-deftest lean4-render-trace-indents-by-depth ()
+  "Nesting depth is rendered as indentation."
+  (let ((rendered (lean4-render-message
+                   '(:tag [(:trace (:children (:lazy (:__rpcref "1"))
+                                    :cls "Test" :collapsed t
+                                    :indent 2 :msg (:text "deep")))
+                           (:text "")]))))
+    (should (string-prefix-p "    " rendered))))
+
 ;;;; Reference collection
 
 (ert-deftest lean4-render-collects-every-reference ()

@@ -500,6 +500,74 @@ hovered.  This asserts both embeds the fixture produces."
       (should (memq :expr embeds))
       (should (memq :trace embeds)))))
 
+;;;; Collapsible traces
+
+(ert-deftest lean4-e2e-trace-folds-and-unfolds ()
+  "A trace in the info buffer starts folded and unfolds on demand.
+
+The children are not sent with the message -- a `simp' trace on a real
+proof can be enormous -- so unfolding has to fetch them.  This is the
+whole point of the trace machinery, so it is checked against a real
+`Meta.synthInstance' trace rather than a synthetic one."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (unwind-protect
+          (progn
+            (clrhash lean4-info--trace-expansion)
+            (lean4-e2e--goto-line lean4-e2e--trace-line)
+            (back-to-indentation)
+            (lean4-info-buffer-refresh)
+            (lean4-e2e--wait-until
+             "the trace to reach the info buffer"
+             (lambda ()
+               (with-current-buffer lean4-info-buffer-name
+                 (string-search "Meta.synthInstance" (buffer-string)))))
+            (with-current-buffer lean4-info-buffer-name
+              ;; Folded to start with: the server marks it collapsed.
+              (should (string-search lean4-render-collapsed-marker
+                                     (buffer-string)))
+              (goto-char (point-min))
+              (should (search-forward lean4-render-collapsed-marker nil t))
+              (goto-char (match-beginning 0))
+              ;; A trace at the root of a message has the empty path, so
+              ;; presence is tested on the children.
+              (should (get-text-property (point) 'lean4-trace-children))
+              (should (eq (car (get-text-property (point) 'lean4-trace-children))
+                          'lazy))
+              (lean4-info-toggle-trace))
+            ;; The children arrive asynchronously and the buffer is rebuilt.
+            (lean4-e2e--wait-until
+             "the trace children to be fetched and shown"
+             (lambda ()
+               (with-current-buffer lean4-info-buffer-name
+                 (string-search lean4-render-expanded-marker
+                                (buffer-string)))))
+            (should (> (hash-table-count lean4-info--trace-expansion) 0)))
+        (clrhash lean4-info--trace-expansion)))))
+
+(ert-deftest lean4-e2e-error-message-terms-are-interactive ()
+  "A term inside an error message carries subterm information.
+
+`hasWidgets' makes Lean tag terms embedded in messages, so the `String'
+and `Nat' of a type mismatch are as hoverable as anything in a goal."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (lean4-e2e--goto-line lean4-e2e--error-line)
+      (back-to-indentation)
+      (lean4-info-buffer-refresh)
+      (lean4-e2e--wait-until
+       "the type mismatch to reach the info buffer"
+       (lambda ()
+         (with-current-buffer lean4-info-buffer-name
+           (string-search "Type mismatch" (buffer-string)))))
+      (with-current-buffer lean4-info-buffer-name
+        (goto-char (point-min))
+        (should (search-forward "String" nil t))
+        (goto-char (match-beginning 0))
+        (should (get-text-property (point) 'lean4-info))))))
+
 ;;;; Pinning and pausing
 
 (ert-deftest lean4-e2e-info-buffer-pause-freezes-the-display ()

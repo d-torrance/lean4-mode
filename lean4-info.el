@@ -32,11 +32,15 @@
 ;; `lean4-info-interactive' is nil, the display falls back to
 ;; `$/lean/plainGoal', which is plain text and supports neither.
 ;;
-;; Diagnostics come from Flymake, since that is what Eglot reports to.  The
-;; raw LSP object is recovered from the Flymake diagnostic in order to read
-;; Lean's non-standard `fullRange': Lean underlines only the first line of a
-;; multi-line error, but the InfoView shows the message whenever point is
-;; anywhere within its full extent.
+;; Messages come from `Lean.Widget.getInteractiveDiagnostics', so terms
+;; inside an error are as hoverable as terms inside a goal, and traces fold.
+;; Without RPC they fall back to the raw objects Eglot stashes on the Flymake
+;; diagnostics, which are plain strings.
+;;
+;; Either way they are placed by Lean's non-standard `fullRange' rather than
+;; by `range': Lean underlines only the first line of a multi-line error, but
+;; the message should stay visible while point is anywhere inside the
+;; declaration it is about.
 
 ;;; Code:
 
@@ -89,6 +93,20 @@
 (defvar lean4-info--pin nil
   "Marker at the location the goal display is pinned to, or nil.")
 
+(defvar-local lean4-info--diagnostics nil
+  "Interactive diagnostics for this buffer, as raw LSP plists.
+Nil until the first RPC refresh, and while running without RPC, in
+which case the display falls back to what Flymake holds.")
+
+(defvar lean4-info--trace-expansion (make-hash-table :test #'equal)
+  "Trace nodes the reader has unfolded, keyed by path.
+The value is the children to show, so a node whose children had to be
+fetched stays open across the redisplay every cursor movement triggers.
+
+Global rather than buffer-local: unfolding happens in the info buffer
+but redisplay reads from the Lean buffer, and there is only ever one
+info buffer.")
+
 (defvar-local lean4-info--refs nil
   "Server-side references owned by the goals currently on display.
 Released when the next set replaces them; Lean reference counts these
@@ -99,9 +117,19 @@ and will hold the memory until told otherwise.")
   ;; `M-.' comes free from the xref backend; RET is the convenience the
   ;; VS Code InfoView offers for the same thing.
   "RET" #'xref-find-definitions
+  "TAB" #'lean4-info-toggle-fold
   "C-c C-t" #'lean4-info-goto-type-definition
   "C-c C-SPC" #'lean4-info-toggle-pause
   "C-c C-s" #'lean4-info-toggle-pin)
+
+(defun lean4-info-toggle-fold ()
+  "Fold or unfold whatever is at point.
+A trace node if there is one, otherwise the enclosing section, so that
+TAB does the expected thing everywhere in the buffer."
+  (interactive)
+  (if (get-text-property (point) 'lean4-trace-children)
+      (lean4-info-toggle-trace)
+    (call-interactively #'magit-section-toggle)))
 
 (defun lean4-ensure-info-buffer (buffer)
   "Create BUFFER if it does not exist.
@@ -180,18 +208,32 @@ noise in a buffer that shows nothing but Lean diagnostics."
         ;; (SOURCE CODE MESSAGE).
         (if (listp text) (car (last text)) text))))
 
+(defun lean4-info--range (diagnostic)
+  "Return the extent of raw LSP DIAGNOSTIC, preferring Lean's `fullRange'."
+  (or (plist-get diagnostic :fullRange) (plist-get diagnostic :range)))
+
+(defun lean4-info--start-line (diagnostic)
+  "Return the zero-based line raw LSP DIAGNOSTIC starts on."
+  (or (thread-first diagnostic lean4-info--range
+                    (plist-get :start) (plist-get :line))
+      0))
+
+(defun lean4-info--end-line (diagnostic)
+  "Return the zero-based line raw LSP DIAGNOSTIC ends on."
+  (or (thread-first diagnostic lean4-info--range
+                    (plist-get :end) (plist-get :line))
+      0))
+
 (defun lean4-info--split-diagnostics (diagnostics line)
-  "Partition DIAGNOSTICS relative to zero-based LINE.
+  "Partition raw LSP DIAGNOSTICS relative to zero-based LINE.
 Returns a list (ABOVE HERE BELOW).  A diagnostic is \"here\" when LINE
 falls within its full range, which is how a message about a multi-line
 declaration stays visible while point moves through it."
   (let (above here below)
     (dolist (diagnostic diagnostics)
       (cond
-       ((< (lean4-diagnostic-full-end-line diagnostic) line)
-        (push diagnostic above))
-       ((<= (lean4-diagnostic-full-start-line diagnostic) line)
-        (push diagnostic here))
+       ((< (lean4-info--end-line diagnostic) line) (push diagnostic above))
+       ((<= (lean4-info--start-line diagnostic) line) (push diagnostic here))
        (t (push diagnostic below))))
     (list (nreverse above) (nreverse here) (nreverse below))))
 
@@ -240,22 +282,33 @@ empty."
       (magit-insert-heading caption)
       (magit-insert-section-body
         (dolist (diagnostic messages)
-          (let* ((range (plist-get (lean4-diagnostic-lsp-data diagnostic) :range))
-                 (start (plist-get range :start))
+          (let* ((start (plist-get (plist-get diagnostic :range) :start))
                  (line (1+ (or (plist-get start :line) 0)))
-                 (column (or (plist-get start :character) 0)))
+                 (column (or (plist-get start :character) 0))
+                 (message (plist-get diagnostic :message)))
             (insert-text-button
              (format "%d:%d:" line column)
              'action #'lean4-info--error-button-action
              'button-data (list buffer line column)
              'face 'magit-section-heading
              'help-echo "mouse-2: visit this file, line and column")
-            (insert "\n" (lean4-diagnostic-message diagnostic) "\n")))))))
+            (insert "\n"
+                    ;; Plain diagnostics carry a string; interactive ones
+                    ;; carry a tree, whose terms and traces render live.
+                    (if (stringp message)
+                        message
+                      (lean4-render-message message nil
+                                            lean4-info--trace-expansion))
+                    "\n")))))))
 
-(defun lean4-info-buffer-redisplay ()
+(defun lean4-info-buffer-redisplay (&optional force)
   "Re-render the Lean info buffer from the last goals and diagnostics.
-Does nothing unless the info buffer is currently being displayed."
-  (when (lean4-info-buffer-active lean4-info-buffer-name)
+
+Does nothing unless the info buffer is currently being displayed, unless
+FORCE is non-nil.  Forcing is for commands invoked from inside the info
+buffer itself, such as unfolding a trace: the usual check requires the
+Lean buffer to be the selected one, which it is not in that case."
+  (when (or force (lean4-info-buffer-active lean4-info-buffer-name))
     (let* ((deactivate-mark)            ; keep transient mark
            (inhibit-read-only t)
            (buffer (current-buffer))
@@ -265,10 +318,15 @@ Does nothing unless the info buffer is currently being displayed."
            ;; buffer, can make RPC calls about what is displayed there.
            (handle lean4-info--handle)
            (line (1- (line-number-at-pos nil 'absolute)))
-           (diagnostics (sort (flymake-diagnostics)
-                              (lambda (a b)
-                                (< (lean4-diagnostic-full-end-line a)
-                                   (lean4-diagnostic-full-end-line b))))))
+           (diagnostics
+            (sort (or (seq-remove #'lean4-diagnostics-silent-p
+                                  lean4-info--diagnostics)
+                      ;; No RPC: recover the raw objects Eglot stashed on
+                      ;; the Flymake diagnostics.
+                      (delq nil (mapcar #'lean4-diagnostic-lsp-data
+                                        (flymake-diagnostics))))
+                  (lambda (a b) (< (lean4-info--end-line a)
+                                   (lean4-info--end-line b))))))
       (pcase-let ((`(,above ,here ,below)
                    (lean4-info--split-diagnostics diagnostics line)))
         (with-current-buffer lean4-info-buffer-name
@@ -425,7 +483,9 @@ Returns RENDERED so this can wrap a render call."
          (when (buffer-live-p buffer)
            (with-current-buffer buffer
              (when (eq generation lean4-info--generation)
-               (lean4-diagnostics-update-markers diagnostics)))))
+               (setq lean4-info--diagnostics (append diagnostics nil))
+               (lean4-diagnostics-update-markers diagnostics)
+               (lean4-info-buffer-redisplay)))))
        #'ignore))))
 
 (defun lean4-info--refresh-plain (server generation)
@@ -621,6 +681,54 @@ Intended for `eldoc-documentation-functions'."
                             (concat "\n\n" documentation)))))))
     ;; Tell ElDoc an answer is coming; it is asynchronous.
     t))
+
+;;;; Traces
+
+(defun lean4-info-toggle-trace ()
+  "Fold or unfold the trace node at point.
+
+Children that were not sent with the message are fetched on demand, the
+way VS Code fetches them: a `simp' trace on a real proof can be enormous
+and Lean does not send it until something asks."
+  (interactive)
+  (let ((children (get-text-property (point) 'lean4-trace-children))
+        (path (get-text-property (point) 'lean4-trace-path))
+        (open (get-text-property (point) 'lean4-trace-open)))
+    ;; Presence is tested on the children, not the path: a trace at the root
+    ;; of a message has the empty path, which is nil.
+    (unless children
+      (user-error "No trace at point"))
+    (cond
+     (open
+      (remhash path lean4-info--trace-expansion)
+      (lean4-info--redisplay-source))
+     ((eq (car children) 'strict)
+      (puthash path (cdr children) lean4-info--trace-expansion)
+      (lean4-info--redisplay-source))
+     (t
+      (let ((handle (lean4-info--live-handle))
+            (buffer (current-buffer)))
+        (unless handle
+          (user-error "No Lean server to expand this trace"))
+        (lean4-rpc-lazy-trace-children
+         handle (cdr children)
+         (lambda (result)
+           (when (buffer-live-p buffer)
+             (with-current-buffer buffer
+               (puthash path result lean4-info--trace-expansion)
+               (lean4-info--redisplay-source))))
+         (lambda (error)
+           (message "Could not expand trace: %S" error))))))))
+
+(defun lean4-info--redisplay-source ()
+  "Re-render the info buffer from the Lean buffer that populated it."
+  (when (buffer-live-p lean4-info--source-buffer)
+    (let ((position (point)))
+      (with-current-buffer lean4-info--source-buffer
+        (lean4-info-buffer-redisplay 'force))
+      ;; Redisplay rebuilds the buffer, so put point back where the
+      ;; reader left it rather than at the top.
+      (goto-char (min position (point-max))))))
 
 ;;;; xref
 

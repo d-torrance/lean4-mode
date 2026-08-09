@@ -139,6 +139,139 @@ from a newer Lean than we know about degrades rather than errors."
                                 (plist-get subexpr :diffStatus))))
    (t "")))
 
+;;;; Messages
+;;
+;; A diagnostic's message is a `TaggedText MsgEmbed', a different tree from a
+;; goal's `CodeWithInfos'.  Its tags are not subterms but embedded content:
+;;
+;;   (:expr  CODE-WITH-INFOS)   a term, with all the subterm tagging that
+;;                              implies -- so a term inside a type mismatch
+;;                              is as hoverable as one inside a goal
+;;   (:goal  INTERACTIVE-GOAL)  a whole proof state
+;;   (:trace TRACE)             a foldable trace node
+;;   (:widget ...)              a user widget; not rendered natively
+;;
+;; None of these appear unless the client sent `hasWidgets' at
+;; initialization; without it Lean flattens the message to text first.
+;;
+;; Trace nodes carry their children either inline or as a reference to be
+;; fetched on demand.  This library cannot fetch, so it renders what it was
+;; given and records, on the header text, everything needed to fetch the
+;; rest: see `lean4-trace-children' and `lean4-trace-path'.
+
+(defface lean4-trace-class
+  '((t :inherit font-lock-type-face))
+  "Face for the class name of a trace node, such as `Meta.synthInstance'."
+  :group 'lean4-render)
+
+(defface lean4-trace-toggle
+  '((t :inherit font-lock-keyword-face))
+  "Face for the marker that folds and unfolds a trace node."
+  :group 'lean4-render)
+
+;; Deliberately not the chevrons `magit-section' uses for its own headings
+;; -- on a terminal `magit-section-visibility-indicator' is ("▸" . "▾"), and
+;; a trace that folds is a different thing from a section that folds.
+(defconst lean4-render-expanded-marker "[-]"
+  "Marker shown against a trace node whose children are displayed.")
+
+(defconst lean4-render-collapsed-marker "[+]"
+  "Marker shown against a trace node whose children are hidden.")
+
+(defun lean4-render-trace-children (trace)
+  "Return the children of TRACE as (KIND . VALUE).
+KIND is `strict' when the children came with the message and `lazy' when
+they have to be fetched; VALUE is the child array or the reference."
+  (let ((children (plist-get trace :children)))
+    (cond ((plist-member children :strict)
+           (cons 'strict (plist-get children :strict)))
+          ((plist-member children :lazy)
+           (cons 'lazy (plist-get children :lazy))))))
+
+(defun lean4-render--trace (trace path expanded)
+  "Render TRACE, a trace node at PATH, honouring the EXPANDED table.
+
+EXPANDED maps a path to the children to show beneath it, or to nil to
+show none.  A node absent from the table falls back to the server's own
+`collapsed' flag, which is how a fresh message opens the way Lean
+intended."
+  (let* ((indent (or (plist-get trace :indent) 0))
+         (class (plist-get trace :cls))
+         (children (lean4-render-trace-children trace))
+         (resolved (gethash path expanded :absent))
+         (open (if (eq resolved :absent)
+                   (and (not (eq (plist-get trace :collapsed) t))
+                        (eq (car children) 'strict))
+                 (and resolved t)))
+         (shown (cond ((not open) nil)
+                      ((eq resolved :absent) (cdr children))
+                      (t resolved)))
+         (header (concat
+                  (make-string (* 2 indent) ?\s)
+                  (propertize (if open
+                                  lean4-render-expanded-marker
+                                lean4-render-collapsed-marker)
+                              'font-lock-face 'lean4-trace-toggle)
+                  " "
+                  (when class
+                    (concat (propertize (format "[%s]" class)
+                                        'font-lock-face 'lean4-trace-class)
+                            " "))
+                  (lean4-render-message (plist-get trace :msg)
+                                        (cons 0 path) expanded))))
+    ;; Everything the caller needs in order to unfold this node lives on
+    ;; its header line, so a command bound to point can find it.
+    (add-text-properties 0 (length header)
+                         (list 'lean4-trace-path path
+                               'lean4-trace-children children
+                               'lean4-trace-open open)
+                         header)
+    (concat header "\n"
+            (when shown
+              (mapconcat
+               (lambda (child)
+                 (lean4-render-message child (cons 1 path) expanded))
+               (append shown nil)
+               "")))))
+
+(defun lean4-render-message (message &optional path expanded)
+  "Render MESSAGE, a `TaggedText MsgEmbed', as a propertized string.
+
+PATH identifies this node's position in the enclosing message and is
+what trace folding is keyed on; EXPANDED is the table of unfolded trace
+nodes, as described in `lean4-render--trace'."
+  (let ((path (or path '()))
+        (expanded (or expanded (make-hash-table :test #'equal))))
+    (cond
+     ((null message) "")
+     ((stringp message) message)
+     ((plist-member message :text) (or (plist-get message :text) ""))
+     ((plist-member message :append)
+      (let ((index -1))
+        (mapconcat
+         (lambda (child)
+           (setq index (1+ index))
+           (lean4-render-message child (cons index path) expanded))
+         (append (plist-get message :append) nil)
+         "")))
+     ((plist-member message :tag)
+      (let* ((tag (plist-get message :tag))
+             (embed (elt tag 0))
+             (inner (elt tag 1)))
+        (cond
+         ;; A term: hand it to the goal renderer, so its subterms carry the
+         ;; same properties they would inside a goal.
+         ((plist-member embed :expr)
+          (lean4-render-tagged-text (plist-get embed :expr)))
+         ((plist-member embed :goal)
+          (lean4-render-goal (plist-get embed :goal)))
+         ((plist-member embed :trace)
+          (lean4-render--trace (plist-get embed :trace) path expanded))
+         ;; A widget, or something from a newer Lean: show whatever text
+         ;; came with it rather than nothing.
+         (t (lean4-render-message inner (cons 0 path) expanded)))))
+     (t ""))))
+
 ;;;; Subterm paths
 
 (defun lean4-render-subexpr-path (position)
