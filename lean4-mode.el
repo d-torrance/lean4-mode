@@ -48,6 +48,7 @@
 (require 'pcase)
 
 (require 'eri)
+(require 'lean4-indent)
 (require 'lean4-util)
 (require 'lean4-settings)
 (require 'lean4-syntax)
@@ -111,11 +112,23 @@ FILE-NAME."
   (interactive)
   (lean4-execute))
 
+(defcustom lean4-indent-function #'lean4-indent-line
+  "How TAB indents a line in a Lean buffer.
+
+`lean4-indent-line' guesses from the layout and cycles through the
+alternatives when pressed again.  `eri-indent' does not guess at all: it
+cycles through the columns of the lines above, which some people prefer
+and which is what this mode did before."
+  :group 'lean4
+  :type '(choice (const :tag "Guess, then cycle" lean4-indent-line)
+                 (const :tag "Cycle only" eri-indent)
+                 function))
+
 (defun lean4-tab-indent ()
-  "Lean 4 function for TAB indent."
+  "Indent the current line, or complete, depending on where point is."
   (interactive)
   (cond ((looking-back (rx line-start (* white)) nil)
-         (eri-indent))
+         (call-interactively lean4-indent-function))
         (t (indent-for-tab-command))))
 
 (define-abbrev-table 'lean4-abbrev-table
@@ -172,6 +185,7 @@ to be added or removed from the hook variable.")
   (setq-local font-lock-defaults lean4-font-lock-defaults)
   (setq-local indent-tabs-mode nil)
   (setq-local lisp-indent-function 'common-lisp-indent-function)
+  (setq-local indent-line-function #'lean4-indent-line-function)
   (set 'compilation-mode-font-lock-keywords '())
   (require 'lean4-input)
   (set-input-method "Lean")
