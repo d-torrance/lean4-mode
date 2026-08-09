@@ -365,14 +365,14 @@ position alone read as a bare pair of numbers."
          (line (1+ (or (plist-get start :line) 0)))
          (column (or (plist-get start :character) 0))
          (message (plist-get diagnostic :message))
-         (place (format "%s:%d:%d:" (buffer-name buffer) line column)))
+         (place (format "%s:%d:%d" (buffer-name buffer) line column)))
     (magit-insert-section (magit-section 'message)
       (magit-insert-heading
         (lean4-info--align-right
-         ;; The place itself goes there too, as it used to; it is simply
-         ;; the same control wearing the heading's face.
-         (propertize (lean4-info--goto-button buffer line column place)
-                     'face 'lean4-info-location)
+         ;; Plain text: clicking a heading folds it, wherever on the
+         ;; heading the click lands, so the one thing that goes to the
+         ;; position has to be the one control that says so.
+         (propertize place 'face 'lean4-info-location)
          (lean4-info--goto-button buffer line column)))
       (magit-insert-section-body
         (insert
@@ -475,6 +475,17 @@ Nil means pick whichever pair the frame can display."
                 '(("▾ " . "▸ ") ("v " . "> ")))
       '("- " . "+ ")))
 
+(defun lean4-info--foldable-p (section)
+  "Return non-nil if SECTION has a body that can actually be folded.
+
+A heading is given no indicator unless folding it would do something.
+`magit-section' has a predicate for this from version 4; before that,
+a section with an empty body is one whose content and end coincide."
+  (if (fboundp 'magit-section-content-p)
+      (magit-section-content-p section)
+    (let ((content (oref section content)))
+      (and content (not (= content (oref section end)))))))
+
 (defun lean4-info--paint-chevrons ()
   "Put a fold indicator at the start of every heading that folds.
 
@@ -493,7 +504,7 @@ also what `magit-section\=' keeps its own markers into."
                 (`(,open . ,closed) (lean4-info-chevron-pair)))
       (letrec ((walk
                 (lambda (section visible)
-                  (when (oref section content)
+                  (when (lean4-info--foldable-p section)
                     (let* ((start (oref section start))
                            (indent (or (get-text-property
                                         start 'lean4-info-indent)
@@ -538,7 +549,51 @@ what folding it already cost."
   (let ((state (lean4-info--fold-state)))
     (unless (equal state lean4-info--folds)
       (setq lean4-info--folds state)
-      (lean4-info--paint-chevrons))))
+      (lean4-info--paint-chevrons)
+      ;; Folding a section makes `magit-section' put its own keymap over
+      ;; the heading line again, taking with it both the click that folds
+      ;; and any control sitting on that line.  Put them back.
+      (lean4-info--add-heading-clicks)
+      (lean4-info--restore-control-keymaps))))
+
+(defun lean4-info-mouse-toggle-section (event)
+  "Fold or unfold the section EVENT was clicked on.
+
+`magit-section' binds this to a double click, and provides no command to
+bind a single one to before version 4.  A single click is what the rest
+of the display already answers to, so it is what the headings answer to
+here."
+  (interactive "e")
+  (let ((posn (event-start event)))
+    (with-selected-window (posn-window posn)
+      (goto-char (posn-point posn))
+      (call-interactively #'magit-section-toggle))))
+
+(defvar lean4-info-heading-map
+  (let ((map (make-sparse-keymap)))
+    (keymap-set map "<mouse-1>" #'lean4-info-mouse-toggle-section)
+    map)
+  "Keymap on the heading of a section that folds.")
+
+(defun lean4-info--add-heading-clicks ()
+  "Let a click anywhere on a heading fold the section it heads.
+
+The chevron is drawn in the line\='s `line-prefix\=', which is a display
+property and not something a click can land on; a click there resolves
+to the first character of the line, which this covers along with the
+rest of the heading."
+  (when (bound-and-true-p magit-root-section)
+    (let ((inhibit-read-only t))
+      (letrec ((walk
+                (lambda (section)
+                  (when (lean4-info--foldable-p section)
+                    (let ((start (oref section start)))
+                      (put-text-property
+                       start (save-excursion (goto-char start)
+                                             (line-end-position))
+                       'keymap lean4-info-heading-map)))
+                  (mapc walk (oref section children)))))
+        (funcall walk magit-root-section)))))
 
 (defun lean4-info--restore-control-keymaps ()
   "Give the controls back the `mouse-1\=' binding `magit-section\=' took.
@@ -551,23 +606,25 @@ say what each one was for.
 
 Composed over what `magit-section\=' left rather than replacing it, so
 that folding a section by mouse keeps working."
-  (let ((pos (point-min)))
+  (let ((inhibit-read-only t)
+        (pos (point-min)))
     (while (setq pos (text-property-not-all pos (point-max)
                                             'lean4-info-command nil))
-      (let ((end (or (next-single-property-change pos 'lean4-info-command)
-                     (point-max)))
-            (map (get-text-property pos 'keymap))
-            (command (get-text-property pos 'lean4-info-command)))
-        (unless (and map (keymap-lookup map "<mouse-1>"))
-          (let ((own (make-sparse-keymap)))
-            (keymap-set own "<mouse-1>"
-                        (lambda ()
-                          (interactive)
-                          (lean4-info--run-control command)))
-            (put-text-property pos end 'keymap
-                               (if map
-                                   (make-composed-keymap (list own map))
-                                 own))))
+      (let* ((end (or (next-single-property-change pos 'lean4-info-command)
+                      (point-max)))
+             (map (get-text-property pos 'keymap))
+             (command (get-text-property pos 'lean4-info-command))
+             (own (make-sparse-keymap)))
+        (keymap-set own "<mouse-1>"
+                    (lambda ()
+                      (interactive)
+                      (lean4-info--run-control command)))
+        ;; Composed in front of whatever is there, rather than only where
+        ;; nothing is: the heading a control sits on now answers to
+        ;; `mouse-1' itself, and a control has to win on its own few
+        ;; columns.
+        (put-text-property pos end 'keymap
+                           (if map (make-composed-keymap (list own map)) own))
         (setq pos end)))))
 
 (defun lean4-info-buffer-redisplay (&optional force)
@@ -662,6 +719,8 @@ Lean buffer to be the selected one, which it is not in that case."
              diagnostics buffer))
           (lean4-info--paint-chevrons)
           (setq lean4-info--folds (lean4-info--fold-state))
+          (lean4-info--add-heading-clicks)
+          ;; After the headings, whose binding covers the whole line.
           (lean4-info--restore-control-keymaps))))))))
 
 ;;;; Refresh

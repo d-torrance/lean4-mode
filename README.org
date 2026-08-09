@@ -226,7 +226,9 @@ Fold indicators are drawn at the start of the line rather than in the
 fringe, so that they are set in with the heading they belong to; set
 ~lean4-info-chevrons~ to choose the pair.
 Its heading names the file, line and column, and carries an =↪= control,
-right-aligned, that sends point there.  The same control appears in the
+right-aligned, that sends point there.  Clicking a heading anywhere else
+-- on the chevron, the caption or the file name -- folds it, so the one
+thing that jumps to the position is the one control that says so.  The same control appears in the
 top heading, but only while pinned: unpinned, the display is following
 point and it would only lead where point already is.
 

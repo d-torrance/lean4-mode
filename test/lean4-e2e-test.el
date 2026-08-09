@@ -405,7 +405,8 @@ is in, and that is what the message is anchored to."
         (should (string-search "declaration uses" (buffer-string)))
         ;; Each message says which file it is in, and offers a control
         ;; that goes there.
-        (should (string-search "Fixture.lean:7:8:" (buffer-string)))
+        (should (string-search "Fixture.lean:7:8" (buffer-string)))
+        (should-not (string-search "Fixture.lean:7:8:" (buffer-string)))
         (should (string-search (lean4-info-goto-glyph) (buffer-string)))
         ;; What the position has to say is set in from its heading; the
         ;; file's own messages are not.

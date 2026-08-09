@@ -128,6 +128,11 @@ equivalent, so keeping them would insert the literal text."
 
 ;;; Targets
 
+;; Declared, not merely bound: recent Emacs made this lexical, and
+;; `let'-binding a lexical variable in a file that never declared it
+;; special fails with "Defining as dynamic an already lexical var".
+(defvar byte-compile-error-on-warn)
+
 (defun lean4-build-compile ()
   "Byte-compile every library, treating warnings as errors."
   (let* ((byte-compile-error-on-warn t)

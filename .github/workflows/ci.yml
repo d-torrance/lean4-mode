@@ -83,3 +83,50 @@ jobs:
 
       - name: Test
         run: make test SHADOW=${{ steps.magit.outputs.dir }}
+
+  # The end-to-end suite talks to a real `lake serve'.  It is what catches
+  # the things unit tests cannot: what Lean actually sends, and what the
+  # goal display actually renders from it.  Kept a separate job because it
+  # needs a toolchain and takes minutes rather than seconds.
+  e2e:
+    name: End-to-end against a real Lean
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: purcell/setup-emacs@master
+        with:
+          version: '30.1'
+
+      # Keyed on the pinned toolchain, so this is a download only when the
+      # fixture's lean-toolchain changes.
+      - name: Cache elan
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ hashFiles('test/fixture/lean-toolchain') }}
+
+      - name: Install elan
+        run: |
+          if [ ! -x "$HOME/.elan/bin/lake" ]; then
+            curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz \
+              | tar xz
+            ./elan-init -y --default-toolchain "$(cat test/fixture/lean-toolchain)"
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Show the toolchain
+        run: lake --version && lean --version
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .elpa
+          key: elpa-e2e-${{ hashFiles('lean4-mode.el') }}
+
+      - name: Install dependencies
+        run: make deps
+
+      - name: End-to-end
+        run: make e2e
