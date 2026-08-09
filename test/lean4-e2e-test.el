@@ -86,9 +86,16 @@ Point starts at `point-min'.  The server is shut down afterwards."
               (seq-find #'lean4-e2e--error-p (flymake-diagnostics))))
            (goto-char (point-min))
            ,@body)
+       ;; Let Eglot take its own management off the buffer rather than
+       ;; preserving it and then killing the buffer ourselves.  On Emacs
+       ;; 30 Eglot tracks changes through track-changes, and unregistering
+       ;; a tracker twice -- once at shutdown, once as the buffer dies --
+       ;; trips an assertion inside it.
        (when-let* ((server (with-current-buffer buffer (eglot-current-server))))
-         (eglot-shutdown server nil nil 'preserve-buffers))
-       (kill-buffer buffer))))
+         (eglot-shutdown server nil nil))
+       (when (buffer-live-p buffer)
+         (with-current-buffer buffer (set-buffer-modified-p nil))
+         (kill-buffer buffer)))))
 
 (defun lean4-e2e--error-p (diagnostic)
   "Return non-nil if Flymake DIAGNOSTIC is an error.
