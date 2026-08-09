@@ -4,9 +4,16 @@ EMACS ?= emacs
 # disturbs the developer's own ~/.emacs.d.
 export ELPA_DIR ?= $(CURDIR)/.elpa
 
+# Point at a directory to test against a dependency version other than the
+# newest, which is what `deps' installs.  Debian and Ubuntu ship the oldest
+# magit-section this package supports, and it is worth not breaking:
+#   make test SHADOW=/usr/share/emacs/site-lisp/elpa/magit-section-3.3.0
+SHADOW ?=
+
 BATCH = $(EMACS) -Q --batch -L . \
 	  --eval '(setq package-user-dir (getenv "ELPA_DIR"))' \
-	  --eval '(package-initialize)'
+	  --eval '(package-initialize)' \
+	  $(if $(SHADOW),-L $(SHADOW))
 
 EL    = $(wildcard lean4-*.el)
 ELC   = $(EL:.el=.elc)
@@ -24,6 +31,7 @@ all: compile checkdoc test
 help:
 	@echo 'Targets:'
 	@echo '  deps      install dependencies into $$ELPA_DIR ($(ELPA_DIR))'
+	@echo '  SHADOW=DIR  put DIR ahead of them, to test an older dependency'
 	@echo '  compile   byte-compile all libraries; warnings are errors'
 	@echo '  checkdoc  run checkdoc over all libraries'
 	@echo '  lint      run package-lint over all libraries'

@@ -10,8 +10,33 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'ert)
 (require 'lean4-mode)
+
+(defmacro lean4-info-test--with-fringe-indicators (&rest body)
+  "Evaluate BODY with `magit-section' drawing fold indicators in the fringe.
+
+The variable behind this was renamed and reshaped in magit-section 4:
+3.3.0, which Debian and Ubuntu ship, has
+`magit-section-visibility-indicator' holding a single cons, and later
+versions have `magit-section-visibility-indicators' holding an alist
+keyed by frame type.  Bind whichever exists.
+
+The fringe form is the one to ask for either way.  3.3.0 draws its other
+form, an ellipsis, only on a section that is already hidden, so it would
+show nothing here; and the fringe form makes a real overlay even under
+--batch, where the bitmap itself has nowhere to render."
+  (declare (indent 0) (debug t))
+  (let ((fringe '(magit-fringe-bitmap> . magit-fringe-bitmapv)))
+    `(cl-progv
+         (list (if (boundp 'magit-section-visibility-indicators)
+                   'magit-section-visibility-indicators
+                 'magit-section-visibility-indicator))
+         (list (if (boundp 'magit-section-visibility-indicators)
+                   '((,fringe) (?> . ?v))
+                 ',fringe))
+       ,@body)))
 
 (defun lean4-info-test--indicator-count ()
   "Return the number of fold indicators in the current buffer."
@@ -19,19 +44,26 @@
                         (overlay-get overlay 'magit-vis-indicator))
                       (overlays-in (point-min) (point-max)))))
 
+(defun lean4-info-test--foldable-count ()
+  "Return the number of sections in this buffer that have a body to fold."
+  (let ((n 0))
+    (letrec ((walk (lambda (section)
+                     (when (oref section content) (cl-incf n))
+                     (mapc walk (oref section children)))))
+      (funcall walk magit-root-section))
+    n))
+
 (ert-deftest lean4-info-sections-show-fold-indicators-when-inserted ()
   "A freshly built goal display shows which sections fold.
 
-Regression test.  `magit-section' updates its indicators only from
+Regression test.  magit-section 4 updates its indicators only from
 `magit-section-show' and `magit-section-hide', so nothing inserted
 carries one until it has been toggled: the display looked as though
 nothing folded, and folding one section made that one section -- and
-only that one -- grow a chevron."
-  (let ((magit-section-visibility-indicators
-         ;; Character indicators go in the margin, which leaves an overlay
-         ;; to count.  The fringe form used in graphical frames cannot be
-         ;; exercised under --batch.
-         '((magit-fringe-bitmap> . magit-fringe-bitmapv) (?> . ?v))))
+only that one -- grow a chevron.  3.3.0 draws them as it inserts and
+never had the bug, which is why this asserts the end state rather than
+that we were the ones to bring it about."
+  (lean4-info-test--with-fringe-indicators
     (lean4-ensure-info-buffer lean4-info-buffer-name)
     (unwind-protect
         (with-current-buffer lean4-info-buffer-name
@@ -41,9 +73,10 @@ only that one -- grow a chevron."
               (magit-insert-section (magit-section 'goals)
                 (magit-insert-heading "Goals:")
                 (magit-insert-section-body (insert "one goal\n")))))
-          (should (= (lean4-info-test--indicator-count) 0))
           (lean4-info--add-visibility-indicators)
-          (should (> (lean4-info-test--indicator-count) 0)))
+          (should (> (lean4-info-test--foldable-count) 0))
+          (should (= (lean4-info-test--indicator-count)
+                     (lean4-info-test--foldable-count))))
       (kill-buffer lean4-info-buffer-name))))
 
 (ert-deftest lean4-info-goals-value-distinguishes-three-outcomes ()

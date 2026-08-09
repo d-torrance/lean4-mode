@@ -32,6 +32,12 @@ Emacs 29 and later, so nothing needs installing for it.  See
 [[*Semantic highlighting]] for one feature that a newer Eglot than the
 bundled one provides.
 
+magit-section 3.3.0 is enough, and is what Debian and Ubuntu ship as
+=elpa-magit-section=.  If you have it, do not install a newer one on
+this package's account: Magit depends on the matching version of
+magit-section, so upgrading only that one breaks Magit.  Both versions
+are tested, including against a live Lean server.
+
 ** From source
 
 Clone the repository and add it to the ~load-path~:

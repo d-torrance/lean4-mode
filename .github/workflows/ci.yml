@@ -53,3 +53,33 @@ jobs:
 
       - name: Test
         run: make test
+
+  # Debian and Ubuntu ship magit-section 3.3.0, this package's declared
+  # minimum, and their magit depends on exactly that version -- so a user who
+  # installs a newer magit-section to satisfy us breaks their magit.  That
+  # makes 3.3.0 a version worth actually testing rather than merely claiming.
+  oldest-deps:
+    name: magit-section 3.3.0
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: purcell/setup-emacs@master
+        with:
+          version: '29.1'
+
+      - name: Install magit-section 3.3.0
+        run: sudo apt-get update && sudo apt-get install -y elpa-magit-section
+
+      - name: Locate it
+        id: magit
+        run: echo "dir=$(ls -d /usr/share/emacs/site-lisp/elpa/magit-section-*)" >> "$GITHUB_OUTPUT"
+
+      - name: Install remaining dependencies
+        run: make deps
+
+      - name: Byte-compile
+        run: make compile SHADOW=${{ steps.magit.outputs.dir }}
+
+      - name: Test
+        run: make test SHADOW=${{ steps.magit.outputs.dir }}
