@@ -219,9 +219,10 @@ message are as interactive as terms inside a goal.
 Those covering point are listed under =Messages=, set in under the
 heading naming the position, along with the goals and the expected type.
 Every message in the file is listed under =All messages=, at the outer
-level, with two controls of its own: one orders the list by position in
-the file or by nearness to point -- VS Code's "sort by proximity to text
-cursor" -- and one holds the list as it is, separately from the pause in
+level, with two controls of its own: one orders the list by nearness to point or by
+position in the file -- nearness first by default, as in VS Code, whose
+manual has All Messages "sorted by their proximity to the text cursor by
+default" -- and one holds the list as it is, separately from the pause in
 the position heading.  While the display is paused a third control
 appears in the position heading, between the way back to the pinned
 position and the pin, which brings it up to date without unpausing it.  Both headings count what is in them by severity, the way VS

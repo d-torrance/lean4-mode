@@ -504,12 +504,15 @@ independently, and VS Code gives each its own control."
   (message "All messages %s"
            (if lean4-info-all-messages-paused "paused" "unpaused")))
 
-(defcustom lean4-info-message-order 'location
+(defcustom lean4-info-message-order 'point
   "How the file's messages are ordered in the goal display.
 
-`location' puts them in the order they appear in the file; `point' puts
-the ones nearest point first, which is VS Code's \"sort by proximity to
-text cursor\" under the name Emacs uses for the same thing."
+`point' puts the ones nearest point first; `location' puts them in the
+order they appear in the file.  Nearest first is the default because it
+is VS Code's, whose manual has All Messages \"sorted by their proximity
+to the text cursor by default\" -- under the name Emacs uses for the
+same thing.  VS Code offers the same choice as Infoview: Message
+Order."
   :group 'lean4-info
   :type '(choice (const :tag "By position in the file" location)
                  (const :tag "By nearness to point" point)))
@@ -859,7 +862,9 @@ Lean buffer to be the selected one, which it is not in that case."
                     "mouse-1: order by position in the file"
                   "mouse-1: order by nearness to point")
                 #'lean4-info-toggle-message-order
-                (eq lean4-info-message-order 'point))
+                ;; Marked engaged when the order is not the default one,
+                ;; there being no glyph to say which is in force.
+                (eq lean4-info-message-order 'location))
                "  "
                (lean4-info--button
                 (if lean4-info-all-messages-paused
