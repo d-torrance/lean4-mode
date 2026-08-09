@@ -494,6 +494,42 @@ click that folds it and any control sitting on that line."
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
+(ert-deftest lean4-info-return-goes-to-the-thing-at-point ()
+  "RET goes to a message's position, and falls through elsewhere.
+
+TAB folds and RET goes to the thing at point, which is the division
+`magit-section' uses.  It also restores by keyboard what the go-to
+control offers by mouse, the file name being a label now."
+  (let ((source (get-buffer-create "Named.lean"))
+        (jumped nil))
+    (unwind-protect
+        (progn
+          (with-current-buffer source
+            (erase-buffer)
+            (insert "line one\nline two\nline three\n"))
+          (lean4-info-test--insert-message
+           '(:range (:start (:line 1 :character 5))) source)
+          (with-current-buffer lean4-info-buffer-name
+            ;; Anywhere on the heading, not only on the control.
+            (goto-char (point-min))
+            (should (search-forward "Named.lean:2:5" nil t))
+            (goto-char (match-beginning 0))
+            (should (get-text-property (point) 'lean4-info-position))
+            (lean4-info-return)
+            (with-current-buffer source
+              (should (= (line-number-at-pos) 2))
+              (should (= (current-column) 5))))
+          ;; Off a heading it is xref's business, not ours.
+          (with-current-buffer lean4-info-buffer-name
+            (goto-char (point-min))
+            (should-not (get-text-property (point) 'lean4-info-position))
+            (cl-letf (((symbol-function 'xref-find-definitions)
+                       (lambda (&rest _) (interactive) (setq jumped t))))
+              (lean4-info-return))
+            (should jumped)))
+      (kill-buffer source)
+      (kill-buffer lean4-info-buffer-name))))
+
 (ert-deftest lean4-info-goto-position-clamps-a-stale-column ()
   "A column past the end of its line does not signal.
 The file can have been edited since the message was made."

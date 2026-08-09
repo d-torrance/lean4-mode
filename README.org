@@ -161,7 +161,7 @@ rest on any part of a goal and ask about it.
 
 | Key            | Description                                    | Command                           |
 |----------------+------------------------------------------------+-----------------------------------|
-| =M-.= or =RET= | Jump to the definition of the subterm at point | ~xref-find-definitions~           |
+| =M-.= or =RET= | Go to the thing at point                       | ~lean4-info-return~               |
 | =C-c C-t=      | Jump to the definition of its type             | ~lean4-info-goto-type-definition~ |
 | =TAB=          | Fold or unfold the trace or section at point   | ~lean4-info-toggle-fold~          |
 | =C-c C-s=      | Pin the display to point, or unpin it          | ~lean4-info-toggle-pin~           |
@@ -213,6 +213,11 @@ Every message in the file is listed under =All messages=, at the outer
 level.  Both headings count what is in them by severity, the way VS
 Code's do -- =All messages (1 ⊗  5 ⓘ)= for a file with one error and
 five notes.
+
+Messages Lean marks as being for the goal display rather than the
+editor, the completed-proof report among them, are listed here and kept
+out of Flymake.  That is what =isSilent= means, and both sections show
+them.
 
 Lean emits three severities: error =⊗=, warning =⚠= and information
 =ⓘ=.  LSP defines a fourth, hint, which this package draws as =ⓗ=, but

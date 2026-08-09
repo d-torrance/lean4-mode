@@ -402,6 +402,9 @@ is in, and that is what the message is anchored to."
       (with-current-buffer lean4-info-buffer-name
         ;; And it is still counted among the file's messages.
         (should (string-search "All messages (" (buffer-string)))
+        ;; Including the ones Lean marks silent, which is what `isSilent'
+        ;; means: for the goal display rather than for the editor.
+        (should (string-search "Goals accomplished" (buffer-string)))
         (should (string-search "declaration uses" (buffer-string)))
         ;; Each message says which file it is in, and offers a control
         ;; that goes there.

@@ -124,13 +124,28 @@ and will hold the memory until told otherwise.")
 
 (defvar-keymap lean4-info-buffer-map
   :doc "Keymap for the *Lean Goal* buffer."
-  ;; `M-.' comes free from the xref backend; RET is the convenience the
-  ;; VS Code InfoView offers for the same thing.
-  "RET" #'xref-find-definitions
+  ;; `M-.' comes free from the xref backend; RET goes to whatever is at
+  ;; point, which on a term is the same thing.
+  "RET" #'lean4-info-return
   "TAB" #'lean4-info-toggle-fold
   "C-c C-t" #'lean4-info-goto-type-definition
   "C-c C-SPC" #'lean4-info-toggle-pause
   "C-c C-s" #'lean4-info-toggle-pin)
+
+(defun lean4-info-return ()
+  "Go to whatever point is on.
+
+On a message, the place it was reported for; on a term, the definition
+of that term.  TAB folds, RET goes to the thing at point -- the division
+`magit-section' uses, and the reason folding is not bound here as well.
+
+Restores by keyboard what the go-to control offers by mouse: the file
+and position in a message heading are a label, since clicking a heading
+folds it."
+  (interactive)
+  (if-let* ((position (get-text-property (point) 'lean4-info-position)))
+      (lean4-info--error-button-action position)
+    (call-interactively #'xref-find-definitions)))
 
 (defun lean4-info-toggle-fold ()
   "Fold or unfold whatever is at point.
@@ -368,12 +383,15 @@ position alone read as a bare pair of numbers."
          (place (format "%s:%d:%d" (buffer-name buffer) line column)))
     (magit-insert-section (magit-section 'message)
       (magit-insert-heading
-        (lean4-info--align-right
-         ;; Plain text: clicking a heading folds it, wherever on the
-         ;; heading the click lands, so the one thing that goes to the
-         ;; position has to be the one control that says so.
-         (propertize place 'face 'lean4-info-location)
-         (lean4-info--goto-button buffer line column)))
+        ;; The place is on the whole heading, not just the label: RET goes
+        ;; there from anywhere on the line.  The label itself is plain
+        ;; text, since clicking a heading folds it, so the one thing that
+        ;; goes there by mouse is the one control that says so.
+        (propertize
+         (lean4-info--align-right
+          (propertize place 'face 'lean4-info-location)
+          (lean4-info--goto-button buffer line column))
+         'lean4-info-position (list buffer line column)))
       (magit-insert-section-body
         (insert
          ;; Plain diagnostics carry a string; interactive ones carry a
@@ -649,8 +667,14 @@ Lean buffer to be the selected one, which it is not in that case."
            (location (lean4-info--location-string))
            (line (1- (line-number-at-pos nil 'absolute)))
            (diagnostics
-            (sort (or (seq-remove #'lean4-diagnostics-silent-p
-                                  lean4-info--diagnostics)
+            ;; Silent diagnostics are kept.  `isSilent' marks a message as
+            ;; being for the goal display rather than for the editor --
+            ;; the completed-proof report is one -- so this is the one
+            ;; place they belong.  Dropping them here was backwards, and
+            ;; lost "Goals accomplished!" from a display that had room for
+            ;; it and a reader expecting it.  `lean4-diagnostics' keeps
+            ;; them out of Flymake, which is where they would be noise.
+            (sort (or (copy-sequence lean4-info--diagnostics)
                       ;; No RPC: recover the raw objects Eglot stashed on
                       ;; the Flymake diagnostics.
                       (delq nil (mapcar #'lean4-diagnostic-lsp-data
