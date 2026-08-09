@@ -425,6 +425,17 @@ find the indentation again."
         (put-text-property pos next 'wrap-prefix indent)
         (setq pos next)))))
 
+(defmacro lean4-info--marking-pin (pin &rest body)
+  "Evaluate BODY, marking everything it inserts as belonging to PIN.
+
+Over the whole section, not merely its heading: a key pressed anywhere
+inside a pinned section should act on that section, which is the only
+way `C-c C-s' can mean anything in a display holding several pins."
+  (declare (indent 1) (debug (form body)))
+  `(let ((start (point)))
+     (prog1 (progn ,@body)
+       (put-text-property start (point) 'lean4-info-pin ,pin))))
+
 (defun lean4-info--marker-line (pin)
   "Return the zero-based line PIN sits on."
   (let* ((marker (lean4-info-pin-marker pin))
@@ -916,6 +927,7 @@ Lean buffer to be the selected one, which it is not in that case."
             ;; marker, so it follows its declaration as the file is
             ;; edited.
             (dolist (pin lean4-info--pins)
+              (lean4-info--marking-pin pin
               (magit-insert-section (magit-section 'pinned)
                 (magit-insert-heading
                  (lean4-info--heading
@@ -930,7 +942,7 @@ Lean buffer to be the selected one, which it is not in that case."
                    (car (cdr (lean4-info--split-diagnostics
                               sorted
                               (lean4-info--marker-line pin))))
-                   buffer))))
+                   buffer)))))
             (when following
             (magit-insert-section (magit-section 'position)
             (magit-insert-heading (lean4-info--heading
@@ -1573,9 +1585,20 @@ Pinning happens at point, so pinning a position that is already pinned
 would only make a second section saying the same thing; this unpins it
 instead.  VS Code leaves its control inert there, which says less."
   (interactive)
-  (if-let* ((existing (lean4-info--pin-at)))
-      (progn (lean4-info-unpin existing)
-             (message "Unpinned line %d" (line-number-at-pos)))
+  (cond
+   ;; Inside a pinned section of the display: that is the pin meant.
+   ((get-text-property (point) 'lean4-info-pin)
+    (lean4-info-unpin (get-text-property (point) 'lean4-info-pin))
+    (message "Unpinned"))
+   ;; Elsewhere in the display: do what the Lean buffer would do, which
+   ;; is what the control in the followed section does.
+   ((and (not (derived-mode-p 'lean4-mode))
+         (buffer-live-p lean4-info--source-buffer))
+    (lean4-info--run-control #'lean4-info-toggle-pin))
+   ((lean4-info--pin-at)
+    (lean4-info-unpin (lean4-info--pin-at))
+    (message "Unpinned line %d" (line-number-at-pos)))
+   (t
     (unless (derived-mode-p 'lean4-mode)
       (user-error "Not in a Lean buffer"))
     ;; A marker rather than a position: the point of pinning is to watch a
@@ -1591,7 +1614,7 @@ instead.  VS Code leaves its control inert there, which says less."
     (display-buffer lean4-info-buffer-name)
     (message "Pinned line %d" (line-number-at-pos))
     (lean4-info--redisplay-source)
-    (lean4-info-buffer-refresh)))
+    (lean4-info-buffer-refresh))))
 
 ;;;###autoload
 (defun lean4-info-unpin-all ()

@@ -888,6 +888,42 @@ while working on another."
               (should (string-search "1 + 1 = 2" (buffer-string)))))
         (lean4-info-unpin-all)))))
 
+(ert-deftest lean4-e2e-pin-key-acts-on-the-section-point-is-in ()
+  "In the display, the pin key unpins whichever pinned section point is in.
+
+With several pins there is no one pin for a key to mean, so it means the
+one point is standing in.  Anywhere else in the display it does what it
+would do in the Lean buffer."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (unwind-protect
+          (progn
+            (lean4-e2e--goto-line lean4-e2e--sorry-line)
+            (back-to-indentation)
+            (lean4-info-toggle-pin)
+            (lean4-e2e--goto-line 4)
+            (back-to-indentation)
+            (lean4-info-toggle-pin)
+            (should (= (length lean4-info--pins) 2))
+            (lean4-e2e--wait-until
+             "both pinned sections"
+             (lambda ()
+               (with-current-buffer lean4-info-buffer-name
+                 (and (string-search "2 + 2 = 4" (buffer-string))
+                      (string-search "1 + 1 = 2" (buffer-string))))))
+            (with-current-buffer lean4-info-buffer-name
+              ;; Stand in the first pinned section and unpin it.
+              (goto-char (point-min))
+              (should (search-forward "2 + 2 = 4" nil t))
+              (should (get-text-property (point) 'lean4-info-pin))
+              (lean4-info-toggle-pin)
+              (should (= (length lean4-info--pins) 1))
+              ;; The other one is untouched.
+              (should (string-search "1 + 1 = 2" (buffer-string)))
+              (should-not (string-search "2 + 2 = 4" (buffer-string)))))
+        (lean4-info-unpin-all)))))
+
 (ert-deftest lean4-e2e-info-buffer-takes-several-pins ()
   "Any number of positions can be pinned, each a section of its own."
   :tags '(:e2e)
