@@ -311,6 +311,29 @@ empty."
                                             lean4-info--trace-expansion))
                     "\n")))))))
 
+(defmacro lean4-info--keeping-position (&rest body)
+  "Run BODY, which rebuilds the current buffer, without moving the view.
+
+Rebuilding erases the buffer and inserts it again, which leaves point
+and every window\='s start at the end of the new text.  The buffer is
+rebuilt whenever the goal changes, so without this a reader part-way
+down a long goal would be thrown to the bottom, and clicking a control
+-- which rebuilds to redraw the control itself -- would scroll the
+display away from whatever prompted the click."
+  (declare (indent 0) (debug t))
+  `(let* ((windows (get-buffer-window-list (current-buffer) nil t))
+          (starts (mapcar #'window-start windows))
+          (spot (point)))
+     (prog1 (progn ,@body)
+       (goto-char (min spot (point-max)))
+       (cl-mapc (lambda (window start)
+                  ;; Start first, then point: setting the start can move
+                  ;; point to keep it on screen, which is the opposite of
+                  ;; what is wanted here.
+                  (set-window-start window (min start (point-max)) t)
+                  (set-window-point window (min spot (point-max))))
+                windows starts))))
+
 (defun lean4-info--add-visibility-indicators ()
   "Draw the fold indicators on the sections just inserted.
 
@@ -370,6 +393,7 @@ Lean buffer to be the selected one, which it is not in that case."
         (with-current-buffer lean4-info-buffer-name
           (setq lean4-info--handle handle
                 lean4-info--source-buffer buffer)
+          (lean4-info--keeping-position
           (erase-buffer)
           (magit-insert-section (magit-section 'root)
             (magit-insert-heading (lean4-info--heading location))
@@ -400,7 +424,7 @@ Lean buffer to be the selected one, which it is not in that case."
              'errors-below "Messages below:" below buffer)
             (lean4-info--mk-message-section
              'errors-above "Messages above:" above buffer))
-          (lean4-info--add-visibility-indicators)))))))
+          (lean4-info--add-visibility-indicators))))))))
 
 ;;;; Refresh
 
@@ -801,11 +825,16 @@ width is measured in columns rather than characters because the glyphs
 need not be single-width."
   (let* ((location (propertize location 'face 'lean4-info-location))
          (controls (lean4-info--controls))
-         (state (cond (lean4-info-paused
-                       (propertize "  paused" 'face 'warning))
-                      (lean4-info--pin
-                       (propertize "  pinned" 'face 'warning))
-                      (t ""))))
+         ;; Both states can hold at once, and each means something
+         ;; different: pinned says the display is not following point,
+         ;; paused says it is not updating at all.  Reporting only one of
+         ;; them left the other looking like it had not taken effect.
+         (words (delq nil (list (and lean4-info--pin "pinned")
+                                (and lean4-info-paused "paused"))))
+         (state (if words
+                    (propertize (concat "  " (string-join words " and "))
+                                'face 'warning)
+                  "")))
     (concat location state
             (propertize " " 'display
                         ;; Two columns of margin, not one: the right edge

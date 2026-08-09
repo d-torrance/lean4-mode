@@ -128,6 +128,63 @@ An empty buffer reads like one that has stopped working."
       (when (get-buffer lean4-info-buffer-name)
         (kill-buffer lean4-info-buffer-name)))))
 
+(ert-deftest lean4-info-heading-reports-both-states-at-once ()
+  "Pinned and paused are different things and can hold together.
+
+Regression test.  Reporting only one of them left the other looking as
+though the command had not taken effect."
+  (with-temp-buffer
+    (rename-buffer "Both.lean" 'unique)
+    (cl-flet ((state ()
+                (substring-no-properties
+                 (lean4-info--heading (lean4-info--location-string)))))
+      (let ((lean4-info--pin nil) (lean4-info-paused nil))
+        (should-not (string-search "pinned" (state)))
+        (should-not (string-search "paused" (state))))
+      (let ((lean4-info--pin (point-marker)) (lean4-info-paused nil))
+        (should (string-search "pinned" (state)))
+        (should-not (string-search "paused" (state))))
+      (let ((lean4-info--pin nil) (lean4-info-paused t))
+        (should (string-search "paused" (state)))
+        (should-not (string-search "pinned" (state))))
+      (let ((lean4-info--pin (point-marker)) (lean4-info-paused t))
+        (should (string-search "pinned and paused" (state)))))))
+
+(ert-deftest lean4-info-rebuilding-does-not-scroll-the-display ()
+  "A rebuild leaves the reader where they were.
+
+Regression test.  Erasing and reinserting sends point and the window
+start to the end of the new text, so clicking a control -- which
+rebuilds in order to redraw the control -- threw the display to the
+bottom, as did every refresh while reading a long goal."
+  (with-temp-buffer
+    (dotimes (i 200) (insert (format "line %d\n" i)))
+    (let ((window (selected-window)))
+      (set-window-buffer window (current-buffer))
+      (goto-char (point-min))
+      (forward-line 100)
+      (set-window-start window (point))
+      (let ((start (window-start window))
+            (spot (point)))
+        (lean4-info--keeping-position
+          (erase-buffer)
+          (dotimes (i 200) (insert (format "line %d\n" i))))
+        (should (= (point) spot))
+        (should (= (window-start window) start))
+        (should (= (window-point window) spot))))))
+
+(ert-deftest lean4-info-keeping-position-survives-a-shorter-rebuild ()
+  "Restoring is clamped: the new text can be shorter than the old."
+  (with-temp-buffer
+    (dotimes (i 200) (insert (format "line %d\n" i)))
+    (set-window-buffer (selected-window) (current-buffer))
+    (goto-char (point-max))
+    (lean4-info--keeping-position
+      (erase-buffer)
+      (insert "No info found.\n"))
+    (should (<= (point) (point-max)))
+    (should (<= (window-start (selected-window)) (point-max)))))
+
 (ert-deftest lean4-info-goals-value-distinguishes-three-outcomes ()
   "No proof, a finished proof, and an open goal are told apart.
 
