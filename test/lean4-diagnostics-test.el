@@ -57,44 +57,45 @@ are never pushed either, and reach us only through
 `Lean.Widget.getInteractiveDiagnostics'."
   (should (plist-get lean4-client-capabilities :silentDiagnosticSupport)))
 
-(ert-deftest lean4-diagnostics-recognises-the-report-by-wording ()
-  "The completed-proof report is recognised on servers that do not mark it.
+(ert-deftest lean4-diagnostics-severity-threshold-filters-the-editor ()
+  "Diagnostics below the threshold are kept out of the editor.
 
-Lean 4.26 sets neither `isSilent' nor `leanTags', even when the client
-asks: the message is all there is.  Matching on wording is confined to
-this one message, which is fixed rather than a template."
-  (should (lean4-diagnostics-goals-accomplished-text-p
-           '(:message "Goals accomplished!")))
-  (should (lean4-diagnostics-goals-accomplished-text-p
-           '(:message "goals accomplished")))
-  ;; Not anything that merely mentions it.
-  (should-not (lean4-diagnostics-goals-accomplished-text-p
-               '(:message "Goals accomplished, but there is a warning")))
-  (should-not (lean4-diagnostics-goals-accomplished-text-p
-               '(:message "declaration uses `sorry`"))))
+Lean says a good deal at note severity that is meant for the goal
+display: the completed-proof report, traces, and whatever a project's
+own tactics emit.  Flagging all of it buries the errors."
+  (let ((lean4-flymake-minimum-severity 'warning))
+    (should-not (lean4-diagnostics-suppressed-p '(:severity 1)))
+    (should-not (lean4-diagnostics-suppressed-p '(:severity 2)))
+    (should (lean4-diagnostics-suppressed-p '(:severity 3)))
+    (should (lean4-diagnostics-suppressed-p '(:severity 4))))
+  ;; Everything, as VS Code's Problems view shows it.
+  (let ((lean4-flymake-minimum-severity 'note))
+    (should-not (lean4-diagnostics-suppressed-p '(:severity 3)))
+    (should (lean4-diagnostics-suppressed-p '(:severity 4))))
+  (let ((lean4-flymake-minimum-severity 'error))
+    (should-not (lean4-diagnostics-suppressed-p '(:severity 1)))
+    (should (lean4-diagnostics-suppressed-p '(:severity 2)))))
 
-(ert-deftest lean4-diagnostics-suppresses-both-ways ()
-  "A report is kept out of the editor whether marked or merely worded."
-  ;; Marked, as a current server sends it.
-  (should (lean4-diagnostics-suppressed-p '(:isSilent t :message "anything")))
-  ;; Unmarked, as 4.26 sends it.
-  (should (lean4-diagnostics-suppressed-p '(:message "Goals accomplished!")))
-  ;; Real diagnostics are untouched either way.
-  (should-not (lean4-diagnostics-suppressed-p
-               '(:message "declaration uses `sorry`")))
-  ;; And the fallback can be turned off.
-  (let ((lean4-hide-goals-accomplished nil))
-    (should-not (lean4-diagnostics-suppressed-p
-                 '(:message "Goals accomplished!")))
-    ;; The marked case still works, since that is the real mechanism.
-    (should (lean4-diagnostics-suppressed-p '(:isSilent t)))))
+(ert-deftest lean4-diagnostics-severity-defaults-to-error ()
+  "A diagnostic with no severity is treated as an error, not hidden."
+  (should (= (lean4-diagnostics-severity '(:message "x")) 1))
+  (let ((lean4-flymake-minimum-severity 'error))
+    (should-not (lean4-diagnostics-suppressed-p '(:message "x")))))
 
-(ert-deftest lean4-diagnostics-marker-works-without-tags ()
-  "The goals-accomplished marker fires on an unmarked report too."
+(ert-deftest lean4-diagnostics-silent-is-suppressed-at-any-severity ()
+  "A silent diagnostic is for the goal display whatever its severity."
+  (let ((lean4-flymake-minimum-severity 'hint))
+    (should (lean4-diagnostics-suppressed-p '(:isSilent t :severity 1)))))
+
+(ert-deftest lean4-diagnostics-marker-needs-the-tag ()
+  "The goals-accomplished marker reads the tag, and only the tag.
+Recognising the report by its wording was tried and abandoned: too
+fragile, and it addressed one message where the real problem was note
+severity generally."
   (should (lean4-diagnostics-goals-accomplished-p
-           '(:message "Goals accomplished!")))
-  (should (lean4-diagnostics-goals-accomplished-p
-           `(:leanTags [,lean4-diagnostics-tag-goals-accomplished]))))
+           `(:leanTags [,lean4-diagnostics-tag-goals-accomplished])))
+  (should-not (lean4-diagnostics-goals-accomplished-p
+               '(:message "Goals accomplished!"))))
 
 (provide 'lean4-diagnostics-test)
 ;;; lean4-diagnostics-test.el ends here

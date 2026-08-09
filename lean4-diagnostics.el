@@ -61,50 +61,43 @@
   "Return non-nil if raw LSP DIAGNOSTIC is meant only for the goal display."
   (eq (plist-get diagnostic :isSilent) t))
 
-(defcustom lean4-hide-goals-accomplished t
-  "Whether to keep Lean's completed-proof report out of the editor.
+(defconst lean4-diagnostics-severities
+  '((error . 1) (warning . 2) (note . 3) (hint . 4))
+  "LSP diagnostic severities, most severe first.")
 
-Lean marks it `isSilent', meaning it is for the goal display rather than
-for the editor, and that is what this normally reads.  Servers older
-than that capability -- 4.26 sets neither `isSilent' nor `leanTags' --
-send it as an ordinary note instead, where it appears as a problem
-against every finished proof.  For those, the message itself is the only
-thing left to go on.
+(defcustom lean4-flymake-minimum-severity 'warning
+  "How severe a diagnostic must be to appear in the editor.
 
-Set to nil to see it as Lean sends it."
+Lean says a good deal at note severity that is meant for the goal
+display rather than for the margin: the report that a proof is complete,
+trace output, and whatever a project's own tactics emit.  Flagging all
+of it as a problem buries the errors.
+
+Anything below this level is still shown in the goal display, which is
+where it is worth reading.  Set to `note' to have Flymake show
+everything, as VS Code's Problems view does."
   :group 'lean4
-  :type 'boolean)
+  :type '(choice (const :tag "Errors only" error)
+                 (const :tag "Errors and warnings" warning)
+                 (const :tag "Everything" note)
+                 (const :tag "Everything, including hints" hint)))
 
-(defconst lean4-diagnostics--goals-accomplished-regexp
-  (rx bos (any "Gg") "oals accomplished" (* (any "!.")) eos)
-  "Lean's report that a proof is complete.
-
-Matching on wording is not something to do lightly, and it is confined
-to this one message: it is fixed, it is not a template, and on servers
-that do not mark it there is nothing else to recognise it by.")
-
-(defun lean4-diagnostics-goals-accomplished-text-p (diagnostic)
-  "Return non-nil if raw LSP DIAGNOSTIC reads as a completed-proof report.
-Only pushed diagnostics carry their message as a string; an interactive
-one carries a tree, and is not what this is for."
-  (let ((message (plist-get diagnostic :message)))
-    (and (stringp message)
-         (string-match-p lean4-diagnostics--goals-accomplished-regexp
-                         (string-trim message))
-         t)))
+(defun lean4-diagnostics-severity (diagnostic)
+  "Return the LSP severity of raw DIAGNOSTIC, defaulting to error."
+  (or (plist-get diagnostic :severity) 1))
 
 (defun lean4-diagnostics-suppressed-p (diagnostic)
   "Return non-nil if raw LSP DIAGNOSTIC should be kept out of the editor."
   (or (lean4-diagnostics-silent-p diagnostic)
-      (and lean4-hide-goals-accomplished
-           (lean4-diagnostics-goals-accomplished-text-p diagnostic))))
+      (> (lean4-diagnostics-severity diagnostic)
+         (alist-get lean4-flymake-minimum-severity
+                    lean4-diagnostics-severities 3))))
 
 (defun lean4-diagnostics-goals-accomplished-p (diagnostic)
   "Return non-nil if raw LSP DIAGNOSTIC reports a finished proof."
-  (or (memq lean4-diagnostics-tag-goals-accomplished
-            (lean4-diagnostics-tags diagnostic))
-      ;; Servers predating `leanTags' say it in words instead.
-      (lean4-diagnostics-goals-accomplished-text-p diagnostic)))
+  (and (memq lean4-diagnostics-tag-goals-accomplished
+             (lean4-diagnostics-tags diagnostic))
+       t))
 
 ;;;; Capabilities
 

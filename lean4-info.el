@@ -91,10 +91,22 @@
 (defvar lean4-info--pin nil
   "Marker at the location the goal display is pinned to, or nil.")
 
+(defvar lean4-info--rendered nil
+  "What the info buffer was last built from.
+Compared before rebuilding: the buffer is erased and re-inserted from
+scratch, which is visible as a flicker, and the server can republish
+diagnostics repeatedly without anything the reader would see changing.")
+
 (defvar-local lean4-info--diagnostics nil
   "Interactive diagnostics for this buffer, as raw LSP plists.
 Nil until the first RPC refresh, and while running without RPC, in
 which case the display falls back to what Flymake holds.")
+
+(defvar lean4-info--trace-generation 0
+  "Bumped whenever a trace is folded or unfolded.
+`lean4-info--rendered' cannot compare the expansion table itself: `equal'
+compares hash tables by identity, so unfolding a trace looked like
+nothing had changed and the display was never rebuilt.")
 
 (defvar lean4-info--trace-expansion (make-hash-table :test #'equal)
   "Trace nodes the reader has unfolded, keyed by path.
@@ -347,7 +359,14 @@ Lean buffer to be the selected one, which it is not in that case."
                   (lambda (a b) (< (lean4-info--end-line a)
                                    (lean4-info--end-line b))))))
       (pcase-let ((`(,above ,here ,below)
-                   (lean4-info--split-diagnostics diagnostics line)))
+                   (lean4-info--split-diagnostics diagnostics line))
+                  (key (list goals term-goal location lean4-info-paused
+                             (and lean4-info--pin t) diagnostics
+                             lean4-info--trace-generation)))
+        ;; Nothing to see: rebuilding would only make the display blink.
+        (unless (and (equal key lean4-info--rendered)
+                     (get-buffer lean4-info-buffer-name))
+          (setq lean4-info--rendered key)
         (with-current-buffer lean4-info-buffer-name
           (setq lean4-info--handle handle
                 lean4-info--source-buffer buffer)
@@ -372,7 +391,7 @@ Lean buffer to be the selected one, which it is not in that case."
              'errors-below "Messages below:" below buffer)
             (lean4-info--mk-message-section
              'errors-above "Messages above:" above buffer))
-          (lean4-info--add-visibility-indicators))))))
+          (lean4-info--add-visibility-indicators)))))))
 
 ;;;; Refresh
 
@@ -391,7 +410,17 @@ Two things have to happen, and only one of them is cheap.  Re-rendering
 places the messages for the line point is now on, and can be done at
 once.  The goals belong to the position, though, and have to be fetched:
 without that the display keeps showing whatever it was opened on, which
-looks like a buffer that has stopped working."
+looks like a buffer that has stopped working.
+
+Neither is done while pinned or paused, when point is not what the
+display is following.  Rebuilding it anyway produced identical content
+over and over, which reads as a flicker -- the pinned display appearing
+to blink at the reader for as long as they kept typing."
+  (unless (or lean4-info--pin lean4-info-paused)
+    (lean4-info--schedule-update)))
+
+(defun lean4-info--schedule-update ()
+  "Redisplay and refresh the info buffer shortly, coalescing repeats."
   (when (timerp lean4-info--debounce-timer)
     (cancel-timer lean4-info--debounce-timer))
   (let ((buffer (current-buffer)))
@@ -863,9 +892,11 @@ and Lean does not send it until something asks."
     (cond
      (open
       (remhash path lean4-info--trace-expansion)
+      (cl-incf lean4-info--trace-generation)
       (lean4-info--redisplay-source))
      ((eq (car children) 'strict)
       (puthash path (cdr children) lean4-info--trace-expansion)
+      (cl-incf lean4-info--trace-generation)
       (lean4-info--redisplay-source))
      (t
       (let ((handle (lean4-info--live-handle))
@@ -878,6 +909,7 @@ and Lean does not send it until something asks."
            (when (buffer-live-p buffer)
              (with-current-buffer buffer
                (puthash path result lean4-info--trace-expansion)
+               (cl-incf lean4-info--trace-generation)
                (lean4-info--redisplay-source))))
          (lambda (error)
            (message "Could not expand trace: %S" error))))))))

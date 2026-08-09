@@ -179,6 +179,14 @@ Diagnostics are reported through Flymake, which Eglot drives.  =C-c ! n=
 and =C-c ! p= move between them, and ~flymake-show-buffer-diagnostics~
 lists them.
 
+Not everything Lean sends is a problem.  It reports a completed proof,
+trace output and whatever a project's own tactics emit at note severity,
+all of which is meant for the goal display; flagging it in the editor
+buries the errors among it.  So Flymake is shown errors and warnings,
+and the rest goes to the goal display only.  Set
+~lean4-flymake-minimum-severity~ to =note= to be shown everything, as VS
+Code's Problems view does, or to =error= for less.
+
 Messages appear in the goal display placed by Lean's own notion of
 which declaration they belong to, so a message about a multi-line
 declaration stays visible while point moves through it.  Terms inside a
@@ -238,13 +246,12 @@ Set ~lean4-info-pin-icon~, ~lean4-info-pause-icon~ or
 Some of what this package reads was added to the Lean server over time,
 and it degrades quietly where a field is absent.
 
-Lean marks its completed-proof report as being for the goal display
-rather than for the editor, and marks a finished declaration with a tag.
-Servers older than those fields -- 4.26 sets neither, even when asked --
-send the report as an ordinary note, where it would appear as a problem
-against every finished proof.  For those, the message is recognised by
-its wording instead; set ~lean4-hide-goals-accomplished~ to nil to see
-it as sent.
+Lean marks messages meant for the goal display rather than the editor,
+and marks a finished declaration with a tag.  Servers older than those
+fields -- 4.26 sets neither, even when asked -- send the completed-proof
+report as an ordinary note, so it is the severity filter above rather
+than the tag that keeps it out of the editor there.  The marker in the
+goal display needs the tag, and is simply absent without it.
 
 Interactive references are encoded in a format negotiated with the
 server; version 1 arrived in Lean 4.30.  Older servers keep to version

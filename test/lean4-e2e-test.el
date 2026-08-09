@@ -140,6 +140,8 @@ diagnostics with it."
     (let ((messages (mapcar #'lean4-diagnostic-message (flymake-diagnostics))))
       (should-not (seq-find (lambda (m) (string-search "Goals accomplished" m))
                             messages))
+      ;; Note-severity output, such as traces, is kept out too.
+      (should-not (seq-find (lambda (m) (string-search "trace" m)) messages))
       ;; And the real ones are all still here.
       (should (seq-find (lambda (m) (string-search "sorry" m)) messages))
       (should (seq-find (lambda (m) (string-search "Type mismatch" m))

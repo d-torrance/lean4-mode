@@ -189,5 +189,43 @@ deciding at load time would give both whichever came up first."
     (cl-letf (((symbol-function 'char-displayable-p) (lambda (_) t)))
       (should (equal (lean4-info-pin-glyph) "PIN")))))
 
+(ert-deftest lean4-info-does-not-rebuild-when-nothing-changed ()
+  "An unchanged display is left alone.
+
+Regression test.  The buffer is erased and re-inserted from scratch, so
+rebuilding it is visible as a flicker.  The server republishes
+diagnostics repeatedly -- some projects do so continuously -- and each
+one rebuilt the buffer identically, which reads as the display blinking
+at the reader for as long as it is on screen."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (let ((rebuilds 0)
+            (lean4-info--rendered nil))
+        (advice-add 'erase-buffer :before
+                    (lambda (&rest _)
+                      (when (eq (current-buffer)
+                                (get-buffer lean4-info-buffer-name))
+                        (cl-incf rebuilds)))
+                    '((name . lean4-info-test-count)))
+        (unwind-protect
+            (with-temp-buffer
+              (rename-buffer "Flicker.lean" 'unique)
+              (setq-local lean4-goals "⊢ True")
+              ;; Displayed and selected, as `lean4-info-buffer-active' wants.
+              (set-window-buffer (selected-window) (current-buffer))
+              (save-window-excursion
+                (display-buffer lean4-info-buffer-name)
+                (lean4-info-buffer-redisplay 'force)
+                (should (= rebuilds 1))
+                ;; Nothing has changed, so nothing should happen.
+                (dotimes (_ 5) (lean4-info-buffer-redisplay 'force))
+                (should (= rebuilds 1))
+                ;; A real change is drawn.
+                (setq-local lean4-goals "⊢ False")
+                (lean4-info-buffer-redisplay 'force)
+                (should (= rebuilds 2))))
+          (advice-remove 'erase-buffer 'lean4-info-test-count)))
+    (kill-buffer lean4-info-buffer-name)))
+
 (provide 'lean4-info-test)
 ;;; lean4-info-test.el ends here
