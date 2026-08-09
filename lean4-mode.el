@@ -164,7 +164,7 @@ file, recompiling, and reloading all imports."
     ;; could also be dropped for both cases.
     ["List of errors"       flycheck-list-errors    flycheck-mode]
     ["Restart lean process" lsp-workspace-restart   t]
-    ["Customize lean4-mode" (customize-group 'lean) t]))
+    ["Customize lean4-mode" (customize-group 'lean4) t]))
 
 (defconst lean4-hooks-alist
   '(

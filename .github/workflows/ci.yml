@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [master, eglot]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Emacs ${{ matrix.emacs_version }}
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 29.1 is the floor; 30.1 is the current release; snapshot is an
+        # early warning for changes in eglot, jsonrpc and flymake, all of
+        # which this package tracks closely.
+        emacs_version: ['29.1', '29.4', '30.1']
+        experimental: [false]
+        include:
+          - emacs_version: snapshot
+            experimental: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs_version }}
+
+      # Dependencies come from ELPA and change daily, so key the cache on the
+      # Emacs version and on the headers that declare them.
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .elpa
+          key: elpa-${{ matrix.emacs_version }}-${{ hashFiles('lean4-mode.el') }}
+          restore-keys: elpa-${{ matrix.emacs_version }}-
+
+      - name: Install dependencies
+        run: make deps
+
+      - name: Byte-compile
+        run: make compile
+
+      - name: Checkdoc
+        run: make checkdoc
+
+      - name: package-lint
+        run: make lint
+
+      - name: Test
+        run: make test

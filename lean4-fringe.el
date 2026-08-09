@@ -85,8 +85,6 @@
                                  `(left-fringe lean4-fringe-fringe-bitmap ,(lean4-fringe-fringe-face item))))
         (overlay-put ov 'help-echo (format "processing..."))))))
 
-(defvar-local lean4-fringe-delay-timer nil)
-
 (lsp-defun lean4-fringe-update (workspace (&lean:LeanFileProgressParams :processing :text-document (&VersionedTextDocumentIdentifier :uri)))
   (dolist (buf (lsp--workspace-buffers workspace))
     (lsp-with-current-buffer buf

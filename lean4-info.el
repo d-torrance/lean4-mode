@@ -91,6 +91,9 @@ The buffer is supposed to be the *Lean Goal* buffer."
   line)
 
 (defun lean4-info--error-button-action (data)
+  "Jump to the source location a diagnostic button points at.
+DATA is the button's `button-data', a list (BUFFER LINE COLUMN) with
+LINE counted from one and COLUMN from zero."
   (let ((buffer (nth 0 data))
         (line (nth 1 data))
         (column (nth 2 data)))
@@ -101,6 +104,10 @@ The buffer is supposed to be the *Lean Goal* buffer."
       (forward-char column))))
 
 (defun lean4-info--insert-highlight-inaccessible-names (&rest text)
+  "Insert TEXT, dimming the names Lean marks as inaccessible.
+When `lean4-highlight-inaccessible-names' is non-nil, a name suffixed
+with the dagger Lean uses for inaccessible hypotheses is stripped of the
+dagger and shown in `font-lock-comment-face' instead."
   (let ((begin (point)))
     (apply #'insert text)
     (when lean4-highlight-inaccessible-names
@@ -115,12 +122,16 @@ The buffer is supposed to be the *Lean Goal* buffer."
         (goto-char end)))))
 
 (defun lean4--insert-goal-text (text delimiter)
+  "Insert goal TEXT fontified as Lean, followed by DELIMITER."
   (lean4-info--insert-highlight-inaccessible-names
    (lsp--fontlock-with-mode text 'lean4-info-mode)
    delimiter))
 
 (defun lean4-info--mk-message-section (value caption messages buffer)
-  "Add a section with id VALUE, caption CAPTION and contents ERRORS."
+  "Add a section with id VALUE, caption CAPTION and contents MESSAGES.
+Each message is rendered as a button jumping into BUFFER at the
+message's own line and column.  Nothing is inserted when MESSAGES is
+empty."
   (when-let (msgs messages) ;; captured for deferred rendering
     (magit-insert-section (magit-section value)
       (magit-insert-heading caption)
@@ -137,6 +148,8 @@ The buffer is supposed to be the *Lean Goal* buffer."
             (lean4-info--insert-highlight-inaccessible-names "\n" message "\n")))))))
 
 (defun lean4-info-buffer-redisplay ()
+  "Re-render the Lean info buffer from the last goals and diagnostics.
+Does nothing unless the info buffer is currently being displayed."
   (when (lean4-info-buffer-active lean4-info-buffer-name)
     (-let* ((deactivate-mark) ; keep transient mark
             (inhibit-read-only t)

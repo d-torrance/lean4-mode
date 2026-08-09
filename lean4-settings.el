@@ -70,7 +70,7 @@
 
 (defcustom lean4-lake-name lean4-default-lake-name
   "Name of lake executable."
-  :group 'lake
+  :group 'lean4
   :type 'string)
 
 (defcustom lean4-memory-limit 1024
@@ -91,7 +91,7 @@ It is approximately the maximum number of memory allocations in thousands."
   :type '(list string))
 
 (defcustom lean4-delete-trailing-whitespace nil
-  "Automatically delete trailing shitespace.
+  "Automatically delete trailing whitespace.
 Set this variable to true to automatically delete trailing
 whitespace when a buffer is loaded from a file or when it is
 written."
@@ -128,14 +128,8 @@ outside a project will default to that mode."
 (defcustom lean4-keybinding-show-key (kbd "C-c C-k")
   "Lean Keybinding for `quail-show-key'."
   :group 'lean4-keybinding  :type 'key-sequence)
-(defcustom lean4-keybinding-server-restart (kbd "C-c C-r")
-  "Lean Keybinding for server-restart."
-  :group 'lean4-keybinding  :type 'key-sequence)
 (defcustom lean4-keybinding-tab-indent (kbd "TAB")
   "Lean Keybinding for `lean4-tab-indent'."
-  :group 'lean4-keybinding  :type 'key-sequence)
-(defcustom lean4-keybinding-auto-complete (kbd "S-SPC")
-  "Lean Keybinding for auto completion."
   :group 'lean4-keybinding  :type 'key-sequence)
 (defcustom lean4-keybinding-lean4-toggle-info (kbd "C-c C-i")
   "Lean Keybinding for `lean4-toggle-info'."
