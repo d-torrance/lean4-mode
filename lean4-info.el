@@ -269,47 +269,98 @@ propertized by `lean4-render', which dims those names itself."
          'fixedcase 'literal)))
     (buffer-string)))
 
+(defun lean4-info--align-right (left right)
+  "Return LEFT and RIGHT on one line, with RIGHT against the window edge.
+
+A stretch space does the aligning, so it holds however the window is
+resized.  The width is measured in columns rather than characters
+because the glyphs need not be single-width, and two columns of margin
+are left rather than one: the right edge is where the fringe or a scroll
+bar begins, and an emoji can be drawn wider than `string-width' accounts
+for, so a control flush against it bleeds off the side."
+  (if (string-empty-p right)
+      left
+    (concat left
+            (propertize " " 'display
+                        `(space :align-to
+                                (- right ,(+ (string-width right) 2))))
+            right)))
+
+(defun lean4-info--goto-position (line column)
+  "Put point on LINE at COLUMN in the current buffer.
+LINE is counted from one and COLUMN from zero, as a diagnostic reports
+them.  A column past the end of its line is clamped rather than
+signalling: the file can have been edited since the message was made."
+  (goto-char (point-min))
+  (forward-line (1- line))
+  (forward-char (min column (- (line-end-position) (point)))))
+
 (defun lean4-info--error-button-action (data)
   "Jump to the source location a diagnostic button points at.
 DATA is the button's `button-data', a list (BUFFER LINE COLUMN) with
 LINE counted from one and COLUMN from zero."
-  (let ((buffer (nth 0 data))
-        (line (nth 1 data))
-        (column (nth 2 data)))
+  (pcase-let ((`(,buffer ,line ,column) data))
     (when (buffer-live-p buffer)
       (pop-to-buffer buffer)
-      (goto-char (point-min))
-      (forward-line (1- line))
-      (forward-char column))))
+      (lean4-info--goto-position line column))))
+
+(defun lean4-info--insert-message (diagnostic buffer)
+  "Insert DIAGNOSTIC as a section of its own, headed by where in BUFFER it is.
+
+A section rather than plain text so that one long message -- a `simp'
+trace, a type mismatch between two large terms -- can be folded away
+without folding the rest, and so that it gets a chevron saying it can
+be.  The heading names the file as well as the line and column: the
+position alone read as a bare pair of numbers."
+  (let* ((start (plist-get (plist-get diagnostic :range) :start))
+         (line (1+ (or (plist-get start :line) 0)))
+         (column (or (plist-get start :character) 0))
+         (message (plist-get diagnostic :message))
+         (place (format "%s:%d:%d:" (buffer-name buffer) line column)))
+    (magit-insert-section (magit-section 'message)
+      (magit-insert-heading
+        (lean4-info--align-right
+         ;; The place itself goes there too, as it used to; it is simply
+         ;; the same control wearing the heading's face.
+         (propertize (lean4-info--goto-button buffer line column place)
+                     'face 'lean4-info-location)
+         (lean4-info--goto-button buffer line column)))
+      (magit-insert-section-body
+        (insert
+         ;; Plain diagnostics carry a string; interactive ones carry a
+         ;; tree, whose terms and traces render live.
+         (if (stringp message)
+             message
+           (lean4-render-message message nil lean4-info--trace-expansion))
+         "\n")))))
 
 (defun lean4-info--mk-message-section (value caption messages buffer)
   "Add a section with id VALUE, caption CAPTION and contents MESSAGES.
-Each message is rendered as a button jumping into BUFFER at the
-message's own line and column.  Nothing is inserted when MESSAGES is
-empty."
+Each message becomes a foldable section of its own, headed by the place
+in BUFFER it belongs to.  Nothing is inserted when MESSAGES is empty."
   (when messages
     (magit-insert-section (magit-section value)
       (magit-insert-heading caption)
       (magit-insert-section-body
         (dolist (diagnostic messages)
-          (let* ((start (plist-get (plist-get diagnostic :range) :start))
-                 (line (1+ (or (plist-get start :line) 0)))
-                 (column (or (plist-get start :character) 0))
-                 (message (plist-get diagnostic :message)))
-            (insert-text-button
-             (format "%d:%d:" line column)
-             'action #'lean4-info--error-button-action
-             'button-data (list buffer line column)
-             'face 'magit-section-heading
-             'help-echo "mouse-2: visit this file, line and column")
-            (insert "\n"
-                    ;; Plain diagnostics carry a string; interactive ones
-                    ;; carry a tree, whose terms and traces render live.
-                    (if (stringp message)
-                        message
-                      (lean4-render-message message nil
-                                            lean4-info--trace-expansion))
-                    "\n")))))))
+          (lean4-info--insert-message diagnostic buffer))))))
+
+(defconst lean4-info--indent 2
+  "Columns each level of the goal display is set in by.")
+
+(defmacro lean4-info--indented (&rest body)
+  "Insert whatever BODY inserts one level to the right.
+
+The indentation is a `line-prefix\=' display property rather than spaces
+in the buffer.  The goal text carries the positions that `lean4-render\=',
+ElDoc and xref read back out of it, and inserting characters into it
+would move every one of them."
+  (declare (indent 0) (debug t))
+  `(let ((start (point)))
+     (prog1 (progn ,@body)
+       (let ((prefix (make-string lean4-info--indent ?\s)))
+         (put-text-property start (point) 'line-prefix prefix)
+         (put-text-property start (point) 'wrap-prefix prefix)))))
 
 (defmacro lean4-info--keeping-position (&rest body)
   "Run BODY, which rebuilds the current buffer, without moving the view.
@@ -364,11 +415,15 @@ section.  Severities nobody has are left out rather than shown as zero."
                 parts))))
     (when parts (string-join (nreverse parts) "  "))))
 
-(defun lean4-info--all-messages-caption (diagnostics)
-  "Return the caption for the section listing DIAGNOSTICS."
+(defun lean4-info--messages-caption (label diagnostics)
+  "Return LABEL as a caption, counting DIAGNOSTICS by severity after it.
+
+No trailing colon, unlike the other captions: `magit-section' replaces
+one with a count of the section\='s children, which here would follow the
+badge with a second, coarser count of the same messages."
   (if-let* ((badge (lean4-info--severity-badge diagnostics)))
-      (format "All messages (%s):" badge)
-    "All messages:"))
+      (format "%s (%s)" label badge)
+    label))
 
 (defun lean4-info--add-visibility-indicators ()
   "Draw the fold indicators on the sections just inserted.
@@ -386,6 +441,36 @@ still do not."
                 (dolist (child (oref section children))
                   (funcall walk child)))))
       (funcall walk magit-root-section))))
+
+(defun lean4-info--restore-control-keymaps ()
+  "Give the controls back the `mouse-1\=' binding `magit-section\=' took.
+
+`magit-section-maybe-add-heading-map\=' puts its own keymap over the whole
+of a section\='s heading line, which replaces the one a control carries:
+the control could be seen, described and hovered, but not clicked.  It
+leaves the other properties alone, so `lean4-info-command\=' survives to
+say what each one was for.
+
+Composed over what `magit-section\=' left rather than replacing it, so
+that folding a section by mouse keeps working."
+  (let ((pos (point-min)))
+    (while (setq pos (text-property-not-all pos (point-max)
+                                            'lean4-info-command nil))
+      (let ((end (or (next-single-property-change pos 'lean4-info-command)
+                     (point-max)))
+            (map (get-text-property pos 'keymap))
+            (command (get-text-property pos 'lean4-info-command)))
+        (unless (and map (keymap-lookup map "<mouse-1>"))
+          (let ((own (make-sparse-keymap)))
+            (keymap-set own "<mouse-1>"
+                        (lambda ()
+                          (interactive)
+                          (lean4-info--run-control command)))
+            (put-text-property pos end 'keymap
+                               (if map
+                                   (make-composed-keymap (list own map))
+                                 own))))
+        (setq pos end)))))
 
 (defun lean4-info-buffer-redisplay (&optional force)
   "Re-render the Lean info buffer from the last goals and diagnostics.
@@ -440,31 +525,39 @@ Lean buffer to be the selected one, which it is not in that case."
             ;; the messages from elsewhere in the file that may follow do
             ;; not count -- the notice and the "All messages:" section
             ;; can and should appear together.
-            (unless (or goals term-goal here)
-              (insert (propertize "No info found.\n" 'face 'shadow)))
-            (when goals
-              (magit-insert-section (magit-section 'goals)
-                (magit-insert-heading "Goals:")
-                (magit-insert-section-body
-                  (if (eq goals 'accomplished)
-                      (insert "goals accomplished\n\n")
-                    (insert goals "\n\n")))))
-            (when term-goal
-              (magit-insert-section (magit-section 'term-goal)
-                (magit-insert-heading "Expected type:")
-                (magit-insert-section-body
-                  (insert term-goal "\n"))))
-            (lean4-info--mk-message-section
-             'errors-here "Messages here:" here buffer)
+            ;; Everything the position itself has to say is set in from
+            ;; its heading, so the file and line reads as what it is: the
+            ;; thing the goal, the expected type and the messages are all
+            ;; about.  The file's own messages stay at the outer level.
+            (lean4-info--indented
+              (unless (or goals term-goal here)
+                (insert (propertize "No info found.\n" 'face 'shadow)))
+              (when goals
+                (magit-insert-section (magit-section 'goals)
+                  (magit-insert-heading "Goals:")
+                  (magit-insert-section-body
+                    (if (eq goals 'accomplished)
+                        (insert "goals accomplished\n\n")
+                      (insert goals "\n\n")))))
+              (when term-goal
+                (magit-insert-section (magit-section 'term-goal)
+                  (magit-insert-heading "Expected type:")
+                  (magit-insert-section-body
+                    (insert term-goal "\n"))))
+              (lean4-info--mk-message-section
+               'messages (lean4-info--messages-caption "Messages" here)
+               here buffer))
             ;; One section for the file, as VS Code has it, rather than
             ;; one above point and one below: the split said where a
             ;; message was relative to point, which the line number in
             ;; each entry already says, and it made the count in the
             ;; heading two counts of nothing in particular.
             (lean4-info--mk-message-section
-             'all-messages (lean4-info--all-messages-caption diagnostics)
+             'all-messages
+             (lean4-info--messages-caption "All messages" diagnostics)
              diagnostics buffer))
-          (lean4-info--add-visibility-indicators))))))))
+          (lean4-info--add-visibility-indicators)
+          (lean4-info--restore-control-keymaps))))))))
 
 ;;;; Refresh
 
@@ -774,6 +867,20 @@ first one also decides this."
                   '("📍" "🖈" "⌾"))
         "[P]")))
 
+(defcustom lean4-info-goto-icon nil
+  "Control that sends point to the position a heading names.
+Nil means pick whichever candidate the frame can display."
+  :group 'lean4-info
+  :type '(choice (const :tag "Choose to suit the frame" nil) string))
+
+(defun lean4-info-goto-glyph ()
+  "Return the go-to-position control for this frame."
+  ;; VS Code uses a codicon of a page with an arrow leaving it.  Unicode
+  ;; has no such glyph, and a bare page says nothing about going there,
+  ;; so take the arrow half: U+21AA is the one that reads as jumping
+  ;; somewhere rather than as scrolling or as a return.
+  (lean4-info--glyph lean4-info-goto-icon '("↪" "⤴" "→") "->"))
+
 (defun lean4-info-pause-glyph ()
   "Return the pause control for this frame."
   (lean4-info--glyph lean4-info-pause-icon '("⏸" "‖") "||"))
@@ -799,7 +906,12 @@ it back."
          (window (and source (get-buffer-window source t))))
     (if source
         (progn (with-current-buffer source (call-interactively command))
-               (when (window-live-p window) (select-window window)))
+               (if (window-live-p window)
+                   (select-window window)
+                 ;; Nowhere to put the focus back: show the buffer, so
+                 ;; that a control which moved point somewhere has
+                 ;; somewhere to have moved it to.
+                 (pop-to-buffer source)))
       (call-interactively command))))
 
 (defun lean4-info--button (label help command &optional active)
@@ -820,9 +932,44 @@ ACTIVE marks the control as engaged, which shows in its face."
                                       (lean4-info--run-control command)))
                         map)))
 
+(defun lean4-info--goto-button (buffer line column &optional label)
+  "Return a control sending point to LINE and COLUMN of BUFFER.
+
+LABEL is what to show, defaulting to the go-to glyph.
+
+Names its buffer rather than relying on the one the display is
+following: a message belongs to the file it was reported for, whatever
+the display has moved on to since."
+  (lean4-info--button
+   (or label (lean4-info-goto-glyph))
+   "mouse-1: go to this position"
+   (lambda ()
+     (interactive)
+     (when (buffer-live-p buffer)
+       (with-current-buffer buffer
+         (lean4-info--goto-position line column))))))
+
+(defun lean4-info--pin-goto-button ()
+  "Return a control sending point to the pinned position, or nothing.
+
+Only offered while pinned.  Unpinned, the display is following point and
+the position in the heading is where point already is, so the control
+would do nothing and only take up room."
+  (if-let* ((pin lean4-info--pin)
+            (source (marker-buffer pin))
+            ((buffer-live-p source)))
+      (concat (with-current-buffer source
+                (save-excursion
+                  (goto-char pin)
+                  (lean4-info--goto-button source (line-number-at-pos)
+                                           (current-column))))
+              "  ")
+    ""))
+
 (defun lean4-info--controls ()
-  "Return the pin and pause controls, as one string."
+  "Return the goal display's controls, as one string."
   (concat
+   (lean4-info--pin-goto-button)
    (lean4-info--button
     (if lean4-info--pin
         (lean4-info-unpin-glyph)
@@ -875,16 +1022,7 @@ need not be single-width."
                     (propertize (concat "  " (string-join words " and "))
                                 'face 'warning)
                   "")))
-    (concat location state
-            (propertize " " 'display
-                        ;; Two columns of margin, not one: the right edge
-                        ;; is where the fringe or a scroll bar begins, and
-                        ;; an emoji can be rendered wider than
-                        ;; `string-width' accounts for, so a control set
-                        ;; flush against it bleeds off the side.
-                        `(space :align-to
-                                (- right ,(+ (string-width controls) 2))))
-            controls)))
+    (lean4-info--align-right (concat location state) controls)))
 
 ;;;###autoload
 (defun lean4-info-toggle-pause ()

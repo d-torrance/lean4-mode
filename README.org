@@ -207,11 +207,25 @@ which declaration they belong to, so a message about a multi-line
 declaration stays visible while point moves through it.  Terms inside a
 message are as interactive as terms inside a goal.
 
-Those covering point are listed under =Messages here:=, and every
-message in the file under =All messages:=, whose heading counts them by
-severity the way VS Code's does -- =All messages (1 ⊗  5 ⓘ):= for a file
-with one error and five notes.  The glyphs are picked for the frame,
-falling back to =E W I H= where none can be displayed.
+Those covering point are listed under =Messages=, set in under the
+heading naming the position, along with the goals and the expected type.
+Every message in the file is listed under =All messages=, at the outer
+level.  Both headings count what is in them by severity, the way VS
+Code's do -- =All messages (1 ⊗  5 ⓘ)= for a file with one error and
+five notes.
+
+Lean emits three severities: error =⊗=, warning =⚠= and information
+=ⓘ=.  LSP defines a fourth, hint, which this package draws as =ⓗ=, but
+Lean's own ~MessageSeverity~ has no such value and its server never
+sends one.  The glyphs are picked for the frame, falling back to =E W I
+H= where none can be displayed.
+
+Each message is a section of its own, so a long one -- a =simp= trace, a
+mismatch between two large terms -- folds away without folding the rest.
+Its heading names the file, line and column, and carries an =↪= control,
+right-aligned, that sends point there.  The same control appears in the
+top heading, but only while pinned: unpinned, the display is following
+point and it would only lead where point already is.
 
 ** Completion
 

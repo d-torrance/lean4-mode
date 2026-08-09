@@ -398,11 +398,23 @@ is in, and that is what the message is anchored to."
                "the message at point to be listed on its own"
                (lambda ()
                  (with-current-buffer lean4-info-buffer-name
-                   (string-search "Messages here:" (buffer-string))))))
+                   (string-search "Messages (" (buffer-string))))))
       (with-current-buffer lean4-info-buffer-name
         ;; And it is still counted among the file's messages.
         (should (string-search "All messages (" (buffer-string)))
-        (should (string-search "declaration uses" (buffer-string)))))))
+        (should (string-search "declaration uses" (buffer-string)))
+        ;; Each message says which file it is in, and offers a control
+        ;; that goes there.
+        (should (string-search "Fixture.lean:7:8:" (buffer-string)))
+        (should (string-search (lean4-info-goto-glyph) (buffer-string)))
+        ;; What the position has to say is set in from its heading; the
+        ;; file's own messages are not.
+        (goto-char (point-min))
+        (should (search-forward "Messages (" nil t))
+        (should (get-text-property (match-beginning 0) 'line-prefix))
+        (goto-char (point-min))
+        (should (search-forward "All messages (" nil t))
+        (should-not (get-text-property (match-beginning 0) 'line-prefix))))))
 
 (ert-deftest lean4-e2e-info-buffer-says-when-there-is-nothing ()
   "Outside a proof the display says so rather than going blank.
