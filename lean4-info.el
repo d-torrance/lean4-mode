@@ -373,6 +373,15 @@ Lean buffer to be the selected one, which it is not in that case."
           (erase-buffer)
           (magit-insert-section (magit-section 'root)
             (magit-insert-heading (lean4-info--heading location))
+            ;; Say so, rather than leaving a bare heading: outside a proof
+            ;; there is nothing to report, and a display that goes blank
+            ;; reads like one that has stopped working.  VS Code words it
+            ;; this way.  This is about the position being reported on, so
+            ;; the messages from elsewhere in the file that may follow do
+            ;; not count -- the notice and a "Messages below:" section can
+            ;; and should appear together.
+            (unless (or goals term-goal here)
+              (insert (propertize "No info found.\n" 'face 'shadow)))
             (when goals
               (magit-insert-section (magit-section 'goals)
                 (magit-insert-heading "Goals:")
@@ -683,6 +692,26 @@ is.  Nil means pick whichever candidate the frame can display."
   "Return the resume control for this frame."
   (lean4-info--glyph lean4-info-resume-icon '("⏵" "▶" "▸") ">"))
 
+(defun lean4-info--run-control (command)
+  "Run COMMAND as though it had been invoked from the Lean buffer.
+
+A control is clicked in the info buffer, which is the wrong buffer for
+these commands to run in.  Pinning needs the Lean buffer, because the
+position it pins to is point there; run from the info buffer it only
+raises an error.
+
+Clicking also selects the info window and leaves point on the glyph,
+which parks a blinking cursor on the control and takes the keyboard away
+from the file being edited.  VS Code leaves focus in the editor, so put
+it back."
+  (let* ((source (and (buffer-live-p lean4-info--source-buffer)
+                      lean4-info--source-buffer))
+         (window (and source (get-buffer-window source t))))
+    (if source
+        (progn (with-current-buffer source (call-interactively command))
+               (when (window-live-p window) (select-window window)))
+      (call-interactively command))))
+
 (defun lean4-info--button (label help command &optional active)
   "Return LABEL as a clickable control running COMMAND, described by HELP.
 ACTIVE marks the control as engaged, which shows in its face."
@@ -690,8 +719,15 @@ ACTIVE marks the control as engaged, which shows in its face."
               'face (if active 'lean4-info-button-active 'lean4-info-button)
               'mouse-face 'highlight
               'help-echo help
+              ;; The click runs a wrapper, so record what it ultimately
+              ;; invokes: otherwise neither a reader nor a test can tell
+              ;; what a control does without taking the closure apart.
+              'lean4-info-command command
               'keymap (let ((map (make-sparse-keymap)))
-                        (keymap-set map "<mouse-1>" command)
+                        (keymap-set map "<mouse-1>"
+                                    (lambda ()
+                                      (interactive)
+                                      (lean4-info--run-control command)))
                         map)))
 
 (defun lean4-info--controls ()

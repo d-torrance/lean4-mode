@@ -383,6 +383,30 @@ see `lean4-e2e-info-buffer-shows-the-goal'."
      (with-current-buffer lean4-info-buffer-name
        (string-search "⊢" (buffer-string))))))
 
+(ert-deftest lean4-e2e-info-buffer-says-when-there-is-nothing ()
+  "Outside a proof the display says so rather than going blank.
+
+Line 0 is a comment: no goal, no expected type, no message of its own.
+The fixture does have errors further down, so this also pins that the
+notice is about the position being reported on rather than about the
+buffer being empty -- it appears alongside the messages from below."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      ;; Warm the display on a real goal first, so that finding the notice
+      ;; afterwards means it replaced something rather than never having
+      ;; had anything to show.
+      (lean4-e2e--show-goal-at lean4-e2e--sorry-line)
+      (lean4-e2e--goto-line 0)
+      (lean4-info-buffer-refresh)
+      (should (lean4-e2e--wait-until
+               "the display to report having nothing"
+               (lambda ()
+                 (with-current-buffer lean4-info-buffer-name
+                   (string-search "No info found." (buffer-string))))))
+      (with-current-buffer lean4-info-buffer-name
+        (should (string-search "Messages below:" (buffer-string)))))))
+
 (ert-deftest lean4-e2e-info-buffer-goals-are-interactive ()
   "Goals in the info buffer carry per-subterm information.
 Without this, nothing in the buffer can be hovered or jumped from."

@@ -79,6 +79,55 @@ that we were the ones to bring it about."
                      (lean4-info-test--foldable-count))))
       (kill-buffer lean4-info-buffer-name))))
 
+(ert-deftest lean4-info-controls-run-in-the-lean-buffer ()
+  "A clicked control acts on the Lean buffer, not on the info buffer.
+
+Regression test.  `mouse-1' runs the command with the info buffer
+current, where pinning is meaningless -- `lean4-info-toggle-pin' needs
+point in a Lean buffer, so clicking the pin only raised an error."
+  (let ((source (get-buffer-create "*lean4-info-test-source*")))
+    (lean4-ensure-info-buffer lean4-info-buffer-name)
+    (unwind-protect
+        (progn
+          (with-current-buffer source
+            (let ((lean4-mode-hook nil)
+                  (lean4-auto-start-server nil)
+                  (lean4-info-auto-open nil))
+              (lean4-mode))
+            (insert "example : True := trivial\n"))
+          (with-current-buffer lean4-info-buffer-name
+            (setq lean4-info--source-buffer source)
+            (lean4-info--run-control #'lean4-info-toggle-pin)
+            (should lean4-info--pin)
+            (should (eq (marker-buffer lean4-info--pin) source))
+            (lean4-info--run-control #'lean4-info-toggle-pin)
+            (should-not lean4-info--pin)))
+      (when lean4-info--pin
+        (set-marker lean4-info--pin nil)
+        (setq lean4-info--pin nil))
+      (kill-buffer source)
+      (kill-buffer lean4-info-buffer-name))))
+
+(ert-deftest lean4-info-says-so-when-there-is-nothing-to-report ()
+  "An empty display says \"No info found.\" rather than showing a bare heading.
+An empty buffer reads like one that has stopped working."
+  (let ((source (get-buffer-create "*lean4-info-test-source*")))
+    (unwind-protect
+        (with-current-buffer source
+          (let ((lean4-mode-hook nil)
+                (lean4-auto-start-server nil)
+                (lean4-info-auto-open nil))
+            (lean4-mode))
+          (setq lean4-goals nil lean4-term-goal nil lean4-info--diagnostics nil)
+          (setq lean4-info--rendered nil)
+          (lean4-ensure-info-buffer lean4-info-buffer-name)
+          (lean4-info-buffer-redisplay 'force)
+          (with-current-buffer lean4-info-buffer-name
+            (should (string-search "No info found." (buffer-string)))))
+      (kill-buffer source)
+      (when (get-buffer lean4-info-buffer-name)
+        (kill-buffer lean4-info-buffer-name)))))
+
 (ert-deftest lean4-info-goals-value-distinguishes-three-outcomes ()
   "No proof, a finished proof, and an open goal are told apart.
 
@@ -140,12 +189,18 @@ every ordinary line is proved."
            (pause (string-search (lean4-info-pause-glyph) plain)))
       (should pin)
       (should pause)
-      (should (eq (keymap-lookup (get-text-property pin 'keymap heading)
-                                 "<mouse-1>")
+      ;; The binding is a wrapper that re-runs the command in the Lean
+      ;; buffer, so check what it was built to invoke, and that what is
+      ;; bound is something `mouse-1' can actually run.
+      (should (eq (get-text-property pin 'lean4-info-command heading)
                   'lean4-info-toggle-pin))
-      (should (eq (keymap-lookup (get-text-property pause 'keymap heading)
-                                 "<mouse-1>")
-                  'lean4-info-toggle-pause)))))
+      (should (eq (get-text-property pause 'lean4-info-command heading)
+                  'lean4-info-toggle-pause))
+      (should (commandp (keymap-lookup
+                         (get-text-property pin 'keymap heading) "<mouse-1>")))
+      (should (commandp (keymap-lookup
+                         (get-text-property pause 'keymap heading)
+                         "<mouse-1>"))))))
 
 (ert-deftest lean4-info-controls-fall-back-to-ascii ()
   "The controls are configurable, for fonts without the glyphs.

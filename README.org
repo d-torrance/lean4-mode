@@ -168,7 +168,14 @@ rest on any part of a goal and ask about it.
 | =C-c C-SPC=    | Pause or unpause the display                   | ~lean4-info-toggle-pause~         |
 
 The last two are bound here as well as in the Lean buffer, so the
-display can be pinned or paused without leaving it.
+display can be pinned or paused without leaving it.  Clicking their
+controls does the same, and leaves the keyboard in the Lean buffer
+rather than taking focus, as VS Code does.
+
+Where there is nothing at point to report -- outside a proof, say -- the
+display says =No info found.= rather than going blank, which would read
+like a display that had stopped working.  Messages from elsewhere in the
+file are still listed below it.
 
 The type and docstring of the subterm at point are reported through
 ElDoc, so they appear wherever ElDoc is configured to put them: the
