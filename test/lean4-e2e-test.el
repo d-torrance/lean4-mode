@@ -409,9 +409,7 @@ is in, and that is what the message is anchored to."
       (with-current-buffer lean4-info-buffer-name
         ;; And it is still counted among the file's messages.
         (should (string-search "All messages (" (buffer-string)))
-        ;; Including the ones Lean marks silent, which is what `isSilent'
-        ;; means: for the goal display rather than for the editor.
-        (should (string-search "Goals accomplished" (buffer-string)))
+
         (should (string-search "declaration uses" (buffer-string)))
         ;; Each message says which file it is in, and offers a control
         ;; that goes there.
@@ -429,6 +427,35 @@ is in, and that is what the message is anchored to."
         (should (search-forward "All messages (" nil t))
         (should-not (get-text-property (match-beginning 0)
                                        'lean4-info-indent))))))
+
+(ert-deftest lean4-e2e-silent-messages-belong-to-the-position ()
+  "The completed-proof report shows at the proof, not in the file's list.
+
+`isSilent' marks a message as being for the goal display rather than the
+editor.  VS Code shows such a message against the position it belongs to
+and leaves it out of All Messages, and so does this."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      ;; Line 3 is the theorem that is actually proved.
+      (lean4-e2e--goto-line 3)
+      (lean4-info-buffer-refresh)
+      (should (lean4-e2e--wait-until
+               "the completed-proof report"
+               (lambda ()
+                 (with-current-buffer lean4-info-buffer-name
+                   (string-search "Goals accomplished" (buffer-string))))))
+      (with-current-buffer lean4-info-buffer-name
+        (let* ((text (buffer-string))
+               (report (string-search "Goals accomplished" text))
+               (all (string-search "All messages" text)))
+          (should report)
+          (should all)
+          ;; Above the file's list, so it is the position's copy, and the
+          ;; only copy.
+          (should (< report all))
+          (should-not (string-search "Goals accomplished"
+                                     (substring text all))))))))
 
 (ert-deftest lean4-e2e-info-buffer-says-when-there-is-nothing ()
   "Outside a proof the display says so rather than going blank.

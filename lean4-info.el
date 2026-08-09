@@ -133,19 +133,29 @@ and will hold the memory until told otherwise.")
   "C-c C-s" #'lean4-info-toggle-pin)
 
 (defun lean4-info-return ()
-  "Go to whatever point is on.
+  "Act on whatever point is on.
 
-On a message, the place it was reported for; on a term, the definition
-of that term.  TAB folds, RET goes to the thing at point -- the division
+On a control, what clicking it would do; on a message, go to the place
+it was reported for; on a term, go to the definition of that term.  TAB
+folds and RET acts on the thing at point, which is the division
 `magit-section' uses, and the reason folding is not bound here as well.
 
-Restores by keyboard what the go-to control offers by mouse: the file
-and position in a message heading are a label, since clicking a heading
-folds it."
+Every control is reachable this way, so none of them needs the mouse,
+and the file and position in a message heading can stay a label -- what
+clicking a heading does is fold it."
   (interactive)
-  (if-let* ((position (get-text-property (point) 'lean4-info-position)))
-      (lean4-info--error-button-action position)
-    (call-interactively #'xref-find-definitions)))
+  (cond
+   ((get-text-property (point) 'lean4-info-command)
+    (lean4-info--run-control (get-text-property (point) 'lean4-info-command)))
+   ((get-text-property (point) 'lean4-info-position)
+    (lean4-info--error-button-action
+     (get-text-property (point) 'lean4-info-position)))
+   ;; Only where the server labelled a subterm.  Handing anything else to
+   ;; xref sent it off to look for a tags table, which is neither here nor
+   ;; anything the reader asked for.
+   ((get-text-property (point) 'lean4-info)
+    (call-interactively #'xref-find-definitions))
+   (t (user-error "Nothing at point to go to"))))
 
 (defun lean4-info-toggle-fold ()
   "Fold or unfold whatever is at point.
@@ -253,6 +263,12 @@ noise in a buffer that shows nothing but Lean diagnostics."
   "Return the zero-based line raw LSP DIAGNOSTIC starts on."
   (or (thread-first diagnostic lean4-info--range
                     (plist-get :start) (plist-get :line))
+      0))
+
+(defun lean4-info--start-column (diagnostic)
+  "Return the zero-based column raw LSP DIAGNOSTIC starts at."
+  (or (thread-first diagnostic lean4-info--range
+                    (plist-get :start) (plist-get :character))
       0))
 
 (defun lean4-info--end-line (diagnostic)
@@ -466,16 +482,90 @@ section.  Severities nobody has are left out rather than shown as zero."
                 parts))))
     (when parts (string-join (nreverse parts) "  "))))
 
-(defun lean4-info--messages-caption (label diagnostics)
+(defvar lean4-info-all-messages-paused nil
+  "Non-nil while the file's message list is held as it was.")
+
+(defvar lean4-info--all-messages-frozen nil
+  "The message list being held while paused.")
+
+;;;###autoload
+(defun lean4-info-toggle-all-messages-pause ()
+  "Hold the file's message list as it is, or let it follow the file again.
+
+Its own pause, separate from the one in the position heading: the goal
+at point and the list of everything in the file are worth stopping
+independently, and VS Code gives each its own control."
+  (interactive)
+  (setq lean4-info-all-messages-paused (not lean4-info-all-messages-paused))
+  (lean4-info--redisplay-source)
+  (message "All messages %s"
+           (if lean4-info-all-messages-paused "paused" "unpaused")))
+
+(defcustom lean4-info-message-order 'location
+  "How the file's messages are ordered in the goal display.
+
+`location' puts them in the order they appear in the file; `point' puts
+the ones nearest point first, which is VS Code's \"sort by proximity to
+text cursor\" under the name Emacs uses for the same thing."
+  :group 'lean4-info
+  :type '(choice (const :tag "By position in the file" location)
+                 (const :tag "By nearness to point" point)))
+
+(defun lean4-info-sort-glyph ()
+  "Return the control showing how the messages are ordered."
+  ;; Unlike the pin and pause controls, this shows the state rather than
+  ;; the action: a sort control is read the way a sorted column heading
+  ;; is, and what it says has to be what is true of the list below it.
+  (if (eq lean4-info-message-order 'point)
+      (lean4-info--glyph nil '("⌖" "◎") "near")
+    (lean4-info--glyph nil '("⇅" "↕") "file")))
+
+;;;###autoload
+(defun lean4-info-toggle-message-order ()
+  "Order the file's messages by position, or by nearness to point."
+  (interactive)
+  (setq lean4-info-message-order
+        (if (eq lean4-info-message-order 'point) 'location 'point))
+  (lean4-info--redisplay-source)
+  (message "Messages ordered %s"
+           (if (eq lean4-info-message-order 'point)
+               "by nearness to point"
+             "by position in the file")))
+
+(defun lean4-info--sort-messages (diagnostics line)
+  "Return DIAGNOSTICS in the order to show them, relative to LINE.
+
+Ordered by where each message starts rather than where it ends, so that
+two messages about the same declaration come out the way they are
+written -- the completed-proof report before the trace it belongs with,
+as VS Code has them."
+  (let ((sorted
+         (sort (copy-sequence diagnostics)
+               (lambda (a b)
+                 (let ((la (lean4-info--start-line a))
+                       (lb (lean4-info--start-line b)))
+                   (if (= la lb)
+                       (< (lean4-info--start-column a)
+                          (lean4-info--start-column b))
+                     (< la lb)))))))
+    (if (eq lean4-info-message-order 'point)
+        (sort sorted (lambda (a b)
+                       (< (abs (- (lean4-info--start-line a) line))
+                          (abs (- (lean4-info--start-line b) line)))))
+      sorted)))
+
+(defun lean4-info--messages-caption (label diagnostics &optional controls)
   "Return LABEL as a caption, counting DIAGNOSTICS by severity after it.
+CONTROLS, if given, are set hard right on the same line.
 
 No trailing colon, unlike the other captions: the `magit-section'
 package replaces
 one with a count of the section\='s children, which here would follow
 the badge with a second, coarser count of the same messages."
-  (if-let* ((badge (lean4-info--severity-badge diagnostics)))
-      (format "%s (%s)" label badge)
-    label))
+  (let ((caption (if-let* ((badge (lean4-info--severity-badge diagnostics)))
+                     (format "%s (%s)" label badge)
+                   label)))
+    (if controls (lean4-info--align-right caption controls) caption)))
 
 (defcustom lean4-info-chevrons nil
   "Fold indicators for the goal display, as a cons of open and closed.
@@ -674,17 +764,30 @@ Lean buffer to be the selected one, which it is not in that case."
             ;; lost "Goals accomplished!" from a display that had room for
             ;; it and a reader expecting it.  `lean4-diagnostics' keeps
             ;; them out of Flymake, which is where they would be noise.
-            (sort (or (copy-sequence lean4-info--diagnostics)
-                      ;; No RPC: recover the raw objects Eglot stashed on
-                      ;; the Flymake diagnostics.
-                      (delq nil (mapcar #'lean4-diagnostic-lsp-data
-                                        (flymake-diagnostics))))
-                  (lambda (a b) (< (lean4-info--end-line a)
-                                   (lean4-info--end-line b))))))
+            (or (copy-sequence lean4-info--diagnostics)
+                ;; No RPC: recover the raw objects Eglot stashed on the
+                ;; Flymake diagnostics.
+                (delq nil (mapcar #'lean4-diagnostic-lsp-data
+                                  (flymake-diagnostics)))))
+           ;; The file's list leaves out what Lean marked as being for the
+           ;; goal display rather than the editor.  The completed-proof
+           ;; report belongs against the proof it is about, not in a list
+           ;; of everything in the file -- which is where VS Code puts it,
+           ;; and does not.
+           (all (if lean4-info-all-messages-paused
+                    lean4-info--all-messages-frozen
+                  (setq lean4-info--all-messages-frozen
+                        (lean4-info--sort-messages
+                         (seq-remove #'lean4-diagnostics-silent-p diagnostics)
+                         line)))))
       (pcase-let ((`(,_above ,here ,_below)
-                   (lean4-info--split-diagnostics diagnostics line))
+                   (lean4-info--split-diagnostics
+                    (lean4-info--sort-messages diagnostics line) line))
+
                   (key (list goals term-goal location lean4-info-paused
                              (and lean4-info--pin t) diagnostics
+                             lean4-info-message-order
+                             lean4-info-all-messages-paused all
                              lean4-info--trace-generation)))
         ;; Nothing to see: rebuilding would only make the display blink.
         (unless (and (equal key lean4-info--rendered)
@@ -739,8 +842,27 @@ Lean buffer to be the selected one, which it is not in that case."
             ;; heading two counts of nothing in particular.
             (lean4-info--mk-message-section
              'all-messages
-             (lean4-info--messages-caption "All messages" diagnostics)
-             diagnostics buffer))
+             (lean4-info--messages-caption
+              "All messages" all
+              (concat
+               (lean4-info--button
+                (lean4-info-sort-glyph)
+                (if (eq lean4-info-message-order 'point)
+                    "mouse-1: order by position in the file"
+                  "mouse-1: order by nearness to point")
+                #'lean4-info-toggle-message-order
+                (eq lean4-info-message-order 'point))
+               "  "
+               (lean4-info--button
+                (if lean4-info-all-messages-paused
+                    (lean4-info-resume-glyph)
+                  (lean4-info-pause-glyph))
+                (if lean4-info-all-messages-paused
+                    "mouse-1: unpause the file's message list"
+                  "mouse-1: pause the file's message list")
+                #'lean4-info-toggle-all-messages-pause
+                lean4-info-all-messages-paused)))
+             all buffer))
           (lean4-info--paint-chevrons)
           (setq lean4-info--folds (lean4-info--fold-state))
           (lean4-info--add-heading-clicks)

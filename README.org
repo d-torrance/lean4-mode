@@ -161,11 +161,16 @@ rest on any part of a goal and ask about it.
 
 | Key            | Description                                    | Command                           |
 |----------------+------------------------------------------------+-----------------------------------|
-| =M-.= or =RET= | Go to the thing at point                       | ~lean4-info-return~               |
+| =M-.= or =RET= | Act on the thing at point                      | ~lean4-info-return~               |
 | =C-c C-t=      | Jump to the definition of its type             | ~lean4-info-goto-type-definition~ |
 | =TAB=          | Fold or unfold the trace or section at point   | ~lean4-info-toggle-fold~          |
 | =C-c C-s=      | Pin the display to point, or unpin it          | ~lean4-info-toggle-pin~           |
 | =C-c C-SPC=    | Pause or unpause the display                   | ~lean4-info-toggle-pause~         |
+
+=RET= acts on whatever is under point: a control does what clicking it
+would, a message heading goes to the place it was reported for, and a
+term goes to its definition.  Every control is therefore reachable
+without a mouse.
 
 The last two are bound here as well as in the Lean buffer, so the
 display can be pinned or paused without leaving it.  Clicking their
@@ -210,14 +215,17 @@ message are as interactive as terms inside a goal.
 Those covering point are listed under =Messages=, set in under the
 heading naming the position, along with the goals and the expected type.
 Every message in the file is listed under =All messages=, at the outer
-level.  Both headings count what is in them by severity, the way VS
+level, with two controls of its own: one orders the list by position in
+the file or by nearness to point -- VS Code's "sort by proximity to text
+cursor" -- and one holds the list as it is, separately from the pause in
+the position heading.  Both headings count what is in them by severity, the way VS
 Code's do -- =All messages (1 ⊗  5 ⓘ)= for a file with one error and
 five notes.
 
 Messages Lean marks as being for the goal display rather than the
-editor, the completed-proof report among them, are listed here and kept
-out of Flymake.  That is what =isSilent= means, and both sections show
-them.
+editor -- that is what =isSilent= means, the completed-proof report
+among them -- are shown against the position they belong to and kept out
+of both Flymake and =All messages=, as VS Code does with them.
 
 Lean emits three severities: error =⊗=, warning =⚠= and information
 =ⓘ=.  LSP defines a fourth, hint, which this package draws as =ⓗ=, but

@@ -519,16 +519,80 @@ control offers by mouse, the file name being a label now."
             (with-current-buffer source
               (should (= (line-number-at-pos) 2))
               (should (= (current-column) 5))))
-          ;; Off a heading it is xref's business, not ours.
           (with-current-buffer lean4-info-buffer-name
+            ;; On a subterm it is xref's business.
             (goto-char (point-min))
-            (should-not (get-text-property (point) 'lean4-info-position))
+            (let ((inhibit-read-only t))
+              (put-text-property (point-min) (1+ (point-min))
+                                 'lean4-info '(:dummy t)))
             (cl-letf (((symbol-function 'xref-find-definitions)
                        (lambda (&rest _) (interactive) (setq jumped t))))
               (lean4-info-return))
-            (should jumped)))
+            (should jumped)
+            ;; On neither, nothing -- handing this to xref sent it looking
+            ;; for a tags table, which is not what was asked for.
+            (let ((inhibit-read-only t))
+              (remove-text-properties (point-min) (1+ (point-min))
+                                      '(lean4-info nil)))
+            (should-error (lean4-info-return) :type 'user-error)))
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
+
+(ert-deftest lean4-info-return-presses-the-control-at-point ()
+  "RET does what clicking a control would, so none of them needs a mouse."
+  (with-temp-buffer
+    (rename-buffer "Keys.lean" 'unique)
+    (let* ((lean4-info--pin nil)
+           (lean4-info-paused nil)
+           (heading (lean4-info--heading (lean4-info--location-string)))
+           (plain (substring-no-properties heading))
+           (index (string-search (lean4-info-pause-glyph) plain)))
+      (should index)
+      (insert heading)
+      (goto-char (+ (point-min) index))
+      (should (eq (get-text-property (point) 'lean4-info-command)
+                  'lean4-info-toggle-pause))
+      (cl-letf (((symbol-function 'lean4-info--redisplay-source) #'ignore)
+                ((symbol-function 'lean4-info-buffer-refresh) #'ignore))
+        (lean4-info-return)
+        (should lean4-info-paused)
+        (lean4-info-return)
+        (should-not lean4-info-paused)))))
+
+(ert-deftest lean4-info-messages-are-ordered-by-where-they-start ()
+  "Two messages about one declaration come out as they are written.
+
+Ordering by where a message ends put the completed-proof report after
+the trace it belongs with; VS Code has them the other way, which is the
+order they start in."
+  (let ((a '(:range (:start (:line 40 :character 0) :end (:line 44 :character 0))))
+        (b '(:range (:start (:line 41 :character 0) :end (:line 42 :character 0))))
+        (lean4-info-message-order 'location))
+    (should (equal (lean4-info--sort-messages (list b a) 0) (list a b)))))
+
+(ert-deftest lean4-info-messages-can-be-ordered-by-nearness-to-point ()
+  "VS Code's \"sort by proximity to text cursor\", under Emacs's name for it."
+  (let* ((near '(:range (:start (:line 40 :character 0))))
+         (far '(:range (:start (:line 4 :character 0))))
+         (both (list far near)))
+    (let ((lean4-info-message-order 'location))
+      (should (equal (lean4-info--sort-messages both 40) (list far near))))
+    (let ((lean4-info-message-order 'point))
+      (should (equal (lean4-info--sort-messages both 40) (list near far))))))
+
+(ert-deftest lean4-info-sort-control-shows-the-order-in-force ()
+  "Unlike pin and pause, a sort control has to say what is true now."
+  (let ((lean4-info-message-order 'location))
+    (let ((by-file (lean4-info-sort-glyph)))
+      (let ((lean4-info-message-order 'point))
+        (should-not (equal by-file (lean4-info-sort-glyph)))))))
+
+(ert-deftest lean4-info-caption-can-carry-controls ()
+  "The file's message heading has room for its own controls."
+  (let ((caption (lean4-info--messages-caption
+                  "All messages" '((:severity 1)) "XY")))
+    (should (string-prefix-p "All messages (" (substring-no-properties caption)))
+    (should (string-suffix-p "XY" (substring-no-properties caption)))))
 
 (ert-deftest lean4-info-goto-position-clamps-a-stale-column ()
   "A column past the end of its line does not signal.
