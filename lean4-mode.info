@@ -17,11 +17,15 @@ providing a major mode for editing code written in version 4 of the
 programming language and theorem prover Lean (https://lean-lang.org).
 
    The Lean4-Mode source code is developed at Github
-(https://github.com/leanprover-community/lean4-mode) and its issues
-tracked there too.  Further discussions and question-answering takes
-place in the #Emacs channel
+(https://github.com/d-torrance/lean4-mode) and its issues tracked there
+too.  Further discussions and question-answering takes place in the
+#Emacs channel
 (https://leanprover.zulipchat.com/#narrow/channel/468104-Emacs) of
 Lean's Zulip chat.
+
+   This continues the lean4-mode
+(https://github.com/leanprover-community/lean4-mode) developed under the
+leanprover-community organization; see *note Acknowledgements::.
 
    For legacy version 3 of Lean, use the archived Lean3-Mode
 (https://github.com/leanprover/lean3-mode) (also known as _Lean-Mode_).
@@ -32,6 +36,7 @@ Lean's Zulip chat.
 * Usage::
 * Configuration::
 * Common Pitfalls::
+* Acknowledgements::
 
 -- The Detailed Node Listing --
 
@@ -135,7 +140,7 @@ File: lean4-mode.info,  Node: Native vc (Emacs 30 or later),  Next: Doom-Emacs, 
 
      (use-package lean4-mode
        :commands lean4-mode
-       :vc (:url "https://github.com/leanprover-community/lean4-mode.git"
+       :vc (:url "https://github.com/d-torrance/lean4-mode.git"
             :rev :last-release
             ;; Or, for the bleeding edge:
             ;; :rev :newest
@@ -149,7 +154,7 @@ File: lean4-mode.info,  Node: Doom-Emacs,  Next: Straight,  Prev: Native vc (Ema
 
      (package! lean4-mode
        :recipe (:host github
-                :repo "leanprover-community/lean4-mode"
+                :repo "d-torrance/lean4-mode"
                 :files ("*.el" "data")))
 
 
@@ -161,7 +166,7 @@ File: lean4-mode.info,  Node: Straight,  Prev: Doom-Emacs,  Up: With a source-ba
      (use-package lean4-mode
        :commands lean4-mode
        :straight (lean4-mode :type git :host github
-                             :repo "leanprover-community/lean4-mode"
+                             :repo "d-torrance/lean4-mode"
                              :files ("*.el" "data")))
 
 
@@ -360,7 +365,7 @@ None of these are required, and none are declared as dependencies.
    • ‘consult-eglot’ - searching workspace symbols.
 
 
-File: lean4-mode.info,  Node: Common Pitfalls,  Prev: Configuration,  Up: Top
+File: lean4-mode.info,  Node: Common Pitfalls,  Next: Acknowledgements,  Prev: Configuration,  Up: Top
 
 4 Common Pitfalls
 *****************
@@ -373,28 +378,52 @@ note that Lean3-Mode uses the prefix ‘lean-’ for its symbols.  E.g.  you
 should not use ‘lean-’-prefixed commands in a buffer with Lean4-Mode as
 major mode.
 
+
+File: lean4-mode.info,  Node: Acknowledgements,  Prev: Common Pitfalls,  Up: Top
+
+5 Acknowledgements
+******************
+
+Lean4-Mode was begun by Leonardo de Moura, Soonho Kong, Gabriel Ebner
+and Sebastian Ullrich, and maintained by Yury G.  Kudryashov and
+latterly Mekeor Melire, at leanprover-community/lean4-mode
+(https://github.com/leanprover-community/lean4-mode).  This repository
+continues that work.
+
+   The move from lsp-mode to Eglot draws on the forks by Buster Copley
+(https://github.com/bustercopley/lean4-mode) and Paul D.  Nelson
+(https://github.com/ultronozm/lean4-mode).  ‘lean4-rpc.el’ and
+‘lean4-render.el’ are derived from neo-lean-mode
+(https://github.com/janmasrovira/neo-lean-mode) by Jan Mas Rovira and
+remain under the MIT license.  ‘lean4-input.el’ is based on Agda's
+‘agda-input.el’, and indentation comes from Agda's ‘eri’ package.  The
+table of Unicode abbreviations is taken from the Lean 4 VS Code
+extension (https://github.com/leanprover/vscode-lean4).  See the
+‘NOTICE’ file.
+
 
 
 Tag Table:
 Node: Top223
-Node: Installation1560
-Node: Requirements1785
-Node: From source2533
-Node: With a source-based package manager3021
-Node: Native vc (Emacs 30 or later)3532
-Node: Doom-Emacs3987
-Node: Straight4316
-Node: Upgrading from version 14683
-Node: Usage5980
-Node: Keys in a Lean buffer6796
-Node: Keys in the goal display8221
-Node: Errors and warnings9407
-Node: Completion10002
-Node: Configuration10604
-Node: Frequently used options10987
-Node: Semantic highlighting12313
-Node: Optional packages12899
-Node: Common Pitfalls13392
+Node: Installation1743
+Node: Requirements1968
+Node: From source2716
+Node: With a source-based package manager3204
+Node: Native vc (Emacs 30 or later)3715
+Node: Doom-Emacs4160
+Node: Straight4479
+Node: Upgrading from version 14836
+Node: Usage6133
+Node: Keys in a Lean buffer6949
+Node: Keys in the goal display8374
+Node: Errors and warnings9560
+Node: Completion10155
+Node: Configuration10757
+Node: Frequently used options11140
+Node: Semantic highlighting12466
+Node: Optional packages13052
+Node: Common Pitfalls13545
+Node: Acknowledgements14144
 
 End Tag Table
 

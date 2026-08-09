@@ -30,7 +30,7 @@
   :link '(info-link :tag "Info Manual" "(lean4-mode)")
   :link '(url-link
           :tag "Website"
-          "https://github.com/leanprover-community/lean4-mode")
+          "https://github.com/d-torrance/lean4-mode")
   :link '(emacs-library-link :tag "Library Source" "lean4-mode.el")
   :prefix "lean4-")
 

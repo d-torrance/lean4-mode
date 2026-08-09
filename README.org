@@ -9,9 +9,12 @@ This package extends [[https://www.gnu.org/software/emacs/][GNU Emacs]] by provi
 code written in version 4 of the programming language and theorem
 prover [[https://lean-lang.org][Lean]].
 
-The Lean4-Mode source code is developed at [[https://github.com/leanprover-community/lean4-mode][Github]] and its issues
+The Lean4-Mode source code is developed at [[https://github.com/d-torrance/lean4-mode][Github]] and its issues
 tracked there too.  Further discussions and question-answering takes
 place in the [[https://leanprover.zulipchat.com/#narrow/channel/468104-Emacs][#Emacs channel]] of Lean's Zulip chat.
+
+This continues the [[https://github.com/leanprover-community/lean4-mode][lean4-mode]] developed under the
+leanprover-community organization; see [[*Acknowledgements]].
 
 For legacy version 3 of Lean, use the archived [[https://github.com/leanprover/lean3-mode][Lean3-Mode]] (also known
 as /Lean-Mode/).
@@ -56,7 +59,7 @@ offer.  If loading is deferred, specify ~lean4-mode~ as a =:command=.
 #+begin_src elisp
 (use-package lean4-mode
   :commands lean4-mode
-  :vc (:url "https://github.com/leanprover-community/lean4-mode.git"
+  :vc (:url "https://github.com/d-torrance/lean4-mode.git"
        :rev :last-release
        ;; Or, for the bleeding edge:
        ;; :rev :newest
@@ -68,7 +71,7 @@ offer.  If loading is deferred, specify ~lean4-mode~ as a =:command=.
 #+begin_src elisp
 (package! lean4-mode
   :recipe (:host github
-           :repo "leanprover-community/lean4-mode"
+           :repo "d-torrance/lean4-mode"
            :files ("*.el" "data")))
 #+end_src
 
@@ -78,7 +81,7 @@ offer.  If loading is deferred, specify ~lean4-mode~ as a =:command=.
 (use-package lean4-mode
   :commands lean4-mode
   :straight (lean4-mode :type git :host github
-                        :repo "leanprover-community/lean4-mode"
+                        :repo "d-torrance/lean4-mode"
                         :files ("*.el" "data")))
 #+end_src
 
@@ -230,3 +233,17 @@ reasons.  In principle, it is fine to have both Lean3-Mode and
 Lean4-Mode installed at the same time.  But note that Lean3-Mode uses
 the prefix =lean-= for its symbols.  E.g. you should not use
 =lean-=-prefixed commands in a buffer with Lean4-Mode as major mode.
+
+* Acknowledgements
+
+Lean4-Mode was begun by Leonardo de Moura, Soonho Kong, Gabriel Ebner
+and Sebastian Ullrich, and maintained by Yury G. Kudryashov and
+latterly Mekeor Melire, at
+[[https://github.com/leanprover-community/lean4-mode][leanprover-community/lean4-mode]].  This repository continues that work.
+
+The move from lsp-mode to Eglot draws on the forks by [[https://github.com/bustercopley/lean4-mode][Buster Copley]] and
+[[https://github.com/ultronozm/lean4-mode][Paul D. Nelson]].  =lean4-rpc.el= and =lean4-render.el= are derived from
+[[https://github.com/janmasrovira/neo-lean-mode][neo-lean-mode]] by Jan Mas Rovira and remain under the MIT license.
+=lean4-input.el= is based on Agda's =agda-input.el=, and indentation
+comes from Agda's =eri= package.  The table of Unicode abbreviations is
+taken from the [[https://github.com/leanprover/vscode-lean4][Lean 4 VS Code extension]].  See the =NOTICE= file.

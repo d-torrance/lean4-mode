@@ -2,4 +2,4 @@
 
 ((nil
   (bug-reference-url-format
-   . "https://github.com/leanprover-community/lean4-mode/issues/%s")))
+   . "https://github.com/d-torrance/lean4-mode/issues/%s")))

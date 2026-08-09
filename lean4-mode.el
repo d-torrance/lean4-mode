@@ -10,11 +10,11 @@
 ;;         Soonho Kong       <soonhok@cs.cmu.edu>
 ;;         Gabriel Ebner     <gebner@gebner.org>
 ;;         Sebastian Ullrich <sebasti@nullri.ch>
-;; Maintainer: Yury G. Kudryashov <urkud@urkud.name>
+;; Maintainer: Doug Torrance <dtorrance9@gatech.edu>
 ;; Created: Jan 09, 2014
 ;; Keywords: languages
 ;; Package-Requires: ((emacs "29.1") (eglot "1.12") (eri "1.0") (magit-section "3.3.0"))
-;; URL: https://github.com/leanprover-community/lean4-mode
+;; URL: https://github.com/d-torrance/lean4-mode
 ;; SPDX-License-Identifier: Apache-2.0
 ;; Version: 2.0.0
 
@@ -41,6 +41,14 @@
 
 ;; See the README.org for more advanced features and the
 ;; associated keybindings.
+;;
+;; This continues the lean4-mode developed at
+;; <https://github.com/leanprover-community/lean4-mode>, begun by
+;; Leonardo de Moura, Soonho Kong, Gabriel Ebner and Sebastian Ullrich,
+;; and maintained by Yury G. Kudryashov and latterly Mekeor Melire.  The
+;; move from lsp-mode to Eglot draws on the forks by Buster Copley and
+;; Paul D. Nelson; lean4-rpc.el and lean4-render.el are derived from Jan
+;; Mas Rovira's neo-lean-mode.  See NOTICE.
 
 ;;; Code:
 
