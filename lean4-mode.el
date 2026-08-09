@@ -130,6 +130,8 @@ FILE-NAME."
   "C-c C-p C-l" #'lean4-lake-build
   "C-c C-d"     #'lean4-refresh-file-dependencies
   "C-c C-r"     #'eglot-reconnect
+  "C-c C-s"     #'lean4-info-toggle-pin
+  "C-c C-SPC"   #'lean4-info-toggle-pause
   "TAB"         #'lean4-tab-indent)
 
 (easy-menu-define lean4-mode-menu lean4-mode-map
@@ -137,6 +139,8 @@ FILE-NAME."
   `("Lean 4"
     ["Execute lean"         lean4-execute                     t]
     ["Toggle info display"  lean4-toggle-info                 t]
+    ["Pin goal display"     lean4-info-toggle-pin             t]
+    ["Pause goal display"   lean4-info-toggle-pause           t]
     ["List of errors"       flymake-show-buffer-diagnostics   flymake-mode]
     ["Restart lean process" eglot-reconnect                   t]
     ["Customize lean4-mode" (customize-group 'lean4)          t]))

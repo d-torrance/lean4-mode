@@ -438,5 +438,82 @@ This is what makes \\[xref-find-definitions] work in the goal buffer."
          (with-current-buffer lean4-info-buffer-name
            (string-search "goals accomplished" (buffer-string))))))))
 
+;;;; Pinning and pausing
+
+(ert-deftest lean4-e2e-info-buffer-pause-freezes-the-display ()
+  "A paused display keeps showing what it showed, wherever point goes."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (unwind-protect
+          (progn
+            (lean4-e2e--show-goal-at lean4-e2e--sorry-line)
+            (let ((frozen (with-current-buffer lean4-info-buffer-name
+                            (buffer-string))))
+              (should (string-search "2 + 2 = 4" frozen))
+              (lean4-info-toggle-pause)
+              (should lean4-info-paused)
+              ;; Move somewhere with an entirely different goal and refresh.
+              (lean4-e2e--goto-line 4)
+              (back-to-indentation)
+              (lean4-info-buffer-refresh)
+              (accept-process-output nil 0.3)
+              (with-current-buffer lean4-info-buffer-name
+                (should (equal (buffer-string) frozen)))))
+        (setq lean4-info-paused nil)))))
+
+(ert-deftest lean4-e2e-info-buffer-pin-follows-its-location ()
+  "A pinned display shows the pinned goal, not the goal at point."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (unwind-protect
+          (progn
+            ;; Pin to the `sorry', whose goal is 2 + 2 = 4.
+            (lean4-e2e--goto-line lean4-e2e--sorry-line)
+            (back-to-indentation)
+            (lean4-info-toggle-pin)
+            (should lean4-info--pin)
+            (lean4-e2e--wait-until
+             "the pinned goal to appear"
+             (lambda ()
+               (with-current-buffer lean4-info-buffer-name
+                 (string-search "2 + 2 = 4" (buffer-string)))))
+            ;; Point moves to the other theorem; the display should not.
+            (lean4-e2e--goto-line 4)
+            (back-to-indentation)
+            (lean4-info-buffer-refresh)
+            (accept-process-output nil 0.5)
+            (with-current-buffer lean4-info-buffer-name
+              (should (string-search "2 + 2 = 4" (buffer-string)))
+              (should-not (string-search "1 + 1 = 2" (buffer-string)))))
+        (when lean4-info--pin
+          (set-marker lean4-info--pin nil)
+          (setq lean4-info--pin nil))))))
+
+(ert-deftest lean4-e2e-info-buffer-announces-pinned-and-paused ()
+  "The header line says when the display has stopped following point.
+A goal buffer that has quietly stopped updating looks broken."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (unwind-protect
+          (progn
+            (lean4-info-toggle-pause)
+            (with-current-buffer lean4-info-buffer-name
+              (should (string-search "Paused" (format "%s" header-line-format))))
+            (lean4-info-toggle-pause)
+            (with-current-buffer lean4-info-buffer-name
+              (should-not header-line-format))
+            (lean4-e2e--goto-line lean4-e2e--sorry-line)
+            (lean4-info-toggle-pin)
+            (with-current-buffer lean4-info-buffer-name
+              (should (string-search "Pinned"
+                                     (format "%s" header-line-format)))))
+        (setq lean4-info-paused nil)
+        (when lean4-info--pin
+          (set-marker lean4-info--pin nil)
+          (setq lean4-info--pin nil))))))
+
 (provide 'lean4-e2e-test)
 ;;; lean4-e2e-test.el ends here

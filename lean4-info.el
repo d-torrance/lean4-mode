@@ -82,6 +82,12 @@
 (defvar-local lean4-info--source-buffer nil
   "The Lean buffer the goals on display came from.")
 
+(defvar lean4-info-paused nil
+  "Non-nil while the goal display is frozen.")
+
+(defvar lean4-info--pin nil
+  "Marker at the location the goal display is pinned to, or nil.")
+
 (defvar-local lean4-info--refs nil
   "Server-side references owned by the goals currently on display.
 Released when the next set replaces them; Lean reference counts these
@@ -92,7 +98,9 @@ and will hold the memory until told otherwise.")
   ;; `M-.' comes free from the xref backend; RET is the convenience the
   ;; VS Code InfoView offers for the same thing.
   "RET" #'xref-find-definitions
-  "C-c C-t" #'lean4-info-goto-type-definition)
+  "C-c C-t" #'lean4-info-goto-type-definition
+  "C-c C-SPC" #'lean4-info-toggle-pause
+  "C-c C-s" #'lean4-info-toggle-pin)
 
 (defun lean4-ensure-info-buffer (buffer)
   "Create BUFFER if it does not exist.
@@ -425,20 +433,103 @@ Returns RENDERED so this can wrap a render call."
            (when-let* ((goal (plist-get result :goal)))
              (lean4-info--fontify-string goal))))))
 
+(defun lean4-info--refresh-here ()
+  "Fetch the goals at point into the current buffer's state."
+  (when-let* ((server (eglot-current-server))
+              (generation (cl-incf lean4-info--generation)))
+    (if lean4-info-interactive
+        ;; A server too old for RPC, or a file worker that has just
+        ;; died, should degrade to plain goals rather than blank out.
+        (condition-case nil
+            (lean4-info--refresh-interactive generation)
+          (error (lean4-info--refresh-plain server generation)))
+      (lean4-info--refresh-plain server generation))))
+
 (defun lean4-info-buffer-refresh ()
   "Refresh the goals shown in the Lean info buffer.
-Does nothing unless the info buffer is on display: the requests are not
-free, and Lean is slow to answer them while a file is elaborating."
-  (when (lean4-info-buffer-active lean4-info-buffer-name)
-    (when-let* ((server (eglot-current-server))
-                (generation (cl-incf lean4-info--generation)))
-      (if lean4-info-interactive
-          ;; A server too old for RPC, or a file worker that has just
-          ;; died, should degrade to plain goals rather than blank out.
-          (condition-case nil
-              (lean4-info--refresh-interactive generation)
-            (error (lean4-info--refresh-plain server generation)))
-        (lean4-info--refresh-plain server generation)))))
+
+Does nothing while paused, and nothing unless the info buffer is on
+display: the requests are not free, and Lean is slow to answer them
+while a file is elaborating.  When pinned, the goals are re-fetched at
+the pinned location rather than at point."
+  (unless lean4-info-paused
+    (if-let* ((pin lean4-info--pin))
+        (let ((buffer (marker-buffer pin)))
+          (when (buffer-live-p buffer)
+            (with-current-buffer buffer
+              (save-excursion
+                (goto-char pin)
+                (lean4-info--refresh-here)))))
+      (when (lean4-info-buffer-active lean4-info-buffer-name)
+        (lean4-info--refresh-here)))))
+
+;;;; Pinning and pausing
+;;
+;; Two different needs that look alike.  Pausing freezes the display so a
+;; goal can be read while point wanders; pinning keeps the display tied to
+;; one location so it still updates as the file is edited elsewhere.  Both
+;; announce themselves in the header line, because a goal buffer that has
+;; quietly stopped following point is indistinguishable from a broken one.
+
+(defun lean4-info--update-header ()
+  "Show the pinned or paused state in the info buffer's header line."
+  (when-let* ((buffer (get-buffer lean4-info-buffer-name)))
+    (with-current-buffer buffer
+      (setq header-line-format
+            (cond
+             (lean4-info-paused
+              (propertize " Paused " 'face 'warning))
+             (lean4-info--pin
+              (let ((source (marker-buffer lean4-info--pin)))
+                (propertize
+                 (format " Pinned to %s:%s "
+                         (if (buffer-live-p source)
+                             (buffer-name source)
+                           "a closed buffer")
+                         (if (buffer-live-p source)
+                             (with-current-buffer source
+                               (line-number-at-pos lean4-info--pin))
+                           "?"))
+                 'face 'warning)))))
+      (force-mode-line-update))))
+
+;;;###autoload
+(defun lean4-info-toggle-pause ()
+  "Freeze or unfreeze the goal display.
+While frozen it keeps showing whatever it last showed, so a goal can be
+read while point moves elsewhere."
+  (interactive)
+  (setq lean4-info-paused (not lean4-info-paused))
+  (lean4-info--update-header)
+  (unless lean4-info-paused
+    (lean4-info-buffer-refresh))
+  (message "Lean goal display %s"
+           (if lean4-info-paused "paused" "resumed")))
+
+;;;###autoload
+(defun lean4-info-toggle-pin ()
+  "Pin the goal display to point, or unpin it.
+
+Unlike pausing, a pinned display keeps updating: it follows the goal at
+the pinned location as the file is edited, which is what makes it useful
+for watching one goal while working on the tactic above it."
+  (interactive)
+  (if lean4-info--pin
+      (progn
+        (set-marker lean4-info--pin nil)
+        (setq lean4-info--pin nil)
+        (message "Lean goal display unpinned"))
+    (unless (derived-mode-p 'lean4-mode)
+      (user-error "Not in a Lean buffer"))
+    ;; A marker rather than a position: the point of pinning is to watch a
+    ;; location while editing around it, which moves it.
+    (setq lean4-info--pin (copy-marker (point)))
+    (lean4-ensure-info-buffer lean4-info-buffer-name)
+    (display-buffer lean4-info-buffer-name)
+    (message "Lean goal display pinned to line %d"
+             (line-number-at-pos)))
+  (lean4-info--update-header)
+  (lean4-info-buffer-refresh))
 
 ;;;; Subterms
 ;;
