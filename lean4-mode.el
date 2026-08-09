@@ -167,8 +167,11 @@ and which is what this mode did before."
     ;; that easymenu's two vector forms cannot be mixed: ["NAME" CMD ENABLE]
     ;; or ["NAME" CMD :keyword value ...], never a positional ENABLE
     ;; followed by keywords, which are silently dropped.
-    ["Pin goal display" lean4-info-toggle-pin
-     :label (if lean4-info--pin "Unpin goal display" "Pin goal display")]
+    ["Pin this position" lean4-info-toggle-pin
+     :label (if (lean4-info--pin-at) "Unpin this position"
+              "Pin this position")]
+    ["Unpin every position" lean4-info-unpin-all
+     :enable lean4-info--pins]
     ["Pause goal display" lean4-info-toggle-pause
      :label (if lean4-info-paused
                 "Unpause goal display"

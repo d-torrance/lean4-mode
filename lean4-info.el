@@ -88,8 +88,46 @@
 (defvar lean4-info-paused nil
   "Non-nil while the goal display is paused.")
 
-(defvar lean4-info--pin nil
-  "Marker at the location the goal display is pinned to, or nil.")
+(cl-defstruct (lean4-info-pin (:constructor lean4-info--pin-create))
+  "A position the goal display goes on showing, whatever point does."
+  marker                                ; where, in which Lean buffer
+  goals                                 ; rendered, `accomplished', or nil
+  term-goal                             ; rendered expected type, or nil
+  handle                                ; the RPC handle it was fetched through
+  refs)                                 ; server-side references it owns
+
+(defvar lean4-info--pins nil
+  "Pinned positions, in the order they were pinned.
+
+Not buffer-local: a pin is a marker, which knows its own buffer, and
+they stay on display while the reader moves to another file -- which is
+the point of pinning one.")
+
+(defvar lean4-info--pinned-at nil
+  "Where the most recent pin was made, while point is still there.
+
+Pinning happens at point, so the position pinned and the position being
+followed are the same one until point moves; showing both would show it
+twice.  Cleared as soon as point is elsewhere, after which returning to
+a pinned position does show both, one pinned and one followed -- which
+is what VS Code does.")
+
+(defun lean4-info--pin-at (&optional position buffer)
+  "Return the pin at POSITION in BUFFER, defaulting to point here."
+  (let ((position (or position (point)))
+        (buffer (or buffer (current-buffer))))
+    (seq-find (lambda (pin)
+                (let ((marker (lean4-info-pin-marker pin)))
+                  (and (eq (marker-buffer marker) buffer)
+                       (= (marker-position marker) position))))
+              lean4-info--pins)))
+
+(defun lean4-info--pin-release (pin)
+  "Give back what PIN holds: its server-side references and its marker."
+  (when-let* ((handle (lean4-info-pin-handle pin))
+              (refs (lean4-info-pin-refs pin)))
+    (lean4-rpc-release (lean4-rpc-handle-session handle) refs))
+  (set-marker (lean4-info-pin-marker pin) nil))
 
 (defvar lean4-info--rendered nil
   "What the info buffer was last built from.
@@ -386,6 +424,40 @@ find the indentation again."
         (put-text-property pos next 'line-prefix indent)
         (put-text-property pos next 'wrap-prefix indent)
         (setq pos next)))))
+
+(defun lean4-info--marker-line (pin)
+  "Return the zero-based line PIN sits on."
+  (let* ((marker (lean4-info-pin-marker pin))
+         (source (marker-buffer marker)))
+    (if (buffer-live-p source)
+        (with-current-buffer source
+          (1- (line-number-at-pos marker 'absolute)))
+      0)))
+
+(defun lean4-info--insert-position (goals term-goal here buffer)
+  "Insert what a position has to say: GOALS, TERM-GOAL and HERE.
+BUFFER is the Lean buffer the messages belong to."
+  ;; Say so, rather than leaving a bare heading: outside a proof there is
+  ;; nothing to report, and a section that goes blank reads like one that
+  ;; has stopped working.  VS Code words it this way.  This is about the
+  ;; position, so the file's own messages do not count -- the notice and
+  ;; the "All messages" section can and should appear together.
+  (unless (or goals term-goal here)
+    (insert (propertize "No info found.\n" 'face 'shadow)))
+  (when goals
+    (magit-insert-section (magit-section 'goals)
+      (magit-insert-heading "Goals:")
+      (magit-insert-section-body
+        (if (eq goals 'accomplished)
+            (insert "goals accomplished\n\n")
+          (insert goals "\n\n")))))
+  (when term-goal
+    (magit-insert-section (magit-section 'term-goal)
+      (magit-insert-heading "Expected type:")
+      (magit-insert-section-body
+        (insert term-goal "\n"))))
+  (lean4-info--mk-message-section
+   'messages (lean4-info--messages-caption "Messages" here) here buffer))
 
 (defun lean4-info--insert-message (diagnostic buffer)
   "Insert DIAGNOSTIC as a section of its own, headed by where in BUFFER it is.
@@ -791,12 +863,20 @@ Lean buffer to be the selected one, which it is not in that case."
                         (lean4-info--sort-messages
                          (seq-remove #'lean4-diagnostics-silent-p diagnostics)
                          line)))))
-      (pcase-let ((`(,_above ,here ,_below)
-                   (lean4-info--split-diagnostics
-                    (lean4-info--sort-messages diagnostics line) line))
+      (pcase-let* ((sorted (lean4-info--sort-messages diagnostics line))
+                   (following (lean4-info--following-point-p))
+                   (`(,_above ,here ,_below)
+                    (lean4-info--split-diagnostics sorted line))
 
                   (key (list goals term-goal location lean4-info-paused
-                             (and lean4-info--pin t) diagnostics
+                             (mapcar (lambda (pin)
+                                       (list (marker-position
+                                              (lean4-info-pin-marker pin))
+                                             (lean4-info-pin-goals pin)
+                                             (lean4-info-pin-term-goal pin)))
+                                     lean4-info--pins)
+                             (lean4-info--following-point-p)
+                             diagnostics
                              lean4-info-message-order
                              lean4-info-all-messages-paused all
                              lean4-info--trace-generation)))
@@ -815,8 +895,31 @@ Lean buffer to be the selected one, which it is not in that case."
             ;; a chevron that does nothing is worse than no chevron.  The
             ;; root is left headless, holding the position and the file's
             ;; messages side by side.
+            ;; Pinned positions first, above the one following point, as
+            ;; VS Code stacks them.  Each keeps updating: a pin is a
+            ;; marker, so it follows its declaration as the file is
+            ;; edited.
+            (dolist (pin lean4-info--pins)
+              (magit-insert-section (magit-section 'pinned)
+                (magit-insert-heading
+                 (lean4-info--heading
+                  (lean4-info--marker-location-string
+                   (lean4-info-pin-marker pin))
+                  (lean4-info--pin-controls pin)
+                  "pinned"))
+                (lean4-info--indented
+                  (lean4-info--insert-position
+                   (lean4-info-pin-goals pin)
+                   (lean4-info-pin-term-goal pin)
+                   (car (cdr (lean4-info--split-diagnostics
+                              sorted
+                              (lean4-info--marker-line pin))))
+                   buffer))))
+            (when following
             (magit-insert-section (magit-section 'position)
-            (magit-insert-heading (lean4-info--heading location))
+            (magit-insert-heading (lean4-info--heading
+                                   location (lean4-info--controls)
+                                   (lean4-info--point-state)))
             ;; Say so, rather than leaving a bare heading: outside a proof
             ;; there is nothing to report, and a display that goes blank
             ;; reads like one that has stopped working.  VS Code words it
@@ -829,23 +932,7 @@ Lean buffer to be the selected one, which it is not in that case."
             ;; thing the goal, the expected type and the messages are all
             ;; about.  The file's own messages stay at the outer level.
             (lean4-info--indented
-              (unless (or goals term-goal here)
-                (insert (propertize "No info found.\n" 'face 'shadow)))
-              (when goals
-                (magit-insert-section (magit-section 'goals)
-                  (magit-insert-heading "Goals:")
-                  (magit-insert-section-body
-                    (if (eq goals 'accomplished)
-                        (insert "goals accomplished\n\n")
-                      (insert goals "\n\n")))))
-              (when term-goal
-                (magit-insert-section (magit-section 'term-goal)
-                  (magit-insert-heading "Expected type:")
-                  (magit-insert-section-body
-                    (insert term-goal "\n"))))
-              (lean4-info--mk-message-section
-               'messages (lean4-info--messages-caption "Messages" here)
-               here buffer)))
+              (lean4-info--insert-position goals term-goal here buffer))))
             ;; One section for the file, as VS Code has it, rather than
             ;; one above point and one below: the split said where a
             ;; message was relative to point, which the line number in
@@ -905,7 +992,7 @@ Neither is done while pinned or paused, when point is not what the
 display is following.  Rebuilding it anyway produced identical content
 over and over, which reads as a flicker -- the pinned display appearing
 to blink at the reader for as long as they kept typing."
-  (unless (or lean4-info--pin lean4-info-paused)
+  (unless lean4-info-paused
     (lean4-info--schedule-update)))
 
 (defun lean4-info--schedule-update ()
@@ -1077,15 +1164,64 @@ display: the requests are not free, and Lean is slow to answer them
 while a file is elaborating.  When pinned, the goals are re-fetched at
 the pinned location rather than at point."
   (unless lean4-info-paused
-    (if-let* ((pin lean4-info--pin))
-        (let ((buffer (marker-buffer pin)))
-          (when (buffer-live-p buffer)
-            (with-current-buffer buffer
-              (save-excursion
-                (goto-char pin)
-                (lean4-info--refresh-here)))))
-      (when (lean4-info-buffer-active lean4-info-buffer-name)
-        (lean4-info--refresh-here)))))
+    ;; Each pin is fetched in its own buffer: a pin can be in a file the
+    ;; reader has since left, and its goals are still worth having.
+    (dolist (pin lean4-info--pins)
+      (lean4-info--refresh-pin pin))
+    (when (lean4-info-buffer-active lean4-info-buffer-name)
+      (lean4-info--refresh-here))))
+
+(defun lean4-info--refresh-pin (pin)
+  "Fetch the goals at PIN into it.
+
+Only the goals and the expected type: the messages a pin shows are
+picked out of the file\='s diagnostics, which are fetched once however
+many pins there are."
+  (let* ((marker (lean4-info-pin-marker pin))
+         (buffer (marker-buffer marker)))
+    (when (buffer-live-p buffer)
+      (with-current-buffer buffer
+        (save-excursion
+          (goto-char marker)
+          (when (and lean4-info-interactive (eglot-current-server))
+            (condition-case nil
+                (lean4-info--refresh-pin-interactive pin)
+              ;; A server too old for RPC, or a worker that has just died.
+              ;; A pin with no goals still shows its messages.
+              (error nil))))))))
+
+(defun lean4-info--refresh-pin-interactive (pin)
+  "Fetch PIN\='s goals over RPC, releasing what the last set held."
+  (let ((handle (lean4-rpc-open))
+        (old-handle (lean4-info-pin-handle pin))
+        (old-refs (lean4-info-pin-refs pin)))
+    (when (and old-handle old-refs)
+      (lean4-rpc-release (lean4-rpc-handle-session old-handle) old-refs))
+    (setf (lean4-info-pin-handle pin) handle
+          (lean4-info-pin-refs pin) nil)
+    (cl-flet ((own (refs)
+                (setf (lean4-info-pin-refs pin)
+                      (append refs (lean4-info-pin-refs pin)))))
+      (lean4-rpc-get-interactive-goals
+       handle
+       (lambda (result)
+         (own (seq-mapcat
+               (lambda (goal)
+                 (lean4-render-collect-refs (plist-get goal :type)))
+               (plist-get result :goals) #'list))
+         (setf (lean4-info-pin-goals pin)
+               (lean4-info--goals-value result (plist-get result :goals)
+                                        #'lean4-render-goals))
+         (lean4-info--redisplay-source))
+       #'ignore)
+      (lean4-rpc-get-interactive-term-goal
+       handle
+       (lambda (result)
+         (own (lean4-render-collect-refs (plist-get result :type)))
+         (setf (lean4-info-pin-term-goal pin)
+               (lean4-render-term-goal result))
+         (lean4-info--redisplay-source))
+       #'ignore))))
 
 ;;;; Pinning and pausing
 ;;
@@ -1298,30 +1434,33 @@ the display has moved on to since."
        (with-current-buffer buffer
          (lean4-info--goto-position line column))))))
 
-(defun lean4-info--pin-goto-button ()
-  "Return a control sending point to the pinned position, or nothing.
+(defun lean4-info--marker-goto-button (marker)
+  "Return a control sending point to MARKER."
+  (let ((buffer (marker-buffer marker)))
+    (if (buffer-live-p buffer)
+        (with-current-buffer buffer
+          (save-excursion
+            (goto-char marker)
+            (lean4-info--goto-button buffer (line-number-at-pos)
+                                     (current-column))))
+      "")))
 
-Only offered while pinned.  Unpinned, the display is following point and
-the position in the heading is where point already is, so the control
-would do nothing and only take up room."
-  (if-let* ((pin lean4-info--pin)
-            (source (marker-buffer pin))
-            ((buffer-live-p source)))
-      (concat (with-current-buffer source
-                (save-excursion
-                  (goto-char pin)
-                  (lean4-info--goto-button source (line-number-at-pos)
-                                           (current-column))))
-              "  ")
-    ""))
+(defun lean4-info--pin-controls (pin)
+  "Return the controls for PIN\='s section: the way there, and unpinning."
+  (concat
+   (lean4-info--marker-goto-button (lean4-info-pin-marker pin))
+   "  "
+   (lean4-info--button
+    (lean4-info-unpin-glyph)
+    "mouse-1: unpin this position"
+    (lambda () (interactive) (lean4-info-unpin pin))
+    t)))
 
 (defun lean4-info--controls ()
-  "Return the goal display's controls, as one string."
+  "Return the controls for the section following point."
   (concat
-   (lean4-info--pin-goto-button)
    ;; Only while paused: nothing else leaves the display out of date, so
-   ;; anywhere else this would be a control with nothing to do.  Between
-   ;; the way back to the pinned position and the pin, as in VS Code.
+   ;; anywhere else this would be a control with nothing to do.
    (if lean4-info-paused
        (concat (lean4-info--button
                 (lean4-info-refresh-glyph)
@@ -1330,14 +1469,9 @@ would do nothing and only take up room."
                "  ")
      "")
    (lean4-info--button
-    (if lean4-info--pin
-        (lean4-info-unpin-glyph)
-      (lean4-info-pin-glyph))
-    (if lean4-info--pin
-        "mouse-1: unpin, and follow point again"
-      "mouse-1: pin the display to this position")
-    #'lean4-info-toggle-pin
-    lean4-info--pin)
+    (lean4-info-pin-glyph)
+    "mouse-1: pin this position, keeping it on display"
+    #'lean4-info-toggle-pin)
    "  "
    (lean4-info--button
     (if lean4-info-paused
@@ -1350,38 +1484,35 @@ would do nothing and only take up room."
     lean4-info-paused)))
 
 (defun lean4-info--location-string ()
-  "Return the source position the display is reporting on, as a string.
-The pinned position when pinned, otherwise point in the Lean buffer."
-  (if-let* ((pin lean4-info--pin)
-            (source (marker-buffer pin))
-            ((buffer-live-p source)))
-      (with-current-buffer source
-        (save-excursion
-          (goto-char pin)
-          (format "%s:%d:%d" (buffer-name) (line-number-at-pos)
-                  (current-column))))
-    (format "%s:%d:%d" (buffer-name) (line-number-at-pos) (current-column))))
+  "Return the position point is on, as a string."
+  (format "%s:%d:%d" (buffer-name) (line-number-at-pos) (current-column)))
 
-(defun lean4-info--heading (location)
-  "Return the goal display's heading for LOCATION, with its controls.
+(defun lean4-info--marker-location-string (marker)
+  "Return the position MARKER is on, as a string."
+  (let ((buffer (marker-buffer marker)))
+    (if (buffer-live-p buffer)
+        (with-current-buffer buffer
+          (save-excursion
+            (goto-char marker)
+            (lean4-info--location-string)))
+      "(gone)")))
+
+(defun lean4-info--heading (location controls &optional state)
+  "Return a section heading for LOCATION, with CONTROLS and STATE.
 
 The controls sit hard right, as they do in VS Code.  A stretch space
 does the aligning, so it holds however the window is resized, and the
 width is measured in columns rather than characters because the glyphs
 need not be single-width."
-  (let* ((location (propertize location 'face 'lean4-info-location))
-         (controls (lean4-info--controls))
-         ;; Both states can hold at once, and each means something
-         ;; different: pinned says the display is not following point,
-         ;; paused says it is not updating at all.  Reporting only one of
-         ;; them left the other looking like it had not taken effect.
-         (words (delq nil (list (and lean4-info--pin "pinned")
-                                (and lean4-info-paused "paused"))))
-         (state (if words
-                    (propertize (concat "  " (string-join words " and "))
-                                'face 'warning)
-                  "")))
+  (let ((location (propertize location 'face 'lean4-info-location))
+        (state (if state
+                   (propertize (concat "  " state) 'face 'warning)
+                 "")))
     (lean4-info--align-right (concat location state) controls)))
+
+(defun lean4-info--point-state ()
+  "Return the word for what is holding the followed position back, or nil."
+  (and lean4-info-paused "paused"))
 
 ;;;###autoload
 (defun lean4-info-toggle-pause ()
@@ -1401,29 +1532,69 @@ calls these commands pause and unpause."
            (if lean4-info-paused "paused" "unpaused")))
 
 ;;;###autoload
-(defun lean4-info-toggle-pin ()
-  "Pin the goal display to point, or unpin it.
+(defun lean4-info-unpin (pin)
+  "Remove PIN from the goal display."
+  (setq lean4-info--pins (delq pin lean4-info--pins))
+  (when (and lean4-info--pinned-at
+             (eq (car lean4-info--pinned-at) (marker-buffer
+                                              (lean4-info-pin-marker pin))))
+    (setq lean4-info--pinned-at nil))
+  (lean4-info--pin-release pin)
+  (lean4-info--redisplay-source)
+  (lean4-info-buffer-refresh))
 
-Unlike pausing, a pinned display keeps updating: it follows the goal at
-the pinned location as the file is edited, which is what makes it useful
-for watching one goal while working on the tactic above it."
+;;;###autoload
+(defun lean4-info-toggle-pin ()
+  "Pin the goal display to point, or unpin the pin already there.
+
+Each pin is a section of its own, kept above the one following point, so
+several positions can be watched at once.  Unlike pausing, a pinned
+section keeps updating: it follows the goal at the position it was
+pinned to as the file is edited, which is what makes it useful for
+watching one goal while working on the tactic above it.
+
+Pinning happens at point, so pinning a position that is already pinned
+would only make a second section saying the same thing; this unpins it
+instead.  VS Code leaves its control inert there, which says less."
   (interactive)
-  (if lean4-info--pin
-      (progn
-        (set-marker lean4-info--pin nil)
-        (setq lean4-info--pin nil)
-        (message "Lean goal display unpinned"))
+  (if-let* ((existing (lean4-info--pin-at)))
+      (progn (lean4-info-unpin existing)
+             (message "Unpinned line %d" (line-number-at-pos)))
     (unless (derived-mode-p 'lean4-mode)
       (user-error "Not in a Lean buffer"))
     ;; A marker rather than a position: the point of pinning is to watch a
     ;; location while editing around it, which moves it.
-    (setq lean4-info--pin (copy-marker (point)))
+    (setq lean4-info--pins
+          (append lean4-info--pins
+                  (list (lean4-info--pin-create
+                         :marker (copy-marker (point))))))
+    ;; What was just pinned is where point is, so the display would show
+    ;; it twice until point moved.
+    (setq lean4-info--pinned-at (cons (current-buffer) (point)))
     (lean4-ensure-info-buffer lean4-info-buffer-name)
     (display-buffer lean4-info-buffer-name)
-    (message "Lean goal display pinned to line %d"
-             (line-number-at-pos)))
+    (message "Pinned line %d" (line-number-at-pos))
+    (lean4-info--redisplay-source)
+    (lean4-info-buffer-refresh)))
+
+;;;###autoload
+(defun lean4-info-unpin-all ()
+  "Remove every pin from the goal display."
+  (interactive)
+  (mapc #'lean4-info--pin-release lean4-info--pins)
+  (setq lean4-info--pins nil
+        lean4-info--pinned-at nil)
   (lean4-info--redisplay-source)
   (lean4-info-buffer-refresh))
+
+(defun lean4-info--following-point-p ()
+  "Return non-nil if the position following point should be shown.
+
+Not while it is the position just pinned: pinning happens at point, so
+the two are the same until point moves."
+  (not (and lean4-info--pinned-at
+            (eq (car lean4-info--pinned-at) (current-buffer))
+            (= (cdr lean4-info--pinned-at) (point)))))
 
 ;;;; Subterms
 ;;

@@ -67,19 +67,30 @@ Regression test.  easymenu has two vector forms -- [NAME CMD ENABLE] and
 [NAME CMD :keyword value...] -- and silently drops the keywords when a
 positional ENABLE precedes them, so the `:label' went missing and the
 menu read \"Pin\" whether or not the display was already pinned."
-  (dolist (entry '((lean4-info-toggle-pin lean4-info--pin "npin")
-                   (lean4-info-toggle-pause lean4-info-paused "npause")
-                   (lean4-info-toggle-all-messages-pause
-                    lean4-info-all-messages-paused "npause")))
-    (pcase-let ((`(,command ,variable ,engaged) entry))
-      (progn
-        ;; Drawn with the variable off, then on: the two have to differ,
-        ;; and the engaged one has to be the undo wording.
-        (let* ((off (progn (set variable nil)
+  (with-temp-buffer
+    ;; The pin item reads whether *this* position is pinned, so it needs a
+    ;; buffer and a pin in it rather than a flag.
+    (dolist (entry (list (list 'lean4-info-toggle-pin
+                               (lambda (on)
+                                 (setq lean4-info--pins
+                                       (and on (list (lean4-info--pin-create
+                                                      :marker (point-marker))))))
+                               "npin")
+                         (list 'lean4-info-toggle-pause
+                               (lambda (on) (setq lean4-info-paused on))
+                               "npause")
+                         (list 'lean4-info-toggle-all-messages-pause
+                               (lambda (on)
+                                 (setq lean4-info-all-messages-paused on))
+                               "npause")))
+      (pcase-let ((`(,command ,setter ,engaged) entry))
+        ;; Drawn with the state off, then on: the two have to differ, and
+        ;; the engaged one has to be the undo wording.
+        (let* ((off (progn (funcall setter nil)
                            (lean4-mode-test--menu-label command)))
-               (on (progn (set variable t)
+               (on (progn (funcall setter t)
                           (lean4-mode-test--menu-label command))))
-          (set variable nil)
+          (funcall setter nil)
           (should off)
           (should on)
           (should-not (equal off on))

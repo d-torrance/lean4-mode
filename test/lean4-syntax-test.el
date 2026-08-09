@@ -167,10 +167,12 @@ checks is that the name is a form rather than a string."
     (should-not (stringp (nth 1 item)))
     (should (consp (nth 1 item)))
     ;; And that it actually reads both ways.
-    (let ((lean4-info--pin nil))
-      (should (equal (eval (nth 1 item) t) "Pin goal display")))
-    (let ((lean4-info--pin (point-marker)))
-      (should (equal (eval (nth 1 item) t) "Unpin goal display")))))
+    (let ((lean4-info--pins nil))
+      (should (equal (eval (nth 1 item) t) "Pin this position")))
+    (with-temp-buffer
+      (let ((lean4-info--pins
+             (list (lean4-info--pin-create :marker (point-marker)))))
+        (should (equal (eval (nth 1 item) t) "Unpin this position"))))))
 
 (ert-deftest lean4-menu-pause-label-is-dynamic ()
   "The pause menu item likewise says what it will do."

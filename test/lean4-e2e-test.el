@@ -67,6 +67,11 @@ first.  Returns the value PREDICATE finally returned."
 Point starts at `point-min'.  The server is shut down afterwards."
   (declare (indent 0) (debug (body)))
   `(let* ((lean4-info-auto-open nil)
+          ;; Pins outlive a buffer -- that is what they are for -- so a
+          ;; test that leaves one behind hands the next test a marker into
+          ;; a killed buffer.
+          (lean4-info--pins nil)
+          (lean4-info--pinned-at nil)
           (buffer (find-file-noselect lean4-e2e--fixture-file)))
      (unwind-protect
          (with-current-buffer buffer
@@ -839,7 +844,12 @@ stuck until it was closed and reopened."
         (setq lean4-info-paused nil)))))
 
 (ert-deftest lean4-e2e-info-buffer-pin-follows-its-location ()
-  "A pinned display shows the pinned goal, not the goal at point."
+  "A pinned position keeps its goal on display beside the followed one.
+
+Pinning no longer stops the display following point: the pinned position
+becomes a section of its own above the one point is on, so both goals
+are visible at once.  That is what pinning is for -- watching one goal
+while working on another."
   :tags '(:e2e)
   (lean4-e2e--with-fixture
     (lean4-e2e--with-info-window
@@ -849,7 +859,7 @@ stuck until it was closed and reopened."
             (lean4-e2e--goto-line lean4-e2e--sorry-line)
             (back-to-indentation)
             (lean4-info-toggle-pin)
-            (should lean4-info--pin)
+            (should lean4-info--pins)
             (lean4-e2e--wait-until
              "the pinned goal to appear"
              (lambda ()
@@ -860,12 +870,51 @@ stuck until it was closed and reopened."
             (back-to-indentation)
             (lean4-info-buffer-refresh)
             (accept-process-output nil 0.5)
+            (lean4-e2e--wait-until
+             "the goal at point to appear beside the pinned one"
+             (lambda ()
+               (with-current-buffer lean4-info-buffer-name
+                 (string-search "1 + 1 = 2" (buffer-string)))))
             (with-current-buffer lean4-info-buffer-name
+              ;; Both: the pinned goal and the one point is on.
               (should (string-search "2 + 2 = 4" (buffer-string)))
-              (should-not (string-search "1 + 1 = 2" (buffer-string)))))
-        (when lean4-info--pin
-          (set-marker lean4-info--pin nil)
-          (setq lean4-info--pin nil))))))
+              (should (string-search "1 + 1 = 2" (buffer-string)))
+              (should (string-search "pinned" (buffer-string))))
+            ;; Unpinning takes only that section away.
+            (lean4-info-unpin-all)
+            (lean4-info--redisplay-source)
+            (with-current-buffer lean4-info-buffer-name
+              (should-not (string-search "2 + 2 = 4" (buffer-string)))
+              (should (string-search "1 + 1 = 2" (buffer-string)))))
+        (lean4-info-unpin-all)))))
+
+(ert-deftest lean4-e2e-info-buffer-takes-several-pins ()
+  "Any number of positions can be pinned, each a section of its own."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (unwind-protect
+          (progn
+            (lean4-e2e--goto-line lean4-e2e--sorry-line)
+            (back-to-indentation)
+            (lean4-info-toggle-pin)
+            (lean4-e2e--goto-line 4)
+            (back-to-indentation)
+            (lean4-info-toggle-pin)
+            (should (= (length lean4-info--pins) 2))
+            ;; Pinning the same position again unpins it rather than
+            ;; making a second section saying the same thing.
+            (lean4-info-toggle-pin)
+            (should (= (length lean4-info--pins) 1))
+            (lean4-info-toggle-pin)
+            (should (= (length lean4-info--pins) 2))
+            (lean4-e2e--wait-until
+             "both pinned goals"
+             (lambda ()
+               (with-current-buffer lean4-info-buffer-name
+                 (and (string-search "2 + 2 = 4" (buffer-string))
+                      (string-search "1 + 1 = 2" (buffer-string)))))))
+        (lean4-info-unpin-all)))))
 
 (ert-deftest lean4-e2e-info-buffer-announces-pinned-and-paused ()
   "The heading says when the display has stopped following point.
@@ -891,9 +940,7 @@ A goal buffer that has quietly stopped updating looks broken."
                (with-current-buffer lean4-info-buffer-name
                  (string-search "pinned" (buffer-string))))))
         (setq lean4-info-paused nil)
-        (when lean4-info--pin
-          (set-marker lean4-info--pin nil)
-          (setq lean4-info--pin nil))))))
+        (lean4-info-unpin-all)))))
 
 (provide 'lean4-e2e-test)
 ;;; lean4-e2e-test.el ends here

@@ -164,11 +164,20 @@ rest on any part of a goal and ask about it.
 | =M-.= or =RET= | Act on the thing at point                      | ~lean4-info-return~               |
 | =C-c C-t=      | Jump to the definition of its type             | ~lean4-info-goto-type-definition~ |
 | =TAB=          | Fold or unfold the trace or section at point   | ~lean4-info-toggle-fold~          |
-| =C-c C-s=      | Pin the display to point, or unpin it          | ~lean4-info-toggle-pin~           |
+| =C-c C-s=      | Pin this position, or unpin it                 | ~lean4-info-toggle-pin~           |
 | =C-c C-SPC=    | Pause or unpause the display                   | ~lean4-info-toggle-pause~         |
 | =C-c C-g=      | Bring a paused display up to date              | ~lean4-info-refresh-paused~       |
 | =C-c C-a=      | Pause or unpause the file's message list       | ~lean4-info-toggle-all-messages-pause~ |
 | =C-c C-o=      | Order that list by position or by nearness     | ~lean4-info-toggle-message-order~ |
+
+Pinning a position keeps it on display as a section of its own, above
+the section following point, and any number of positions can be pinned.
+Each keeps updating: a pin is a marker, so it follows its declaration as
+the file is edited, and it stays on display after moving to another
+file.  Each pinned section has its own controls -- one back to the
+position, one to unpin it.  Pinning happens at point, so the followed
+section is left out until point moves, rather than showing the same
+position twice; returning to a pinned position later does show both.
 
 Every control has a key and a menu entry as well, so none of them needs
 a mouse.  =RET= acts on whatever is under point: a control does what

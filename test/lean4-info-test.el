@@ -207,13 +207,13 @@ point in a Lean buffer, so clicking the pin only raised an error."
           (with-current-buffer lean4-info-buffer-name
             (setq lean4-info--source-buffer source)
             (lean4-info--run-control #'lean4-info-toggle-pin)
-            (should lean4-info--pin)
-            (should (eq (marker-buffer lean4-info--pin) source))
+            (should lean4-info--pins)
+            (should (eq (marker-buffer
+                         (lean4-info-pin-marker (car lean4-info--pins)))
+                        source))
             (lean4-info--run-control #'lean4-info-toggle-pin)
-            (should-not lean4-info--pin)))
-      (when lean4-info--pin
-        (set-marker lean4-info--pin nil)
-        (setq lean4-info--pin nil))
+            (should-not lean4-info--pins)))
+      (lean4-info-unpin-all)
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
@@ -544,7 +544,9 @@ control offers by mouse, the file name being a label now."
     (rename-buffer "Keys.lean" 'unique)
     (let* ((lean4-info--pin nil)
            (lean4-info-paused nil)
-           (heading (lean4-info--heading (lean4-info--location-string)))
+           (heading (lean4-info--heading (lean4-info--location-string)
+                                   (lean4-info--controls)
+                                   (lean4-info--point-state)))
            (plain (substring-no-properties heading))
            (index (string-search (lean4-info-pause-glyph) plain)))
       (should index)
@@ -566,11 +568,15 @@ control offers by mouse, the file name being a label now."
     (let ((lean4-info--pin nil))
       (let* ((lean4-info-paused nil)
              (heading (substring-no-properties
-                       (lean4-info--heading (lean4-info--location-string)))))
+                       (lean4-info--heading (lean4-info--location-string)
+                                   (lean4-info--controls)
+                                   (lean4-info--point-state)))))
         (should-not (string-search (lean4-info-refresh-glyph) heading)))
       (let* ((lean4-info-paused t)
              (heading (substring-no-properties
-                       (lean4-info--heading (lean4-info--location-string)))))
+                       (lean4-info--heading (lean4-info--location-string)
+                                   (lean4-info--controls)
+                                   (lean4-info--point-state)))))
         (should (string-search (lean4-info-refresh-glyph) heading))
         ;; Before the pause control it belongs to, and before the pin.
         (should (< (string-search (lean4-info-refresh-glyph) heading)
@@ -622,26 +628,30 @@ The file can have been edited since the message was made."
     (lean4-info--goto-position 1 99)
     (should (= (point) 3))))
 
-(ert-deftest lean4-info-heading-offers-a-way-back-only-when-pinned ()
-  "Unpinned, the heading names where point already is.
-
-The control would do nothing there, and only take up room; pinned, it is
-the way back to the position being watched."
+(ert-deftest lean4-info-only-a-pinned-section-offers-a-way-back ()
+  "The way back belongs to a pinned section.
+The followed section names where point already is, so the control would
+lead where point is and only take up room."
   (with-temp-buffer
     (rename-buffer "Back.lean" 'unique)
-    (insert "one\ntwo\n")
-    (let ((lean4-info-paused nil))
-      (let ((lean4-info--pin nil))
-        (should-not (string-search
-                     (lean4-info-goto-glyph)
-                     (substring-no-properties
-                      (lean4-info--heading (lean4-info--location-string))))))
-      (let ((lean4-info--pin (copy-marker (point-min))))
-        (should (string-search
-                 (lean4-info-goto-glyph)
-                 (substring-no-properties
-                  (lean4-info--heading (lean4-info--location-string)))))
-        (set-marker lean4-info--pin nil)))))
+    (insert "one
+two
+")
+    (let ((lean4-info-paused nil)
+          (pin (lean4-info--pin-create :marker (copy-marker (point-min)))))
+      (should-not (string-search
+                   (lean4-info-goto-glyph)
+                   (substring-no-properties
+                    (lean4-info--heading (lean4-info--location-string)
+                                         (lean4-info--controls)
+                                         (lean4-info--point-state)))))
+      (should (string-search
+               (lean4-info-goto-glyph)
+               (substring-no-properties
+                (lean4-info--heading "x" (lean4-info--pin-controls pin)
+                                     "pinned"))))
+      (set-marker (lean4-info-pin-marker pin) nil))))
+
 
 (ert-deftest lean4-info-indents-without-touching-the-text ()
   "Indentation is a display property, not spaces in the buffer.
@@ -654,27 +664,30 @@ back out of it; inserting characters into it would move every one."
     (should (equal (get-text-property (point-min) 'line-prefix) "  "))
     (should (equal (get-text-property (point-min) 'wrap-prefix) "  "))))
 
-(ert-deftest lean4-info-heading-reports-both-states-at-once ()
-  "Pinned and paused are different things and can hold together.
-
-Regression test.  Reporting only one of them left the other looking as
-though the command had not taken effect."
+(ert-deftest lean4-info-each-section-reports-its-own-state ()
+  "Pinned and paused are different things and belong to different sections.
+Pinned says a section is not following point; paused says the display is
+not updating at all."
   (with-temp-buffer
     (rename-buffer "Both.lean" 'unique)
-    (cl-flet ((state ()
-                (substring-no-properties
-                 (lean4-info--heading (lean4-info--location-string)))))
-      (let ((lean4-info--pin nil) (lean4-info-paused nil))
-        (should-not (string-search "pinned" (state)))
-        (should-not (string-search "paused" (state))))
-      (let ((lean4-info--pin (point-marker)) (lean4-info-paused nil))
-        (should (string-search "pinned" (state)))
-        (should-not (string-search "paused" (state))))
-      (let ((lean4-info--pin nil) (lean4-info-paused t))
-        (should (string-search "paused" (state)))
-        (should-not (string-search "pinned" (state))))
-      (let ((lean4-info--pin (point-marker)) (lean4-info-paused t))
-        (should (string-search "pinned and paused" (state)))))))
+    (let ((pin (lean4-info--pin-create :marker (copy-marker (point-min)))))
+      (let ((lean4-info-paused nil))
+        (should-not (lean4-info--point-state))
+        (should (string-search
+                 "pinned"
+                 (substring-no-properties
+                  (lean4-info--heading "x" (lean4-info--pin-controls pin)
+                                       "pinned")))))
+      (let ((lean4-info-paused t))
+        (should (equal (lean4-info--point-state) "paused"))
+        (should (string-search
+                 "paused"
+                 (substring-no-properties
+                  (lean4-info--heading (lean4-info--location-string)
+                                       (lean4-info--controls)
+                                       (lean4-info--point-state))))))
+      (set-marker (lean4-info-pin-marker pin) nil))))
+
 
 (ert-deftest lean4-info-rebuilding-does-not-scroll-the-display ()
   "A rebuild leaves the reader where they were.
@@ -737,28 +750,40 @@ every ordinary line is proved."
     (let ((lean4-info--pin nil) (lean4-info-paused nil))
       (should (string-prefix-p "Foo.lean:2:3"
                                (substring-no-properties
-                                (lean4-info--heading
-                                 (lean4-info--location-string))))))))
+                                (lean4-info--heading (lean4-info--location-string)
+                                 (lean4-info--controls)
+                                 (lean4-info--point-state))))))))
 
-(ert-deftest lean4-info-heading-follows-the-pin ()
-  "When pinned, the heading reports the pinned position, not point."
+(ert-deftest lean4-info-pinned-section-reports-its-own-position ()
+  "A pinned section names where it was pinned, whatever point does."
   (with-temp-buffer
     (rename-buffer "Bar.lean" 'unique)
-    (insert "one\ntwo\nthree\n")
+    (insert "one
+two
+three
+")
     (goto-char (point-min))
     (forward-line 1)
-    (let ((lean4-info--pin (point-marker))
-          (lean4-info-paused nil))
-      ;; Point moves away; the heading should not.
+    (let ((pin (lean4-info--pin-create :marker (point-marker))))
+      ;; Point moves away; the pinned section does not.
       (goto-char (point-max))
-      (should (string-prefix-p "Bar.lean:2:0"
-                               (substring-no-properties
-                                (lean4-info--heading
-                                 (lean4-info--location-string)))))
-      (should (string-search "pinned"
-                             (substring-no-properties
-                              (lean4-info--heading
-                               (lean4-info--location-string))))))))
+      (let ((heading (substring-no-properties
+                      (lean4-info--heading
+                       (lean4-info--marker-location-string
+                        (lean4-info-pin-marker pin))
+                       (lean4-info--pin-controls pin)
+                       "pinned"))))
+        (should (string-prefix-p "Bar.lean:2:0" heading))
+        (should (string-search "pinned" heading)))
+      ;; While the followed section reports point.
+      (should (string-prefix-p
+               "Bar.lean:4:0"
+               (substring-no-properties
+                (lean4-info--heading (lean4-info--location-string)
+                                     (lean4-info--controls)
+                                     (lean4-info--point-state)))))
+      (set-marker (lean4-info-pin-marker pin) nil))))
+
 
 (ert-deftest lean4-info-heading-carries-clickable-controls ()
   "The controls are in the heading and run their commands when clicked."
@@ -766,7 +791,9 @@ every ordinary line is proved."
     (rename-buffer "Baz.lean" 'unique)
     (let* ((lean4-info--pin nil)
            (lean4-info-paused nil)
-           (heading (lean4-info--heading (lean4-info--location-string)))
+           (heading (lean4-info--heading (lean4-info--location-string)
+                                   (lean4-info--controls)
+                                   (lean4-info--point-state)))
            (plain (substring-no-properties heading))
            (pin (string-search (lean4-info-pin-glyph) plain))
            (pause (string-search (lean4-info-pause-glyph) plain)))
@@ -803,17 +830,25 @@ not much to read a mode off."
   (let ((lean4-info-unpin-icon "!"))
     (should (equal (lean4-info-unpin-glyph) "!"))))
 
-(ert-deftest lean4-info-heading-shows-the-unpin-control-when-pinned ()
-  "The heading picks up the swapped glyph."
+(ert-deftest lean4-info-sections-carry-the-control-that-fits-them ()
+  "A pinned section unpins; the followed one pins."
   (with-temp-buffer
     (rename-buffer "Qux.lean" 'unique)
     (let* ((lean4-info-paused nil)
-           (lean4-info--pin (copy-marker (point-min)))
-           (heading (substring-no-properties
-                     (lean4-info--heading (lean4-info--location-string)))))
-      (should (string-search (lean4-info-unpin-glyph) heading))
-      (should-not (string-search (lean4-info-pin-glyph) heading))
-      (set-marker lean4-info--pin nil))))
+           (pin (lean4-info--pin-create :marker (copy-marker (point-min))))
+           (pinned (substring-no-properties
+                    (lean4-info--heading "x" (lean4-info--pin-controls pin)
+                                         "pinned")))
+           (followed (substring-no-properties
+                      (lean4-info--heading (lean4-info--location-string)
+                                           (lean4-info--controls)
+                                           (lean4-info--point-state)))))
+      (should (string-search (lean4-info-unpin-glyph) pinned))
+      (should-not (string-search (lean4-info-pin-glyph) pinned))
+      (should (string-search (lean4-info-pin-glyph) followed))
+      (should-not (string-search (lean4-info-unpin-glyph) followed))
+      (set-marker (lean4-info-pin-marker pin) nil))))
+
 
 (ert-deftest lean4-info-controls-fall-back-to-ascii ()
   "The controls are configurable, for fonts without the glyphs.
@@ -824,7 +859,9 @@ defaults are chosen with `char-displayable-p' and can be overridden."
         (lean4-info--pin nil)
         (lean4-info-paused nil))
     (let ((plain (substring-no-properties
-                    (lean4-info--heading (lean4-info--location-string)))))
+                    (lean4-info--heading (lean4-info--location-string)
+                                   (lean4-info--controls)
+                                   (lean4-info--point-state)))))
       (should (string-search "P" plain))
       (should (string-search "||" plain)))))
 
@@ -832,35 +869,45 @@ defaults are chosen with `char-displayable-p' and can be overridden."
   "The pause control becomes a play symbol while paused."
   (with-temp-buffer
     (rename-buffer "Icons.lean" 'unique)
-    (let ((lean4-info--pin nil) (lean4-info-paused nil))
+    (let ((lean4-info-paused nil))
       (should (string-search (lean4-info-pause-glyph)
                              (substring-no-properties
                               (lean4-info--heading
-                               (lean4-info--location-string))))))
-    (let ((lean4-info--pin nil) (lean4-info-paused t))
+                               (lean4-info--location-string)
+                               (lean4-info--controls)
+                               (lean4-info--point-state))))))
+    (let ((lean4-info-paused t))
       (let ((plain (substring-no-properties
-                    (lean4-info--heading (lean4-info--location-string)))))
+                    (lean4-info--heading (lean4-info--location-string)
+                                   (lean4-info--controls)
+                                   (lean4-info--point-state)))))
         (should (string-search (lean4-info-resume-glyph) plain))
         (should-not (string-search (lean4-info-pause-glyph) plain))))))
 
-(ert-deftest lean4-info-pin-control-shows-its-state-by-face ()
-  "The pin control is faced differently when engaged.
-A second channel alongside the swapped glyph, and the one that survives
-a frame with no glyph to swap to."
+(ert-deftest lean4-info-engaged-controls-are-faced-apart ()
+  "A control whose state is engaged is faced differently.
+The channel that survives a frame with no glyph to swap to."
   (with-temp-buffer
     (rename-buffer "Faces.lean" 'unique)
-    (cl-flet ((pin-face (glyph)
-                (let* ((heading (lean4-info--heading
-                                 (lean4-info--location-string)))
-                       (index (string-search
-                               glyph (substring-no-properties heading))))
-                  (should index)
-                  (get-text-property index 'face heading))))
-      (let ((lean4-info--pin nil) (lean4-info-paused nil))
-        (should (eq (pin-face (lean4-info-pin-glyph)) 'lean4-info-button)))
-      (let ((lean4-info--pin (point-marker)) (lean4-info-paused nil))
-        (should (eq (pin-face (lean4-info-unpin-glyph))
-                    'lean4-info-button-active))))))
+    (let ((pin (lean4-info--pin-create :marker (copy-marker (point-min))))
+          (lean4-info-paused nil))
+      (cl-flet ((face-of (heading glyph)
+                  (let ((index (string-search
+                                glyph (substring-no-properties heading))))
+                    (should index)
+                    (get-text-property index 'face heading))))
+        (should (eq (face-of (lean4-info--heading
+                              (lean4-info--location-string)
+                              (lean4-info--controls)
+                              (lean4-info--point-state))
+                             (lean4-info-pin-glyph))
+                    'lean4-info-button))
+        (should (eq (face-of (lean4-info--heading
+                              "x" (lean4-info--pin-controls pin) "pinned")
+                             (lean4-info-unpin-glyph))
+                    'lean4-info-button-active)))
+      (set-marker (lean4-info-pin-marker pin) nil))))
+
 
 (ert-deftest lean4-info-glyphs-suit-the-frame ()
   "The controls are chosen for the frame they are drawn in.
