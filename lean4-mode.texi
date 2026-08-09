@@ -248,7 +248,7 @@ buffer.  To put it in a side window on the right:
 @tab Pin the goal display to point, or unpin it
 @tab @code{lean4-info-toggle-pin}
 @item @samp{C-c C-SPC}
-@tab Freeze or unfreeze the goal display
+@tab Pause or unpause the goal display
 @tab @code{lean4-info-toggle-pause}
 @item @samp{C-c C-k}
 @tab Echo the keystroke needed to input the symbol at point
@@ -293,12 +293,12 @@ rest on any part of a goal and ask about it.
 @tab Pin the display to point, or unpin it
 @tab @code{lean4-info-toggle-pin}
 @item @samp{C-c C-SPC}
-@tab Freeze or unfreeze the display
+@tab Pause or unpause the display
 @tab @code{lean4-info-toggle-pause}
 @end multitable
 
 The last two are bound here as well as in the Lean buffer, so the
-display can be pinned or frozen without leaving it.
+display can be pinned or paused without leaving it.
 
 The type and docstring of the subterm at point are reported through
 ElDoc, so they appear wherever ElDoc is configured to put them: the

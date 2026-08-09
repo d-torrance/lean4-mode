@@ -158,8 +158,14 @@ and which is what this mode did before."
   `("Lean 4"
     ["Execute lean"         lean4-execute                     t]
     ["Toggle info display"  lean4-toggle-info                 t]
-    ["Pin goal display"     lean4-info-toggle-pin             t]
-    ["Pause goal display"   lean4-info-toggle-pause           t]
+    ;; `:label' is evaluated each time the menu is opened, so these say
+    ;; what the next invocation will do rather than naming the command.
+    ["Pin goal display"     lean4-info-toggle-pin             t
+     :label (if lean4-info--pin "Unpin goal display" "Pin goal display")]
+    ["Pause goal display"   lean4-info-toggle-pause           t
+     :label (if lean4-info-paused
+                "Unpause goal display"
+              "Pause goal display")]
     ["List of errors"       flymake-show-buffer-diagnostics   flymake-mode]
     ["Restart lean process" eglot-reconnect                   t]
     ["Customize lean4-mode" (customize-group 'lean4)          t]))

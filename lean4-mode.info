@@ -242,7 +242,7 @@ Key                      Description                                            
 ---------------------------------------------------------------------------------------------------------------------------
 ‘C-c C-i’                Show or hide the goal display                                 ‘lean4-toggle-info’
 ‘C-c C-s’                Pin the goal display to point, or unpin it                    ‘lean4-info-toggle-pin’
-‘C-c C-SPC’              Freeze or unfreeze the goal display                           ‘lean4-info-toggle-pause’
+‘C-c C-SPC’              Pause or unpause the goal display                             ‘lean4-info-toggle-pause’
 ‘C-c C-k’                Echo the keystroke needed to input the symbol at point        ‘quail-show-key’
 ‘C-c C-d’                Recompile and reload imports                                  ‘lean4-refresh-file-dependencies’
 ‘C-c C-r’                Restart the language server                                   ‘eglot-reconnect’
@@ -265,10 +265,10 @@ Key              Description                                      Command
 ‘C-c C-t’        Jump to the definition of its type               ‘lean4-info-goto-type-definition’
 ‘TAB’            Fold or unfold the trace or section at point     ‘lean4-info-toggle-fold’
 ‘C-c C-s’        Pin the display to point, or unpin it            ‘lean4-info-toggle-pin’
-‘C-c C-SPC’      Freeze or unfreeze the display                   ‘lean4-info-toggle-pause’
+‘C-c C-SPC’      Pause or unpause the display                     ‘lean4-info-toggle-pause’
 
    The last two are bound here as well as in the Lean buffer, so the
-display can be pinned or frozen without leaving it.
+display can be pinned or paused without leaving it.
 
    The type and docstring of the subterm at point are reported through
 ElDoc, so they appear wherever ElDoc is configured to put them: the echo

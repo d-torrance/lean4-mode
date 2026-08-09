@@ -86,7 +86,7 @@
   "The Lean buffer the goals on display came from.")
 
 (defvar lean4-info-paused nil
-  "Non-nil while the goal display is frozen.")
+  "Non-nil while the goal display is paused.")
 
 (defvar lean4-info--pin nil
   "Marker at the location the goal display is pinned to, or nil.")
@@ -362,18 +362,30 @@ Lean buffer to be the selected one, which it is not in that case."
 (defvar lean4-info--debounce-timer nil)
 
 (defun lean4-info-buffer-redisplay-debounced ()
-  "Schedule a redisplay of the info buffer, coalescing rapid requests."
+  "Update the info buffer for point's new position, coalescing rapid moves.
+
+Two things have to happen, and only one of them is cheap.  Re-rendering
+places the messages for the line point is now on, and can be done at
+once.  The goals belong to the position, though, and have to be fetched:
+without that the display keeps showing whatever it was opened on, which
+looks like a buffer that has stopped working."
   (when (timerp lean4-info--debounce-timer)
     (cancel-timer lean4-info--debounce-timer))
   (let ((buffer (current-buffer)))
     (setq lean4-info--debounce-timer
-          (run-with-idle-timer
+          ;; A plain timer, not an idle one.  Cancelling and rescheduling on
+          ;; each call already coalesces a burst of movement, so idleness
+          ;; buys nothing -- and idle timers depend on Emacs actually going
+          ;; idle, which it does not do under --batch, making this
+          ;; untestable and its behaviour dependent on what ran before.
+          (run-at-time
            lean4-info-debounce-delay nil
            (lambda ()
              (setq lean4-info--debounce-timer nil)
              (when (buffer-live-p buffer)
                (with-current-buffer buffer
-                 (lean4-info-buffer-redisplay))))))))
+                 (lean4-info-buffer-redisplay)
+                 (lean4-info-buffer-refresh))))))))
 
 (defvar-local lean4-info--generation 0
   "Counter used to discard replies that arrive out of order.
@@ -536,11 +548,12 @@ the pinned location rather than at point."
 
 ;;;; Pinning and pausing
 ;;
-;; Two different needs that look alike.  Pausing freezes the display so a
-;; goal can be read while point wanders; pinning keeps the display tied to
-;; one location so it still updates as the file is edited elsewhere.  Both
-;; announce themselves in the header line, because a goal buffer that has
-;; quietly stopped following point is indistinguishable from a broken one.
+;; Two different needs that look alike.  Pausing stops the display updating
+;; at all, so a goal can be read while point wanders; pinning ties it to one
+;; location but keeps it updating, which is what you want while editing the
+;; tactic above the goal you are watching.  Both announce themselves in the
+;; header line, because a goal buffer that has quietly stopped following
+;; point is indistinguishable from a broken one.
 
 (defun lean4-info--update-header ()
   "Show the pinned or paused state in the info buffer's header line."
@@ -566,16 +579,17 @@ the pinned location rather than at point."
 
 ;;;###autoload
 (defun lean4-info-toggle-pause ()
-  "Freeze or unfreeze the goal display.
-While frozen it keeps showing whatever it last showed, so a goal can be
-read while point moves elsewhere."
+  "Pause or unpause the goal display.
+While paused it keeps showing whatever it last showed, so a goal can be
+read while point moves elsewhere.  The names follow Lean's own: VS Code
+calls these commands pause and unpause."
   (interactive)
   (setq lean4-info-paused (not lean4-info-paused))
   (lean4-info--update-header)
   (unless lean4-info-paused
     (lean4-info-buffer-refresh))
   (message "Lean goal display %s"
-           (if lean4-info-paused "paused" "resumed")))
+           (if lean4-info-paused "paused" "unpaused")))
 
 ;;;###autoload
 (defun lean4-info-toggle-pin ()

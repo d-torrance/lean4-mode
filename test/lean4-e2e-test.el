@@ -125,6 +125,26 @@ mismatch."
                (lambda (d) (string-search "sorry" (lean4-diagnostic-message d)))
                diagnostics)))))
 
+(ert-deftest lean4-e2e-silent-diagnostics-are-not-problems ()
+  "Lean's silent diagnostics never reach Flymake.
+
+Asking for `silentDiagnosticSupport' makes Lean send them; not showing
+them is then the client's job.  \"Goals accomplished!\" is one, and
+without the filter it appears against every completed proof as a note --
+a report that nothing is wrong, filed as something wrong.
+
+The second half matters as much: filtering must not take the ordinary
+diagnostics with it."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (let ((messages (mapcar #'lean4-diagnostic-message (flymake-diagnostics))))
+      (should-not (seq-find (lambda (m) (string-search "Goals accomplished" m))
+                            messages))
+      ;; And the real ones are all still here.
+      (should (seq-find (lambda (m) (string-search "sorry" m)) messages))
+      (should (seq-find (lambda (m) (string-search "Type mismatch" m))
+                        messages)))))
+
 (ert-deftest lean4-e2e-diagnostics-carry-lean-full-range ()
   "The raw LSP diagnostic is reachable, and Lean's `fullRange' with it.
 This is what lets the info buffer show a message while point is anywhere
@@ -661,6 +681,36 @@ and `Nat' of a type mismatch are as hoverable as anything in a goal."
         (should (search-forward "String" nil t))
         (goto-char (match-beginning 0))
         (should (get-text-property (point) 'lean4-info))))))
+
+;;;; Following point
+
+(ert-deftest lean4-e2e-goal-display-follows-point ()
+  "Moving point updates the goal display, with no other prompting.
+
+Regression test for the bug where the display only ever showed the goal
+it was opened on: point movement re-rendered the goals already stored
+but never fetched the ones for the new position, so the buffer appeared
+stuck until it was closed and reopened."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      ;; Start on the `sorry', whose goal is 2 + 2 = 4.
+      (lean4-e2e--show-goal-at lean4-e2e--sorry-line)
+      (with-current-buffer lean4-info-buffer-name
+        (should (string-search "2 + 2 = 4" (buffer-string))))
+      ;; Now move to the other theorem and do nothing but let the
+      ;; post-command hook run, exactly as typing would.
+      (lean4-e2e--goto-line 4)
+      (back-to-indentation)
+      (run-hooks 'post-command-hook)
+      (lean4-e2e--wait-until
+       "the display to follow point to the other goal"
+       (lambda ()
+         (accept-process-output nil 0.05)
+         (with-current-buffer lean4-info-buffer-name
+           (string-search "1 + 1 = 2" (buffer-string)))))
+      (with-current-buffer lean4-info-buffer-name
+        (should-not (string-search "2 + 2 = 4" (buffer-string)))))))
 
 ;;;; Pinning and pausing
 

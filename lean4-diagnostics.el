@@ -126,6 +126,28 @@ before they are filtered away."
           (overlay-put overlay 'evaporate t)
           (push overlay lean4-diagnostics--accomplished-overlays))))))
 
+(cl-defmethod eglot-handle-notification :around
+  ((server lean4-eglot-lsp-server)
+   (method (eql textDocument/publishDiagnostics))
+   &rest params &key uri diagnostics &allow-other-keys)
+  "Keep Lean's silent diagnostics out of the editor.
+
+Asking for `silentDiagnosticSupport' means Lean sends them; it is then
+the client's job not to show them as problems.  \"Goals accomplished!\"
+is one, and without this it appears in Flymake as a note against every
+completed proof -- a report that nothing is wrong, filed as something
+wrong.
+
+The tags are read before the filter runs, since a finished proof is
+reported precisely as a silent diagnostic and that is what the
+goals-accomplished marker is made of."
+  (lean4-with-uri-buffers server uri
+    (lean4-diagnostics--mark-accomplished diagnostics))
+  (let ((visible (seq-remove #'lean4-diagnostics-silent-p
+                             (append diagnostics nil))))
+    (apply #'cl-call-next-method server method
+           (plist-put (copy-sequence params) :diagnostics (vconcat visible)))))
+
 (defun lean4-diagnostics-update-markers (diagnostics)
   "Refresh the goals-accomplished markers from DIAGNOSTICS.
 

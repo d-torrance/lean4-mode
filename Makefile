@@ -10,7 +10,11 @@ BATCH = $(EMACS) -Q --batch -L . \
 
 EL    = $(wildcard lean4-*.el)
 ELC   = $(EL:.el=.elc)
-TESTS = $(wildcard test/lean4-*-test.el)
+# The end-to-end suite is excluded here, not merely deselected: `make test'
+# is meant to need no Lean toolchain and to finish in a moment, and loading
+# that file at all pulls a server into the picture.
+E2E   = test/lean4-e2e-test.el
+TESTS = $(filter-out $(E2E),$(wildcard test/lean4-*-test.el))
 
 .PHONY: all help deps compile checkdoc lint test e2e docs abbreviations \
 	clean distclean
@@ -51,7 +55,7 @@ test: compile
 
 # Kept out of `test' because it needs a Lean toolchain and takes minutes.
 e2e: compile
-	@$(BATCH) -L test -l test/lean4-e2e-test.el \
+	@$(BATCH) -L test -l $(E2E) \
 	  --eval "(ert-run-tests-batch-and-exit '(tag :e2e))"
 
 # The table stays checked in -- package managers need it, and a build that
