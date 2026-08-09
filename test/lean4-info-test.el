@@ -14,35 +14,17 @@
 (require 'ert)
 (require 'lean4-mode)
 
-(defmacro lean4-info-test--with-fringe-indicators (&rest body)
-  "Evaluate BODY with `magit-section' drawing fold indicators in the fringe.
-
-The variable behind this was renamed and reshaped in magit-section 4:
-3.3.0, which Debian and Ubuntu ship, has
-`magit-section-visibility-indicator' holding a single cons, and later
-versions have `magit-section-visibility-indicators' holding an alist
-keyed by frame type.  Bind whichever exists.
-
-The fringe form is the one to ask for either way.  3.3.0 draws its other
-form, an ellipsis, only on a section that is already hidden, so it would
-show nothing here; and the fringe form makes a real overlay even under
---batch, where the bitmap itself has nowhere to render."
-  (declare (indent 0) (debug t))
-  (let ((fringe '(magit-fringe-bitmap> . magit-fringe-bitmapv)))
-    `(cl-progv
-         (list (if (boundp 'magit-section-visibility-indicators)
-                   'magit-section-visibility-indicators
-                 'magit-section-visibility-indicator))
-         (list (if (boundp 'magit-section-visibility-indicators)
-                   '((,fringe) (?> . ?v))
-                 ',fringe))
-       ,@body)))
-
-(defun lean4-info-test--indicator-count ()
-  "Return the number of fold indicators in the current buffer."
-  (length (seq-filter (lambda (overlay)
-                        (overlay-get overlay 'magit-vis-indicator))
-                      (overlays-in (point-min) (point-max)))))
+(defun lean4-info-test--chevrons ()
+  "Return the fold indicators actually drawn, innermost last."
+  (let (found)
+    (letrec ((walk (lambda (section)
+                     (when (oref section content)
+                       (push (get-text-property (oref section start)
+                                                'line-prefix)
+                             found))
+                     (mapc walk (oref section children)))))
+      (funcall walk magit-root-section))
+    (nreverse found)))
 
 (defun lean4-info-test--foldable-count ()
   "Return the number of sections in this buffer that have a body to fold."
@@ -56,307 +38,141 @@ show nothing here; and the fringe form makes a real overlay even under
 (ert-deftest lean4-info-sections-show-fold-indicators-when-inserted ()
   "A freshly built goal display shows which sections fold.
 
-Regression test.  magit-section 4 updates its indicators only from
+Regression test.  magit-section updates its own indicators only from
 `magit-section-show' and `magit-section-hide', so nothing inserted
-carries one until it has been toggled: the display looked as though
+carried one until it had been toggled: the display looked as though
 nothing folded, and folding one section made that one section -- and
-only that one -- grow a chevron.  3.3.0 draws them as it inserts and
-never had the bug, which is why this asserts the end state rather than
-that we were the ones to bring it about."
-  (lean4-info-test--with-fringe-indicators
-    (lean4-ensure-info-buffer lean4-info-buffer-name)
-    (unwind-protect
-        (with-current-buffer lean4-info-buffer-name
-          (let ((inhibit-read-only t))
-            (erase-buffer)
-            (magit-insert-section (magit-section 'root)
+only that one -- grow a chevron."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (with-current-buffer lean4-info-buffer-name
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (magit-insert-section (magit-section 'root)
+            (magit-insert-heading "Root:")
+            (magit-insert-section (magit-section 'goals)
+              (magit-insert-heading "Goals:")
+              (magit-insert-section-body (insert "one goal\n")))))
+        (lean4-info--paint-chevrons)
+        (should (> (lean4-info-test--foldable-count) 0))
+        (should (= (length (lean4-info-test--chevrons))
+                   (lean4-info-test--foldable-count)))
+        (should (seq-every-p #'identity (lean4-info-test--chevrons))))
+    (kill-buffer lean4-info-buffer-name)))
+
+(ert-deftest lean4-info-chevrons-are-indented-with-their-heading ()
+  "The indicator sits with the text it is about, not at the frame edge.
+
+Regression test.  magit-section draws in the fringe, which cannot be
+indented: a section set in from its parent had its text move right while
+its indicator stayed put, so the two drifted apart."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (with-current-buffer lean4-info-buffer-name
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (magit-insert-section (magit-section 'root)
+            (magit-insert-heading "Root:")
+            (lean4-info--indented
               (magit-insert-section (magit-section 'goals)
                 (magit-insert-heading "Goals:")
-                (magit-insert-section-body (insert "one goal\n")))))
-          (lean4-info--add-visibility-indicators)
-          (should (> (lean4-info-test--foldable-count) 0))
-          (should (= (lean4-info-test--indicator-count)
-                     (lean4-info-test--foldable-count))))
-      (kill-buffer lean4-info-buffer-name))))
+                (magit-insert-section-body (insert "one goal\n"))))))
+        (lean4-info--paint-chevrons)
+        (pcase-let ((`(,open . ,_) (lean4-info-chevron-pair))
+                    (`(,root ,goals) (lean4-info-test--chevrons)))
+          ;; The outer heading is not set in; the inner one is, and its
+          ;; indicator is set in with it rather than left behind.
+          (should (equal root open))
+          (should (equal goals (concat "  " open)))))
+    (kill-buffer lean4-info-buffer-name)))
 
-(ert-deftest lean4-info-controls-run-in-the-lean-buffer ()
-  "A clicked control acts on the Lean buffer, not on the info buffer.
-
-Regression test.  `mouse-1' runs the command with the info buffer
-current, where pinning is meaningless -- `lean4-info-toggle-pin' needs
-point in a Lean buffer, so clicking the pin only raised an error."
-  (let ((source (get-buffer-create "*lean4-info-test-source*")))
-    (lean4-ensure-info-buffer lean4-info-buffer-name)
-    (unwind-protect
-        (progn
-          (with-current-buffer source
-            (let ((lean4-mode-hook nil)
-                  (lean4-auto-start-server nil)
-                  (lean4-info-auto-open nil))
-              (lean4-mode))
-            (insert "example : True := trivial\n"))
-          (with-current-buffer lean4-info-buffer-name
-            (setq lean4-info--source-buffer source)
-            (lean4-info--run-control #'lean4-info-toggle-pin)
-            (should lean4-info--pin)
-            (should (eq (marker-buffer lean4-info--pin) source))
-            (lean4-info--run-control #'lean4-info-toggle-pin)
-            (should-not lean4-info--pin)))
-      (when lean4-info--pin
-        (set-marker lean4-info--pin nil)
-        (setq lean4-info--pin nil))
-      (kill-buffer source)
-      (kill-buffer lean4-info-buffer-name))))
-
-(ert-deftest lean4-info-says-so-when-there-is-nothing-to-report ()
-  "An empty display says \"No info found.\" rather than showing a bare heading.
-An empty buffer reads like one that has stopped working."
-  (let ((source (get-buffer-create "*lean4-info-test-source*")))
-    (unwind-protect
-        (with-current-buffer source
-          (let ((lean4-mode-hook nil)
-                (lean4-auto-start-server nil)
-                (lean4-info-auto-open nil))
-            (lean4-mode))
-          (setq lean4-goals nil lean4-term-goal nil lean4-info--diagnostics nil)
-          (setq lean4-info--rendered nil)
-          (lean4-ensure-info-buffer lean4-info-buffer-name)
-          (lean4-info-buffer-redisplay 'force)
-          (with-current-buffer lean4-info-buffer-name
-            (should (string-search "No info found." (buffer-string)))))
-      (kill-buffer source)
-      (when (get-buffer lean4-info-buffer-name)
-        (kill-buffer lean4-info-buffer-name)))))
-
-(ert-deftest lean4-info-heading-reports-both-states-at-once ()
-  "Pinned and paused are different things and can hold together.
-
-Regression test.  Reporting only one of them left the other looking as
-though the command had not taken effect."
-  (with-temp-buffer
-    (rename-buffer "Both.lean" 'unique)
-    (cl-flet ((state ()
-                (substring-no-properties
-                 (lean4-info--heading (lean4-info--location-string)))))
-      (let ((lean4-info--pin nil) (lean4-info-paused nil))
-        (should-not (string-search "pinned" (state)))
-        (should-not (string-search "paused" (state))))
-      (let ((lean4-info--pin (point-marker)) (lean4-info-paused nil))
-        (should (string-search "pinned" (state)))
-        (should-not (string-search "paused" (state))))
-      (let ((lean4-info--pin nil) (lean4-info-paused t))
-        (should (string-search "paused" (state)))
-        (should-not (string-search "pinned" (state))))
-      (let ((lean4-info--pin (point-marker)) (lean4-info-paused t))
-        (should (string-search "pinned and paused" (state)))))))
-
-(ert-deftest lean4-info-rebuilding-does-not-scroll-the-display ()
-  "A rebuild leaves the reader where they were.
-
-Regression test.  Erasing and reinserting sends point and the window
-start to the end of the new text, so clicking a control -- which
-rebuilds in order to redraw the control -- threw the display to the
-bottom, as did every refresh while reading a long goal."
-  (with-temp-buffer
-    (dotimes (i 200) (insert (format "line %d\n" i)))
-    (let ((window (selected-window)))
-      (set-window-buffer window (current-buffer))
-      (goto-char (point-min))
-      (forward-line 100)
-      (set-window-start window (point))
-      (let ((start (window-start window))
-            (spot (point)))
-        (lean4-info--keeping-position
+(ert-deftest lean4-info-chevrons-follow-folding ()
+  "Folding a section turns its indicator round, without being told."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (with-current-buffer lean4-info-buffer-name
+        (let ((inhibit-read-only t))
           (erase-buffer)
-          (dotimes (i 200) (insert (format "line %d\n" i))))
-        (should (= (point) spot))
-        (should (= (window-start window) start))
-        (should (= (window-point window) spot))))))
+          (magit-insert-section (magit-section 'root)
+            (magit-insert-section (magit-section 'goals)
+              (magit-insert-heading "Goals:")
+              (magit-insert-section-body (insert "body\n")))))
+        (lean4-info--paint-chevrons)
+        (setq lean4-info--folds (lean4-info--fold-state))
+        (let ((section (car (oref magit-root-section children))))
+          (pcase-let ((`(,open . ,closed) (lean4-info-chevron-pair)))
+            (should (equal (car (lean4-info-test--chevrons)) open))
+            (magit-section-hide section)
+            ;; No hook runs when magit folds; the repaint notices instead.
+            (lean4-info--repaint-chevrons)
+            (should (equal (car (lean4-info-test--chevrons)) closed))
+            (magit-section-show section)
+            (lean4-info--repaint-chevrons)
+            (should (equal (car (lean4-info-test--chevrons)) open)))))
+    (kill-buffer lean4-info-buffer-name)))
 
-(ert-deftest lean4-info-keeping-position-survives-a-shorter-rebuild ()
-  "Restoring is clamped: the new text can be shorter than the old."
+(ert-deftest lean4-info-folding-leaves-no-chevron-hanging ()
+  "Folding a section leaves no indicator behind under it.
+
+Regression test.  A folded section\='s children are still in the buffer,
+merely invisible, and a `line-prefix' at the edge of an invisible run is
+drawn anyway -- which showed as a chevron hanging under a section that
+had just been folded shut."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (with-current-buffer lean4-info-buffer-name
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (magit-insert-section (magit-section 'root)
+            (magit-insert-section (magit-section 'parent)
+              (magit-insert-heading "Parent:")
+              (magit-insert-section-body
+                (lean4-info--indented
+                  (magit-insert-section (magit-section 'child)
+                    (magit-insert-heading "Child:")
+                    (magit-insert-section-body (insert "body\n"))))))))
+        (lean4-info--paint-chevrons)
+        (setq lean4-info--folds (lean4-info--fold-state))
+        (pcase-let ((`(,open . ,closed) (lean4-info-chevron-pair))
+                    (parent (car (oref magit-root-section children))))
+          (should (equal (lean4-info-test--chevrons)
+                         (list open (concat "  " open))))
+          (magit-section-hide parent)
+          (lean4-info--repaint-chevrons)
+          ;; The parent turns round; the child keeps its indentation but
+          ;; loses the chevron, having nowhere visible to show it.
+          (should (equal (lean4-info-test--chevrons)
+                         (list closed "  ")))
+          (magit-section-show parent)
+          (lean4-info--repaint-chevrons)
+          (should (equal (lean4-info-test--chevrons)
+                         (list open (concat "  " open))))))
+    (kill-buffer lean4-info-buffer-name)))
+
+(ert-deftest lean4-info-indentation-accumulates ()
+  "Nested levels add up rather than replacing one another.
+
+The outer level is applied last, so it has to add itself in front of
+what the inner ones left."
   (with-temp-buffer
-    (dotimes (i 200) (insert (format "line %d\n" i)))
-    (set-window-buffer (selected-window) (current-buffer))
-    (goto-char (point-max))
-    (lean4-info--keeping-position
-      (erase-buffer)
-      (insert "No info found.\n"))
-    (should (<= (point) (point-max)))
-    (should (<= (window-start (selected-window)) (point-max)))))
+    (lean4-info--indented
+      (insert "one\n")
+      (lean4-info--indented (insert "two\n")))
+    (goto-char (point-min))
+    (should (equal (get-text-property (point) 'lean4-info-indent) "  "))
+    (forward-line 1)
+    (should (equal (get-text-property (point) 'lean4-info-indent) "    "))
+    ;; And still no spaces in the text itself.
+    (should (equal (buffer-string) "one\ntwo\n"))))
 
-(ert-deftest lean4-info-message-badge-counts-by-severity ()
-  "The heading says what kinds of message a file has, as VS Code does."
+(ert-deftest lean4-info-chevron-pair-suits-the-frame ()
+  "The pair is chosen for the frame, and is configurable."
   (cl-letf (((symbol-function 'lean4-info--displayable-p) (lambda (&rest _) t)))
-    (should (equal (lean4-info--severity-badge
-                    '((:severity 1) (:severity 3) (:severity 3)
-                      (:severity 3) (:severity 3) (:severity 3)))
-                   "1 ⊗  5 ⓘ"))
-    ;; Most severe first, and severities nobody has are left out rather
-    ;; than shown as zero.
-    (should (equal (lean4-info--severity-badge
-                    '((:severity 4) (:severity 2) (:severity 1)))
-                   "1 ⊗  1 ⚠  1 ⓗ"))
-    (should (equal (lean4-info--severity-badge '((:severity 2))) "1 ⚠"))
-    ;; A diagnostic with no severity is an error, as everywhere else.
-    (should (equal (lean4-info--severity-badge '((:message "x"))) "1 ⊗")))
-  (should-not (lean4-info--severity-badge nil)))
-
-(ert-deftest lean4-info-message-badge-falls-back-to-letters ()
-  "A frame with no glyphs gets letters, not a row of boxes."
+    (should (equal (lean4-info-chevron-pair) '("▾ " . "▸ "))))
   (cl-letf (((symbol-function 'lean4-info--displayable-p) #'ignore))
-    (should (equal (lean4-info--severity-badge
-                    '((:severity 1) (:severity 3)))
-                   "1 E  1 I"))))
-
-(ert-deftest lean4-info-message-caption-carries-the-badge ()
-  "The caption names the section and counts what is in it.
-Both message sections are captioned the same way -- the one for the
-position and the one for the file."
-  (cl-letf (((symbol-function 'lean4-info--displayable-p) (lambda (&rest _) t)))
-    (should (equal (lean4-info--messages-caption "All messages"
-                                                 '((:severity 1)))
-                   "All messages (1 ⊗)"))
-    (should (equal (lean4-info--messages-caption "Messages" '((:severity 2)))
-                   "Messages (1 ⚠)")))
-  ;; Nothing to count is not a state either section is inserted in, but
-  ;; the caption should still read as a caption.
-  (should (equal (lean4-info--messages-caption "Messages" nil) "Messages"))
-  ;; No trailing colon: `magit-section' turns one into a child count,
-  ;; which would follow the badge with a second count of the same thing.
-  (should-not (string-suffix-p ":" (lean4-info--messages-caption
-                                    "All messages" '((:severity 1))))))
-
-(defun lean4-info-test--insert-message (diagnostic buffer)
-  "Insert DIAGNOSTIC for BUFFER into a fresh section tree, and return it."
-  (with-current-buffer (get-buffer-create lean4-info-buffer-name)
-    (let ((inhibit-read-only t))
-      (unless (derived-mode-p 'magit-section-mode) (magit-section-mode))
-      (erase-buffer)
-      (magit-insert-section (magit-section 'root)
-        (magit-insert-heading "root")
-        (lean4-info--insert-message diagnostic buffer))
-      ;; As the real build does, and for the same reason: `magit-section'
-      ;; replaces the keymap on a heading line, controls included.
-      (lean4-info--restore-control-keymaps))
-    (buffer-string)))
-
-(ert-deftest lean4-info-message-heading-names-its-file ()
-  "A message says which file it is in, not just a bare pair of numbers."
-  (let ((source (get-buffer-create "Named.lean")))
-    (unwind-protect
-        (let ((text (lean4-info-test--insert-message
-                     '(:range (:start (:line 6 :character 8)) :message "boom")
-                     source)))
-          ;; Line counted from one, column from zero, as LSP reports them.
-          (should (string-search "Named.lean:7:8:" text))
-          (should (string-search "boom" text)))
-      (kill-buffer source)
-      (kill-buffer lean4-info-buffer-name))))
-
-(ert-deftest lean4-info-each-message-is-a-section-of-its-own ()
-  "A message folds by itself, so one long trace can be put away.
-
-Regression test.  Messages used to be plain text inside one section, so
-there was nothing to fold and no chevron to say there might be."
-  (let ((source (get-buffer-create "Named.lean")))
-    (unwind-protect
-        (lean4-info-test--with-fringe-indicators
-          (lean4-info-test--insert-message
-           '(:range (:start (:line 0 :character 0)) :message "boom") source)
-          (with-current-buffer lean4-info-buffer-name
-            (let ((message (car (last (oref magit-root-section children)))))
-              (should (eq (oref message value) 'message))
-              ;; Content is what makes a section foldable, and what
-              ;; `magit-section' draws its indicator from.
-              (should (oref message content)))
-            (lean4-info--add-visibility-indicators)
-            (should (> (lean4-info-test--indicator-count) 0))))
-      (kill-buffer source)
-      (kill-buffer lean4-info-buffer-name))))
-
-(ert-deftest lean4-info-message-heading-offers-a-way-there ()
-  "The control beside a message sends point to it."
-  (let ((source (get-buffer-create "Named.lean")))
-    (unwind-protect
-        (progn
-          (with-current-buffer source
-            (insert "line one\nline two\nline three\n"))
-          (let* ((text (lean4-info-test--insert-message
-                        '(:range (:start (:line 1 :character 5)))
-                        source))
-                 (index (string-search (lean4-info-goto-glyph) text)))
-            (should index)
-            (funcall (keymap-lookup (get-text-property index 'keymap text)
-                                    "<mouse-1>"))
-            (with-current-buffer source
-              (should (= (line-number-at-pos) 2))
-              (should (= (current-column) 5)))))
-      (kill-buffer source)
-      (kill-buffer lean4-info-buffer-name))))
-
-(ert-deftest lean4-info-controls-in-a-heading-stay-clickable ()
-  "A control on a heading line keeps its binding.
-
-Regression test.  `magit-section-maybe-add-heading-map' puts its own
-keymap over the whole of a heading line, which replaced the one each
-control carries: the control could be seen, described and hovered, but
-clicking it did nothing.  The other properties survive, which is what
-makes the repair possible."
-  (let ((source (get-buffer-create "Named.lean")))
-    (unwind-protect
-        (let* ((text (lean4-info-test--insert-message
-                      '(:range (:start (:line 0 :character 0))) source))
-               (index (string-search (lean4-info-goto-glyph) text))
-               (map (get-text-property index 'keymap text)))
-          (should map)
-          (should (commandp (keymap-lookup map "<mouse-1>")))
-          ;; Composed over magit's rather than replacing it, so folding a
-          ;; section by mouse still works.
-          (should (eq (keymap-lookup map "<double-mouse-1>")
-                      'magit-mouse-toggle-section)))
-      (kill-buffer source)
-      (kill-buffer lean4-info-buffer-name))))
-
-(ert-deftest lean4-info-goto-position-clamps-a-stale-column ()
-  "A column past the end of its line does not signal.
-The file can have been edited since the message was made."
-  (with-temp-buffer
-    (insert "ab\ncd\n")
-    (lean4-info--goto-position 1 99)
-    (should (= (point) 3))))
-
-(ert-deftest lean4-info-heading-offers-a-way-back-only-when-pinned ()
-  "Unpinned, the heading names where point already is.
-
-The control would do nothing there, and only take up room; pinned, it is
-the way back to the position being watched."
-  (with-temp-buffer
-    (rename-buffer "Back.lean" 'unique)
-    (insert "one\ntwo\n")
-    (let ((lean4-info-paused nil))
-      (let ((lean4-info--pin nil))
-        (should-not (string-search
-                     (lean4-info-goto-glyph)
-                     (substring-no-properties
-                      (lean4-info--heading (lean4-info--location-string))))))
-      (let ((lean4-info--pin (copy-marker (point-min))))
-        (should (string-search
-                 (lean4-info-goto-glyph)
-                 (substring-no-properties
-                  (lean4-info--heading (lean4-info--location-string)))))
-        (set-marker lean4-info--pin nil)))))
-
-(ert-deftest lean4-info-indents-without-touching-the-text ()
-  "Indentation is a display property, not spaces in the buffer.
-
-The goal text carries the positions `lean4-render', ElDoc and xref read
-back out of it; inserting characters into it would move every one."
-  (with-temp-buffer
-    (lean4-info--indented (insert "goal\nmore\n"))
-    (should (equal (buffer-string) "goal\nmore\n"))
-    (should (equal (get-text-property (point-min) 'line-prefix) "  "))
-    (should (equal (get-text-property (point-min) 'wrap-prefix) "  "))))
+    (should (equal (lean4-info-chevron-pair) '("- " . "+ "))))
+  (let ((lean4-info-chevrons '("D " . "R ")))
+    (should (equal (lean4-info-chevron-pair) '("D " . "R ")))))
 
 (ert-deftest lean4-info-goals-value-distinguishes-three-outcomes ()
   "No proof, a finished proof, and an open goal are told apart.

@@ -222,6 +222,9 @@ H= where none can be displayed.
 
 Each message is a section of its own, so a long one -- a =simp= trace, a
 mismatch between two large terms -- folds away without folding the rest.
+Fold indicators are drawn at the start of the line rather than in the
+fringe, so that they are set in with the heading they belong to; set
+~lean4-info-chevrons~ to choose the pair.
 Its heading names the file, line and column, and carries an =↪= control,
 right-aligned, that sends point there.  The same control appears in the
 top heading, but only while pinned: unpinned, the display is following

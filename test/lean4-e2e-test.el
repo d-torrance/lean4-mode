@@ -411,10 +411,13 @@ is in, and that is what the message is anchored to."
         ;; file's own messages are not.
         (goto-char (point-min))
         (should (search-forward "Messages (" nil t))
-        (should (get-text-property (match-beginning 0) 'line-prefix))
+        (should (equal (get-text-property (match-beginning 0)
+                                          'lean4-info-indent)
+                       "  "))
         (goto-char (point-min))
         (should (search-forward "All messages (" nil t))
-        (should-not (get-text-property (match-beginning 0) 'line-prefix))))))
+        (should-not (get-text-property (match-beginning 0)
+                                       'lean4-info-indent))))))
 
 (ert-deftest lean4-e2e-info-buffer-says-when-there-is-nothing ()
   "Outside a proof the display says so rather than going blank.
