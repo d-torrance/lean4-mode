@@ -722,18 +722,20 @@ stuck until it was closed and reopened."
       (unwind-protect
           (progn
             (lean4-e2e--show-goal-at lean4-e2e--sorry-line)
-            (let ((frozen (with-current-buffer lean4-info-buffer-name
-                            (buffer-string))))
-              (should (string-search "2 + 2 = 4" frozen))
-              (lean4-info-toggle-pause)
-              (should lean4-info-paused)
-              ;; Move somewhere with an entirely different goal and refresh.
-              (lean4-e2e--goto-line 4)
-              (back-to-indentation)
-              (lean4-info-buffer-refresh)
-              (accept-process-output nil 0.3)
-              (with-current-buffer lean4-info-buffer-name
-                (should (equal (buffer-string) frozen)))))
+            (with-current-buffer lean4-info-buffer-name
+              (should (string-search "2 + 2 = 4" (buffer-string))))
+            (lean4-info-toggle-pause)
+            (should lean4-info-paused)
+            ;; Move somewhere with an entirely different goal and refresh.
+            (lean4-e2e--goto-line 4)
+            (back-to-indentation)
+            (lean4-info-buffer-refresh)
+            (accept-process-output nil 0.3)
+            (with-current-buffer lean4-info-buffer-name
+              ;; The goal is what must not move.  The heading does change,
+              ;; to report that the display is paused.
+              (should (string-search "2 + 2 = 4" (buffer-string)))
+              (should-not (string-search "1 + 1 = 2" (buffer-string)))))
         (setq lean4-info-paused nil)))))
 
 (ert-deftest lean4-e2e-info-buffer-pin-follows-its-location ()
@@ -766,27 +768,28 @@ stuck until it was closed and reopened."
           (setq lean4-info--pin nil))))))
 
 (ert-deftest lean4-e2e-info-buffer-announces-pinned-and-paused ()
-  "The header line says when the display has stopped following point.
+  "The heading says when the display has stopped following point.
 A goal buffer that has quietly stopped updating looks broken."
   :tags '(:e2e)
   (lean4-e2e--with-fixture
     (lean4-e2e--with-info-window
       (unwind-protect
           (progn
+            (lean4-e2e--show-goal-at lean4-e2e--sorry-line)
             (lean4-info-toggle-pause)
             (with-current-buffer lean4-info-buffer-name
-              (should (string-search "Paused" (format "%s" header-line-format))))
+              (should (string-search "paused" (buffer-string))))
             (lean4-info-toggle-pause)
+            (lean4-e2e--show-goal-at lean4-e2e--sorry-line)
             (with-current-buffer lean4-info-buffer-name
-              ;; The header line stays: it carries the controls as well as
-              ;; the state.  What goes away is the word.
-              (should-not (string-search "Paused"
-                                         (format "%s" header-line-format))))
-            (lean4-e2e--goto-line lean4-e2e--sorry-line)
+              (should-not (string-search "paused" (buffer-string))))
             (lean4-info-toggle-pin)
-            (with-current-buffer lean4-info-buffer-name
-              (should (string-search "Pinned"
-                                     (format "%s" header-line-format)))))
+            (lean4-e2e--wait-until
+             "the heading to report the pin"
+             (lambda ()
+               (accept-process-output nil 0.05)
+               (with-current-buffer lean4-info-buffer-name
+                 (string-search "pinned" (buffer-string))))))
         (setq lean4-info-paused nil)
         (when lean4-info--pin
           (set-marker lean4-info--pin nil)

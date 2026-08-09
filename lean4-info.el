@@ -148,8 +148,7 @@ Also choose settings used for the *Lean Goal* buffer."
       (add-hook 'post-command-hook
                 #'lean4-info-highlight-subterm nil 'local)
       (eldoc-mode 1)
-      (setq buffer-read-only t)
-      (lean4-info--update-header))))
+      (setq buffer-read-only t))))
 
 (defun lean4-toggle-info-buffer (buffer)
   "Create or delete BUFFER.
@@ -333,6 +332,10 @@ Lean buffer to be the selected one, which it is not in that case."
            ;; Carried across so that ElDoc and xref, which run in the info
            ;; buffer, can make RPC calls about what is displayed there.
            (handle lean4-info--handle)
+           ;; Computed here, in the Lean buffer: by the time the heading is
+           ;; inserted the info buffer is current, and point there says
+           ;; nothing about the position being reported on.
+           (location (lean4-info--location-string))
            (line (1- (line-number-at-pos nil 'absolute)))
            (diagnostics
             (sort (or (seq-remove #'lean4-diagnostics-silent-p
@@ -350,6 +353,7 @@ Lean buffer to be the selected one, which it is not in that case."
                 lean4-info--source-buffer buffer)
           (erase-buffer)
           (magit-insert-section (magit-section 'root)
+            (magit-insert-heading (lean4-info--heading location))
             (when goals
               (magit-insert-section (magit-section 'goals)
                 (magit-insert-heading "Goals:")
@@ -576,65 +580,113 @@ the pinned location rather than at point."
 
 (defface lean4-info-button
   '((t :inherit mode-line-buffer-id))
-  "Face for the clickable controls in the goal display's header line."
+  "Face for the pin and pause controls in the goal display."
   :group 'lean4-info)
 
-(defun lean4-info--button (label help command)
-  "Return LABEL as a header-line button running COMMAND, described by HELP."
-  (propertize
-   label
-   'face 'lean4-info-button
-   'mouse-face 'highlight
-   'help-echo help
-   'keymap (let ((map (make-sparse-keymap)))
-             ;; `header-line' has to be in the event prefix: a header-line
-             ;; click is not a plain mouse-1.
-             (keymap-set map "<header-line> <mouse-1>" command)
-             map)))
+(defface lean4-info-button-active
+  '((t :inherit warning :weight bold))
+  "Face for a goal-display control whose state is engaged."
+  :group 'lean4-info)
 
-(defun lean4-info--pinned-description ()
-  "Describe where the display is pinned, or nil if it is not."
-  (when lean4-info--pin
-    (let ((source (marker-buffer lean4-info--pin)))
-      (if (buffer-live-p source)
-          (format "%s:%d" (buffer-name source)
-                  (with-current-buffer source
-                    (line-number-at-pos lean4-info--pin)))
-        "a closed buffer"))))
+(defface lean4-info-location
+  '((t :inherit magit-section-heading))
+  "Face for the source position the goal display is reporting on."
+  :group 'lean4-info)
 
-(defun lean4-info--update-header ()
-  "Rebuild the goal display's header line.
+;; Unicode with a fallback, the way `magit-section' picks its own
+;; indicators.  Emacs runs in terminals and on machines with no emoji font,
+;; so a glyph that is merely likely to work is not good enough on its own.
+;; Both are single-width; the obvious 📌 is double-width, which makes the
+;; right-hand column jump about.
 
-Always present, because it carries the controls as well as the state:
-VS Code puts pin and pause where you are already looking, and a control
-that only appears once you have found the keybinding is not much of a
-control."
-  (when-let* ((buffer (get-buffer lean4-info-buffer-name)))
-    (with-current-buffer buffer
-      (setq header-line-format
-            (list
-             " "
-             (lean4-info--button
-              (if lean4-info--pin "[Unpin]" "[Pin]")
-              (if lean4-info--pin
-                  "mouse-1: follow point again"
-                "mouse-1: keep showing this position")
-              #'lean4-info-toggle-pin)
-             " "
-             (lean4-info--button
-              (if lean4-info-paused "[Unpause]" "[Pause]")
-              (if lean4-info-paused
-                  "mouse-1: start updating again"
-                "mouse-1: stop updating")
-              #'lean4-info-toggle-pause)
-             (cond
-              (lean4-info-paused (propertize "  Paused" 'face 'warning))
-              (lean4-info--pin
-               (propertize (format "  Pinned to %s"
-                                   (lean4-info--pinned-description))
-                           'face 'warning))
-              (t ""))))
-      (force-mode-line-update))))
+(defcustom lean4-info-pin-icon
+  (if (char-displayable-p ?🖈) "🖈" "P")
+  "Control shown in the goal display for pinning.
+
+One glyph for both states, distinguished by `lean4-info-button-active'.
+VS Code turns its pin on its side when pinned, but that is a codicon
+font; Unicode has no rotated-pin pair, and the nearest alternatives
+differ in width, which would make the column jump on every toggle."
+  :group 'lean4-info
+  :type 'string)
+
+(defcustom lean4-info-pause-icon
+  (if (char-displayable-p ?⏸) "⏸" "||")
+  "Control shown in the goal display while it is updating.
+Clicking it pauses, so it shows the pause symbol."
+  :group 'lean4-info
+  :type 'string)
+
+(defcustom lean4-info-resume-icon
+  (if (char-displayable-p ?⏵) "⏵" ">")
+  "Control shown in the goal display while it is paused.
+Clicking it resumes, so it shows the play symbol -- the pair being the
+one place a glyph can say what the click does rather than what the state
+is."
+  :group 'lean4-info
+  :type 'string)
+
+(defun lean4-info--button (label help command &optional active)
+  "Return LABEL as a clickable control running COMMAND, described by HELP.
+ACTIVE marks the control as engaged, which shows in its face."
+  (propertize label
+              'face (if active 'lean4-info-button-active 'lean4-info-button)
+              'mouse-face 'highlight
+              'help-echo help
+              'keymap (let ((map (make-sparse-keymap)))
+                        (keymap-set map "<mouse-1>" command)
+                        map)))
+
+(defun lean4-info--controls ()
+  "Return the pin and pause controls, as one string."
+  (concat
+   (lean4-info--button
+    lean4-info-pin-icon
+    (if lean4-info--pin
+        "mouse-1: unpin, and follow point again"
+      "mouse-1: pin the display to this position")
+    #'lean4-info-toggle-pin
+    lean4-info--pin)
+   "  "
+   (lean4-info--button
+    (if lean4-info-paused lean4-info-resume-icon lean4-info-pause-icon)
+    (if lean4-info-paused
+        "mouse-1: unpause, and start updating again"
+      "mouse-1: pause updating")
+    #'lean4-info-toggle-pause
+    lean4-info-paused)))
+
+(defun lean4-info--location-string ()
+  "Return the source position the display is reporting on, as a string.
+The pinned position when pinned, otherwise point in the Lean buffer."
+  (if-let* ((pin lean4-info--pin)
+            (source (marker-buffer pin))
+            ((buffer-live-p source)))
+      (with-current-buffer source
+        (save-excursion
+          (goto-char pin)
+          (format "%s:%d:%d" (buffer-name) (line-number-at-pos)
+                  (current-column))))
+    (format "%s:%d:%d" (buffer-name) (line-number-at-pos) (current-column))))
+
+(defun lean4-info--heading (location)
+  "Return the goal display's heading for LOCATION, with its controls.
+
+The controls sit hard right, as they do in VS Code.  A stretch space
+does the aligning, so it holds however the window is resized, and the
+width is measured in columns rather than characters because the glyphs
+need not be single-width."
+  (let* ((location (propertize location 'face 'lean4-info-location))
+         (controls (lean4-info--controls))
+         (state (cond (lean4-info-paused
+                       (propertize "  paused" 'face 'warning))
+                      (lean4-info--pin
+                       (propertize "  pinned" 'face 'warning))
+                      (t ""))))
+    (concat location state
+            (propertize " " 'display
+                        `(space :align-to (- right ,(1+ (string-width controls)))))
+            controls)))
 
 ;;;###autoload
 (defun lean4-info-toggle-pause ()
@@ -644,7 +696,10 @@ read while point moves elsewhere.  The names follow Lean's own: VS Code
 calls these commands pause and unpause."
   (interactive)
   (setq lean4-info-paused (not lean4-info-paused))
-  (lean4-info--update-header)
+  ;; Redraw whatever the state: pausing suppresses the refresh, so without
+  ;; this the controls would keep showing the state they were in until
+  ;; something else happened to redisplay them.
+  (lean4-info--redisplay-source)
   (unless lean4-info-paused
     (lean4-info-buffer-refresh))
   (message "Lean goal display %s"
@@ -672,7 +727,7 @@ for watching one goal while working on the tactic above it."
     (display-buffer lean4-info-buffer-name)
     (message "Lean goal display pinned to line %d"
              (line-number-at-pos)))
-  (lean4-info--update-header)
+  (lean4-info--redisplay-source)
   (lean4-info-buffer-refresh))
 
 ;;;; Subterms
@@ -792,14 +847,23 @@ and Lean does not send it until something asks."
            (message "Could not expand trace: %S" error))))))))
 
 (defun lean4-info--redisplay-source ()
-  "Re-render the info buffer from the Lean buffer that populated it."
-  (when (buffer-live-p lean4-info--source-buffer)
-    (let ((position (point)))
-      (with-current-buffer lean4-info--source-buffer
+  "Re-render the info buffer from the Lean buffer that populated it.
+
+The source buffer is recorded local to the *info* buffer, so it has to
+be read from there: called from a Lean buffer -- which is where pinning
+and pausing happen -- reading it directly finds nothing, and the display
+silently fails to redraw."
+  (when-let* ((info (get-buffer lean4-info-buffer-name))
+              (source (buffer-local-value 'lean4-info--source-buffer info))
+              ((buffer-live-p source)))
+    (let ((position (and (eq (current-buffer) info) (point))))
+      (with-current-buffer source
         (lean4-info-buffer-redisplay 'force))
-      ;; Redisplay rebuilds the buffer, so put point back where the
-      ;; reader left it rather than at the top.
-      (goto-char (min position (point-max))))))
+      ;; Redisplay rebuilds the buffer, so put point back where the reader
+      ;; left it rather than at the top.
+      (when position
+        (with-current-buffer info
+          (goto-char (min position (point-max))))))))
 
 ;;;; xref
 

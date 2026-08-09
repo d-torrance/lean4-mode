@@ -61,51 +61,106 @@ every ordinary line is proved."
                                           (lambda (goals) (elt goals 0)))
                  "x")))
 
-(defun lean4-info-test--header-text ()
-  "Return the header line's text, without properties."
-  (mapconcat (lambda (part)
-               (if (stringp part) (substring-no-properties part) ""))
-             header-line-format ""))
+(ert-deftest lean4-info-heading-reports-the-position ()
+  "The heading says which file and position the display is reporting on."
+  (with-temp-buffer
+    (rename-buffer "Foo.lean" 'unique)
+    (insert "theorem t : True := by\n  trivial\n")
+    (goto-char (point-min))
+    (forward-line 1)
+    (forward-char 3)
+    (let ((lean4-info--pin nil) (lean4-info-paused nil))
+      (should (string-prefix-p "Foo.lean:2:3"
+                               (substring-no-properties
+                                (lean4-info--heading
+                                 (lean4-info--location-string))))))))
 
-(ert-deftest lean4-info-header-offers-controls ()
-  "The header line carries working pin and pause controls.
+(ert-deftest lean4-info-heading-follows-the-pin ()
+  "When pinned, the heading reports the pinned position, not point."
+  (with-temp-buffer
+    (rename-buffer "Bar.lean" 'unique)
+    (insert "one\ntwo\nthree\n")
+    (goto-char (point-min))
+    (forward-line 1)
+    (let ((lean4-info--pin (point-marker))
+          (lean4-info-paused nil))
+      ;; Point moves away; the heading should not.
+      (goto-char (point-max))
+      (should (string-prefix-p "Bar.lean:2:0"
+                               (substring-no-properties
+                                (lean4-info--heading
+                                 (lean4-info--location-string)))))
+      (should (string-search "pinned"
+                             (substring-no-properties
+                              (lean4-info--heading
+                               (lean4-info--location-string))))))))
 
-VS Code puts these where the reader is already looking.  A control that
-appears only once you have found the keybinding is not much of one."
-  (lean4-ensure-info-buffer lean4-info-buffer-name)
-  (unwind-protect
-      (with-current-buffer lean4-info-buffer-name
-        (let ((lean4-info--pin nil) (lean4-info-paused nil))
-          (lean4-info--update-header)
-          (should (string-search "[Pin]" (lean4-info-test--header-text)))
-          (should (string-search "[Pause]" (lean4-info-test--header-text))))
-        ;; The labels say what the click will do.
-        (let ((lean4-info--pin (point-marker)) (lean4-info-paused nil))
-          (lean4-info--update-header)
-          (should (string-search "[Unpin]" (lean4-info-test--header-text)))
-          (should (string-search "Pinned to" (lean4-info-test--header-text))))
-        (let ((lean4-info--pin nil) (lean4-info-paused t))
-          (lean4-info--update-header)
-          (should (string-search "[Unpause]" (lean4-info-test--header-text)))
-          (should (string-search "Paused" (lean4-info-test--header-text)))))
-    (kill-buffer lean4-info-buffer-name)))
+(ert-deftest lean4-info-heading-carries-clickable-controls ()
+  "The controls are in the heading and run their commands when clicked."
+  (with-temp-buffer
+    (rename-buffer "Baz.lean" 'unique)
+    (let* ((lean4-info--pin nil)
+           (lean4-info-paused nil)
+           (heading (lean4-info--heading (lean4-info--location-string)))
+           (plain (substring-no-properties heading))
+           (pin (string-search lean4-info-pin-icon plain))
+           (pause (string-search lean4-info-pause-icon plain)))
+      (should pin)
+      (should pause)
+      (should (eq (keymap-lookup (get-text-property pin 'keymap heading)
+                                 "<mouse-1>")
+                  'lean4-info-toggle-pin))
+      (should (eq (keymap-lookup (get-text-property pause 'keymap heading)
+                                 "<mouse-1>")
+                  'lean4-info-toggle-pause)))))
 
-(ert-deftest lean4-info-header-buttons-are-clickable ()
-  "Clicking a control in the header line runs the command."
-  (lean4-ensure-info-buffer lean4-info-buffer-name)
-  (unwind-protect
-      (with-current-buffer lean4-info-buffer-name
-        (let ((lean4-info--pin nil) (lean4-info-paused nil))
-          (lean4-info--update-header)
-          (let* ((text (lean4-info-test--header-text))
-                 (raw (mapconcat (lambda (p) (if (stringp p) p ""))
-                                 header-line-format ""))
-                 (index (string-search "[Pin]" text)))
-            (should index)
-            (should (eq (keymap-lookup (get-text-property index 'keymap raw)
-                                       "<header-line> <mouse-1>")
-                        'lean4-info-toggle-pin)))))
-    (kill-buffer lean4-info-buffer-name)))
+(ert-deftest lean4-info-controls-fall-back-to-ascii ()
+  "The controls are configurable, for fonts without the glyphs.
+Emacs runs in terminals and on machines with no emoji font, so the
+defaults are chosen with `char-displayable-p' and can be overridden."
+  (let ((lean4-info-pin-icon "P")
+        (lean4-info-pause-icon "||")
+        (lean4-info--pin nil)
+        (lean4-info-paused nil))
+    (let ((plain (substring-no-properties
+                    (lean4-info--heading (lean4-info--location-string)))))
+      (should (string-search "P" plain))
+      (should (string-search "||" plain)))))
+
+(ert-deftest lean4-info-pause-control-shows-what-it-will-do ()
+  "The pause control becomes a play symbol while paused."
+  (with-temp-buffer
+    (rename-buffer "Icons.lean" 'unique)
+    (let ((lean4-info--pin nil) (lean4-info-paused nil))
+      (should (string-search lean4-info-pause-icon
+                             (substring-no-properties
+                              (lean4-info--heading
+                               (lean4-info--location-string))))))
+    (let ((lean4-info--pin nil) (lean4-info-paused t))
+      (let ((plain (substring-no-properties
+                    (lean4-info--heading (lean4-info--location-string)))))
+        (should (string-search lean4-info-resume-icon plain))
+        (should-not (string-search lean4-info-pause-icon plain))))))
+
+(ert-deftest lean4-info-pin-control-shows-its-state-by-face ()
+  "The pin control is faced differently when engaged.
+
+Unicode has no rotated-pin pair, and the nearest alternatives differ in
+width, so the state is carried by the face rather than by a second
+glyph."
+  (with-temp-buffer
+    (rename-buffer "Faces.lean" 'unique)
+    (cl-flet ((pin-face ()
+                (let* ((heading (lean4-info--heading
+                                 (lean4-info--location-string)))
+                       (index (string-search
+                               lean4-info-pin-icon
+                               (substring-no-properties heading))))
+                  (get-text-property index 'face heading))))
+      (let ((lean4-info--pin nil) (lean4-info-paused nil))
+        (should (eq (pin-face) 'lean4-info-button)))
+      (let ((lean4-info--pin (point-marker)) (lean4-info-paused nil))
+        (should (eq (pin-face) 'lean4-info-button-active))))))
 
 (provide 'lean4-info-test)
 ;;; lean4-info-test.el ends here
