@@ -181,7 +181,9 @@ match on the mode rather than on the buffer\\='s name.
 Hover and jumping are offered through the standard hooks, so the
 reader\\='s own ElDoc and xref frontends present them.
 
-Read-only and undo-less already, from `magit-section-mode'."
+Read-only and undo-less already, from `magit-section-mode'.
+
+\\{lean4-info-mode-map}"
   :syntax-table lean4-syntax-table
   :interactive nil
   :group 'lean4-info
