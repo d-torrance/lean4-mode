@@ -526,11 +526,14 @@ extensions the running server offers.
 @node Semantic highlighting
 @section Semantic highlighting
 
-Lean classifies identifiers during elaboration, and reports the result
-as LSP semantic tokens.  Eglot gained support for these in version
-1.20, which is newer than the Eglot bundled with Emacs 29 (1.12) or
-Emacs 30 (1.17).  Lean4-Mode uses it when it is available and says
-nothing when it is not, so
+What counts as a keyword in Lean is settled by the elaborator rather
+than by the syntax, so the server is the only thing that can say.  It
+reports its findings as LSP semantic tokens, and gives @samp{sorry} and the
+other proof-admitting syntax a token type of its own,
+@samp{leanSorryLike}.  Eglot gained support for these in version 1.20, which
+is newer than the Eglot bundled with Emacs 29 (1.12) or Emacs 30
+(1.17).  Lean4-Mode uses it when it is available and says nothing when
+it is not, so
 
 @example
 M-x package-install RET eglot RET
@@ -538,6 +541,21 @@ M-x package-install RET eglot RET
 
 
 turns on semantic highlighting on any supported Emacs.
+
+Expect keywords rather than colour for every identifier.  The server
+advertises the whole standard set of token types but, as of Lean 4.32,
+sends little beyond keywords and @samp{leanSorryLike}; put point on the
+@samp{rfl} in
+
+@example
+theorem proved : 1 + 1 = 2 := by
+  rfl
+@end example
+
+and @samp{M-:} @samp{(get-text-property (point) 'face)} answers
+@samp{eglot-semantic-keyword}.  Nothing here could have known that: @samp{rfl} is
+a keyword because the elaborator says so, and @samp{M-x
+eglot-semantic-tokens-mode} to turn it off leaves it uncoloured.
 
 @node Optional packages
 @section Optional packages
