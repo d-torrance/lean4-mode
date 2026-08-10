@@ -268,16 +268,17 @@ File: lean4-mode.info,  Node: Keys in the goal display,  Next: Errors and warnin
 Goals arrive as trees in which every subterm is labelled, so point can
 rest on any part of a goal and ask about it.
 
-Key              Description                                           Command
-----------------------------------------------------------------------------------------------------------------
-‘M-.’ or ‘RET’   Act on the thing at point                             ‘lean4-info-return’
-‘C-c C-t’        Jump to the definition of its type                    ‘lean4-info-goto-type-definition’
-‘TAB’            Fold or unfold the trace or section at point          ‘lean4-info-toggle-fold’
-‘C-c C-s’        Pin this position, or unpin the section point is in   ‘lean4-info-toggle-pin’
-‘C-c C-SPC’      Pause or unpause the display                          ‘lean4-info-toggle-pause’
-‘C-c C-g’        Bring a paused display up to date                     ‘lean4-info-refresh-paused’
-‘C-c C-a’        Pause or unpause the file's message list              ‘lean4-info-toggle-all-messages-pause’
-‘C-c C-o’        Order that list by position or by nearness            ‘lean4-info-toggle-message-order’
+Key           Description                                                 Command
+-------------------------------------------------------------------------------------------------------------------
+‘RET’         Press the control at point, or go to a message's position   ‘lean4-info-return’
+‘M-.’         Jump to the definition of the subterm at point              ‘xref-find-definitions’
+‘C-c C-t’     Jump to the definition of its type                          ‘lean4-info-goto-type-definition’
+‘TAB’         Fold or unfold the trace or section at point                ‘lean4-info-toggle-fold’
+‘C-c C-s’     Pin this position, or unpin the section point is in         ‘lean4-info-toggle-pin’
+‘C-c C-SPC’   Pause or unpause the display                                ‘lean4-info-toggle-pause’
+‘C-c C-g’     Bring a paused display up to date                           ‘lean4-info-refresh-paused’
+‘C-c C-a’     Pause or unpause the file's message list                    ‘lean4-info-toggle-all-messages-pause’
+‘C-c C-o’     Order that list by position or by nearness                  ‘lean4-info-toggle-message-order’
 
    Pinning a position keeps it on display as a section of its own, above
 the section following point, and any number of positions can be pinned.
@@ -297,10 +298,11 @@ so ‘C-c C-s’ means the section point is standing in: inside a pinned
 section it unpins that one, and anywhere else it pins or unpins the
 position point is on in the Lean buffer.  ‘C-c C-SPC’ and ‘C-c C-g’ read
 the same way: inside a pinned section they pause and refresh that
-section, anywhere else the one following point.  ‘RET’ acts on whatever
-is under point: a control does what clicking it would, a message heading
-goes to the place it was reported for, and a term goes to its
-definition.  Every control is therefore reachable without a mouse.
+section, anywhere else the one following point.  ‘RET’ reaches the two
+things in the display that lead anywhere: on a control it does what
+clicking it would, and on a message heading it goes to the place the
+message was reported for.  Every control is therefore reachable without
+a mouse.
 
    The last two are bound here as well as in the Lean buffer, so the
 display can be pinned or paused without leaving it.  Clicking their
@@ -379,14 +381,14 @@ Its heading names the file, line and column, and carries an ‘↪’ control,
 right-aligned, that sends point there.  Clicking works as ‘mouse-1’ does
 throughout Emacs: on a control it acts, and anywhere else it moves point
 - which is how a subterm is put under ElDoc, and how VS Code reads a
-plain click too.  ‘RET’ reaches further, having no control under a
-pointer to press: on a message heading it goes to the place the message
-was reported for, and on a subterm to its definition.  Folding is ‘TAB’,
-and by mouse whatever ‘magit-section’ itself offers - a double click, or
-a click on the fringe or margin, from version 4; nothing in 3.3.0 - so
-this display folds the way your Magit does.  The same control appears in
-the top heading, but only while pinned: unpinned, the display is
-following point and it would only lead where point already is.
+plain click too.  ‘RET’ does the same two things by keyboard, going to
+the message's position from anywhere on its heading; the definition of a
+subterm is ‘M-.’, wherever your xref frontend puts it.  Folding is
+‘TAB’, and by mouse whatever ‘magit-section’ itself offers - a double
+click, or a click on the fringe or margin, from version 4; nothing in
+3.3.0 - so this display folds the way your Magit does.  The same control
+appears in the top heading, but only while pinned: unpinned, the display
+is following point and it would only lead where point already is.
 
 
 File: lean4-mode.info,  Node: Completion,  Prev: Errors and warnings,  Up: Usage
@@ -593,17 +595,17 @@ Node: Upgrading from version 15244
 Node: Usage6541
 Node: Keys in a Lean buffer7825
 Node: Keys in the goal display9250
-Node: Errors and warnings13211
-Node: Completion16941
-Node: Configuration17543
-Node: Frequently used options17982
-Node: The goal display's controls19462
-Node: Older Lean versions20783
-Node: Semantic highlighting21765
-Node: Optional packages22347
-Node: Troubleshooting22840
-Node: Common Pitfalls23490
-Node: Acknowledgements24091
+Node: Errors and warnings13358
+Node: Completion17098
+Node: Configuration17700
+Node: Frequently used options18139
+Node: The goal display's controls19619
+Node: Older Lean versions20940
+Node: Semantic highlighting21922
+Node: Optional packages22504
+Node: Troubleshooting22997
+Node: Common Pitfalls23647
+Node: Acknowledgements24248
 
 End Tag Table
 

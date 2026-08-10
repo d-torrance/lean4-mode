@@ -285,13 +285,16 @@ buffer.  To put it in a side window on the right:
 Goals arrive as trees in which every subterm is labelled, so point can
 rest on any part of a goal and ask about it.
 
-@multitable {aaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @headitem Key
 @tab Description
 @tab Command
-@item @samp{M-.} or @samp{RET}
-@tab Act on the thing at point
+@item @samp{RET}
+@tab Press the control at point, or go to a message's position
 @tab @code{lean4-info-return}
+@item @samp{M-.}
+@tab Jump to the definition of the subterm at point
+@tab @code{xref-find-definitions}
 @item @samp{C-c C-t}
 @tab Jump to the definition of its type
 @tab @code{lean4-info-goto-type-definition}
@@ -332,10 +335,10 @@ a mouse.  With several pins there is no one pin for a key to mean, so
 section it unpins that one, and anywhere else it pins or unpins the
 position point is on in the Lean buffer.  @samp{C-c C-SPC} and @samp{C-c C-g} read the same way: inside a
 pinned section they pause and refresh that section, anywhere else the
-one following point.  @samp{RET} acts on whatever is under point: a control does what
-clicking it would, a message heading goes to the place it was reported for, and a
-term goes to its definition.  Every control is therefore reachable
-without a mouse.
+one following point.  @samp{RET} reaches the two things in the display that
+lead anywhere: on a control it does what clicking it would, and on a
+message heading it goes to the place the message was reported for.
+Every control is therefore reachable without a mouse.
 
 The last two are bound here as well as in the Lean buffer, so the
 display can be pinned or paused without leaving it.  Clicking their
@@ -411,9 +414,9 @@ Its heading names the file, line and column, and carries an @samp{↪} control,
 right-aligned, that sends point there.  Clicking works as @samp{mouse-1} does
 throughout Emacs: on a control it acts, and anywhere else it moves
 point -- which is how a subterm is put under ElDoc, and how VS Code
-reads a plain click too.  @samp{RET} reaches further, having no control under
-a pointer to press: on a message heading it goes to the place the
-message was reported for, and on a subterm to its definition.
+reads a plain click too.  @samp{RET} does the same two things by keyboard,
+going to the message's position from anywhere on its heading; the
+definition of a subterm is @samp{M-.}, wherever your xref frontend puts it.
 Folding is @samp{TAB}, and by mouse whatever
 @code{magit-section} itself offers -- a double click, or a click on the
 fringe or margin, from version 4; nothing in 3.3.0 -- so this display

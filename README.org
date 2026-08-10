@@ -161,7 +161,8 @@ rest on any part of a goal and ask about it.
 
 | Key            | Description                                    | Command                           |
 |----------------+------------------------------------------------+-----------------------------------|
-| =M-.= or =RET= | Act on the thing at point                      | ~lean4-info-return~               |
+| =RET=          | Press the control at point, or go to a message's position | ~lean4-info-return~    |
+| =M-.=          | Jump to the definition of the subterm at point  | ~xref-find-definitions~           |
 | =C-c C-t=      | Jump to the definition of its type             | ~lean4-info-goto-type-definition~ |
 | =TAB=          | Fold or unfold the trace or section at point   | ~lean4-info-toggle-fold~          |
 | =C-c C-s=      | Pin this position, or unpin the section point is in | ~lean4-info-toggle-pin~      |
@@ -187,10 +188,10 @@ a mouse.  With several pins there is no one pin for a key to mean, so
 section it unpins that one, and anywhere else it pins or unpins the
 position point is on in the Lean buffer.  =C-c C-SPC= and =C-c C-g= read the same way: inside a
 pinned section they pause and refresh that section, anywhere else the
-one following point.  =RET= acts on whatever is under point: a control does what
-clicking it would, a message heading goes to the place it was reported for, and a
-term goes to its definition.  Every control is therefore reachable
-without a mouse.
+one following point.  =RET= reaches the two things in the display that
+lead anywhere: on a control it does what clicking it would, and on a
+message heading it goes to the place the message was reported for.
+Every control is therefore reachable without a mouse.
 
 The last two are bound here as well as in the Lean buffer, so the
 display can be pinned or paused without leaving it.  Clicking their
@@ -265,9 +266,9 @@ Its heading names the file, line and column, and carries an =↪= control,
 right-aligned, that sends point there.  Clicking works as =mouse-1= does
 throughout Emacs: on a control it acts, and anywhere else it moves
 point -- which is how a subterm is put under ElDoc, and how VS Code
-reads a plain click too.  =RET= reaches further, having no control under
-a pointer to press: on a message heading it goes to the place the
-message was reported for, and on a subterm to its definition.
+reads a plain click too.  =RET= does the same two things by keyboard,
+going to the message's position from anywhere on its heading; the
+definition of a subterm is =M-.=, wherever your xref frontend puts it.
 Folding is =TAB=, and by mouse whatever
 ~magit-section~ itself offers -- a double click, or a click on the
 fringe or margin, from version 4; nothing in 3.3.0 -- so this display

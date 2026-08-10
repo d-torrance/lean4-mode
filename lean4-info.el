@@ -160,8 +160,8 @@ and will hold the memory until told otherwise.")
   :doc "Keymap for the *Lean Goal* buffer.
 `magit-section-mode-map' is its parent, so folding, movement and TAB are
 whatever the reader\='s Magit does."
-  ;; `M-.' comes free from the xref backend; RET goes to whatever is at
-  ;; point, which on a term is the same thing.
+  ;; The definition of a subterm is `M-.', which comes free from the xref
+  ;; backend and is where a reader of Emacs looks for it.
   "RET" #'lean4-info-return
   "C-c C-t" #'lean4-info-goto-type-definition
   "C-c C-SPC" #'lean4-info-toggle-pause
@@ -203,18 +203,13 @@ Read-only and undo-less already, from `magit-section-mode'."
   (get-text-property (point) 'lean4-info-pin))
 
 (defun lean4-info-return ()
-  "Act on whatever point is on.
+  "Press the control at point, or go where the message at point points.
 
-On a control, what clicking it would do; on a message, go to the place
-it was reported for; on a term, go to the definition of that term.  TAB
-folds and RET acts on the thing at point, which is the division
-`magit-section' uses.
-
-`mouse-1' presses a control and otherwise only moves point; see
-`lean4-info--act-at' for why the keyboard reaches further."
+Those are the two things in the display that lead anywhere, and both
+are reachable by mouse; RET is how the keyboard reaches them.  Point
+anywhere else is point on a goal, which RET leaves as it is."
   (interactive)
-  (unless (lean4-info--act-at (point))
-    (user-error "Nothing at point to go to")))
+  (lean4-info--act-at (point)))
 
 
 
@@ -782,24 +777,15 @@ tries; `lean4-info--act-at' is the rest of what RET does."
 (defun lean4-info--act-at (position)
   "Do whatever POSITION is on; return non-nil if there was anything.
 
-What RET does: press a control, go to the place a message was reported
-for, or go to the definition of a term, whichever point is on.  The
-keyboard reaches all three from the text itself, having no control
-under a pointer to press."
+What RET does: press the control at point, or go to the place the
+message at point was reported for.  The position is carried by the whole
+heading, so RET goes from anywhere on the line, the go-to control being
+the one part of it a click acts on."
   (or
    (lean4-info--press-at position)
-   (cond
-    ((get-text-property position 'lean4-info-position)
-     (lean4-info--error-button-action
-      (get-text-property position 'lean4-info-position))
-     t)
-    ;; Only where the server labelled a subterm: xref falls back to a tags
-    ;; table for anything else, which has nothing to do with the goals.
-    ((get-text-property position 'lean4-info)
-     (save-excursion
-       (goto-char position)
-       (call-interactively #'xref-find-definitions))
-     t))))
+   (when-let* ((where (get-text-property position 'lean4-info-position)))
+     (lean4-info--error-button-action where)
+     t)))
 
 (defun lean4-info-mouse-1 (event)
   "Press the control EVENT was clicked on, or move point there.

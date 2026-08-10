@@ -343,10 +343,10 @@ under a pointer to press."
               (should (lean4-info--act-at label)))
             (should (= (with-current-buffer source (line-number-at-pos)) 2)))
           (with-current-buffer lean4-info-buffer-name
-            ;; Nothing to act on: RET says so, and a click just moves.
+            ;; Nothing to act on: RET and a click both only move point.
             (goto-char (point-min))
             (should-not (lean4-info--act-at (point)))
-            (should-error (lean4-info-return) :type 'user-error))
+            (should-not (lean4-info-return)))
           ;; `mouse-1' is the one thing this binds; folding is left to
           ;; whatever `magit-section' offers, so the display folds the
           ;; way the reader's Magit does.
@@ -362,12 +362,11 @@ under a pointer to press."
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
-(ert-deftest lean4-info-a-click-on-a-subterm-stays-in-the-display ()
-  "Clicking a subterm leaves point on it, which puts it under ElDoc.
+(ert-deftest lean4-info-a-subterm-is-left-to-eldoc-and-to-xref ()
+  "Clicking or pressing RET on a subterm leaves point on it, under ElDoc.
 
-VS Code draws the line in the same place: a plain click on a subterm
-stays put, and Ctrl-click jumps.  RET is how the keyboard asks for the
-definition, and it goes."
+Its definition is `\\[xref-find-definitions]', which the mode offers as
+an xref backend, and which VS Code spells Ctrl-click."
   (lean4-ensure-info-buffer lean4-info-buffer-name)
   (unwind-protect
       (progn
@@ -384,10 +383,8 @@ definition, and it goes."
               (goto-char (point-max))
               (lean4-info-test--click (point-min))
               (should (= (point) (point-min)))
-              (should (= jumps 0))
-              ;; RET on the same spot does go.
-              (should (lean4-info--act-at (point-min)))
-              (should (= jumps 1))))))
+              (should-not (lean4-info-return))
+              (should (= jumps 0))))))
     (delete-other-windows)
     (kill-buffer lean4-info-buffer-name)))
 
@@ -593,13 +590,11 @@ a `lean4-info-section'."
 
 
 (ert-deftest lean4-info-return-goes-to-the-thing-at-point ()
-  "RET goes to a message's position, and falls through elsewhere.
+  "RET goes to a message's position, and elsewhere leaves point alone.
 
-TAB folds and RET goes to the thing at point, which is the division
-`magit-section' uses.  It also restores by keyboard what the go-to
-control offers by mouse, the file name being a label now."
-  (let ((source (get-buffer-create "Named.lean"))
-        (jumped nil))
+It is how the keyboard reaches what the go-to control offers by mouse,
+the file name beside it being a label."
+  (let ((source (get-buffer-create "Named.lean")))
     (unwind-protect
         (progn
           (with-current-buffer source
@@ -618,21 +613,17 @@ control offers by mouse, the file name being a label now."
               (should (= (line-number-at-pos) 2))
               (should (= (current-column) 5))))
           (with-current-buffer lean4-info-buffer-name
-            ;; On a subterm it is xref's business.
+            ;; On a subterm, and on text that is neither, RET does
+            ;; nothing: a goal is read where it stands.
             (goto-char (point-min))
             (let ((inhibit-read-only t))
               (put-text-property (point-min) (1+ (point-min))
                                  'lean4-info '(:dummy t)))
-            (cl-letf (((symbol-function 'xref-find-definitions)
-                       (lambda (&rest _) (interactive) (setq jumped t))))
-              (lean4-info-return))
-            (should jumped)
-            ;; On neither, nothing -- handing this to xref sent it looking
-            ;; for a tags table, which is not what was asked for.
+            (should-not (lean4-info-return))
             (let ((inhibit-read-only t))
               (remove-text-properties (point-min) (1+ (point-min))
                                       '(lean4-info nil)))
-            (should-error (lean4-info-return) :type 'user-error)))
+            (should-not (lean4-info-return))))
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
