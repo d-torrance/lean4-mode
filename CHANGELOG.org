@@ -15,12 +15,18 @@ xref, project roots through =project.el=.
 - lsp-mode is replaced by Eglot.  Requires Emacs 29.1 or later.  Any
   lsp-mode configuration for Lean can be removed.  Version =1.1.2=
   remains tagged for anyone not ready to move.
+- Maintenance has moved to [[https://github.com/d-torrance/lean4-mode][d-torrance/lean4-mode]];
+  a package recipe pointing at the old repository will not see this
+  release.
 - Dependencies: =dash= and =compat= are gone; =eri= and =magit-section=
-  remain.  Indentation cycling now comes from the =eri= package on
-  Melpa, which is the upstream of the copy this package used to vendor.
+  (3.3.0 or later) remain.  Indentation cycling now comes from the =eri=
+  package on Melpa, which is the upstream of the copy this package used
+  to vendor, so ~lean4-eri-indent~ and ~lean4-eri-indent-reverse~ are
+  now ~eri-indent~.
 - Diagnostics come from Flymake rather than Flycheck.
-- The ~lean4-keybinding-*~ options are gone.  Keys live in
-  ~lean4-mode-map~ and are rebound the ordinary way.
+- The ~lean4-keybinding-*~ options are gone, and with them the
+  =lean4-keybinding= customize group.  Keys live in ~lean4-mode-map~ and
+  are rebound the ordinary way.
 - ~lean4-mode-hook~ is an ordinary mode hook again; whether the server
   starts automatically is now ~lean4-auto-start-server~, default =t=.
 - ~lean4-extra-arguments~ is renamed ~lean4-server-arguments~, with the
@@ -32,45 +38,134 @@ xref, project roots through =project.el=.
   obsolete alias.  The empty ~lean4-abbrev-table~ is gone; the mode now
   uses the ~lean4-mode-abbrev-table~ that ~define-derived-mode~ makes
   for it, which is where =M-x edit-abbrevs= looks.
+- ~lean4-memory-limit~ and ~lean4-timeout-limit~ are gone.  Neither was
+  read by anything in version 1.
+- The goal display's two debounce options,
+  ~lean4-info-buffer-debounce-delay-sec~ and
+  ~lean4-info-buffer-debounce-upper-bound-sec~, are replaced by the one
+  ~lean4-info-debounce-delay~.
+- =lean4-debug.el= and =lean4-dev.el= are gone, and with them =M-x
+  lean4-turn-on-debug-mode=, =M-x lean4-turn-off-debug-mode=, =M-x
+  lean4-diff-test-file= and the =*lean4-debug*= buffer.
+- ~lean4-info-mode~ is now the goal display's own major mode, derived
+  from ~magit-section-mode~; in version 1 it was a ~prog-mode~
+  derivative used only to fontify goal text.  The display is read-only
+  and its mode line reads "Lean Goal".  The buffer is still =*Lean
+  Goal*=.
+- The abbreviation table is refreshed from vscode-lean4, which changes
+  what four abbreviations insert: =\n= now gives a literal =\n= rather
+  than ¬, =\!= gives ¬ rather than ¡, and =\dot= and =\cdot= give ·
+  rather than ⬝.  Seven abbreviations are gone and thirty-one are new.
 
 ** Added
 
+- The goal display opens by itself when a Lean file is visited, as VS
+  Code's InfoView does.  It is displayed rather than selected, and goes
+  through ~display-buffer~, so =display-buffer-alist= governs where it
+  lands; ~lean4-info-auto-open~ turns the automatic opening off and =M-x
+  lean4-info-open= opens it by hand.
 - Interactive goals.  Goals arrive as trees in which every subterm is
   labelled, so point can rest on a subterm and get its type through
   ElDoc, or jump to its definition through xref.  The extent of the
-  subterm under point is highlighted.
+  subterm under point is highlighted, and what Lean reports as changed
+  since the previous goal is faced as a diff.  Setting
+  ~lean4-info-interactive~ to =nil= asks for plain-text goals instead.
+- The whole display is built from ~magit-section~: every part of it
+  folds with =TAB=, the fold indicators are drawn by ~magit-section~
+  itself, and folds survive the rebuild that a new goal causes.  It has a menu of its own,
+  offering the same controls as the Lean menu -- they all work from
+  either buffer -- alongside what only the display can do.  Menu entries
+  say what pressing them will do next.
+- Any number of pinned positions, each a section of its own above the
+  one following point, so several goals can be watched at once.  A pin
+  is a marker, so it follows its declaration through an edit and stays
+  on display after moving to another file.  Pinning no longer stops the
+  display following point.  =M-x lean4-info-unpin-all= removes them all.
+- Pausing, separately, for the display as a whole, for each pinned
+  position, and for the file's message list.  A paused section can be
+  brought up to date without unpausing it, which is VS Code's "refresh
+  paused state".
+- Messages are placed by Lean's own notion of which declaration they
+  belong to, so one about a multi-line declaration stays visible while
+  point moves through it.  Those covering point are listed under
+  =Messages= within the position's heading; every message in the file is
+  listed under =All messages=, ordered either by nearness to point, as
+  VS Code has it, or by position in the file
+  (~lean4-info-message-order~, or =C-c C-o=).  Both headings count what
+  is in them by severity -- =All messages (1 ⊗  5 ⓘ)=.  Each message is
+  a foldable section headed by its file, line and column, with a control
+  that sends point there, and terms inside a message are as interactive
+  as terms inside a goal.
 - Collapsible traces.  Lean does not send the children of a trace node
-  until asked, so unfolding one fetches it.
-- Messages in the goal display are interactive too: a term inside a type
-  mismatch behaves like a term inside a goal.
-- Pinning and pausing the goal display, both shown in its header line.
-- A menu in the goal display, offering the same controls as the Lean
-  menu -- they all work from either buffer -- alongside what only the
-  display can do.  The entries say what pressing them will do next, and
-  now read the Lean buffer's state when drawn in the display, where they
-  used only ever to offer to pin.
+  until asked, so unfolding one fetches it; children are indented under
+  the node they belong to.
+- Every control in the display is a real button, so =RET= presses the
+  one at point -- or goes to the position a message heading names -- and
+  ~forward-button~ and ~push-button~ find them.  =mouse-1= presses a
+  control and elsewhere just sets point, which is how a subterm is put
+  under ElDoc.  Every control has a key and a menu entry as well, so
+  none of them needs a mouse, and inside a pinned section the keys mean
+  that section.  The glyphs are chosen to suit each frame, and
+  ~lean4-info-pin-icon~ and its six siblings override them.
+- Where there is nothing to report the display says =No info found.=
+  rather than showing a bare heading.
+- Diagnostics understand Lean's own extensions: ~fullRange~, which is
+  what places a message against its declaration, ~isSilent~, so what
+  Lean means for the goal display alone -- the completed-proof report
+  among it -- is kept out of the editor, and ~leanTags~, which marks a
+  finished declaration.  ~lean4-flymake-minimum-severity~ decides what
+  reaches Flymake at all, default =warning=, so trace output and notes
+  no longer bury the errors; ~lean4-show-goals-accomplished~ puts a =✓=
+  against a completed proof; and =M-x lean4-diagnostics-next-sorry=
+  moves between the declarations that still use =sorry=.
 - Indentation that guesses from the layout, with =TAB= cycling through
-  the alternatives when the guess is wrong.  ~lean4-indent-function~
-  restores the previous cycle-only behaviour.
-- Completion for Unicode abbreviations through
-  ~completion-at-point-functions~, so =\\al= offers =\\alpha=.
+  the alternatives when the guess is wrong.  ~lean4-indent-offset~ sets
+  the width of a level, and ~lean4-indent-function~ restores the
+  previous cycle-only behaviour.
+- Completion through ~completion-at-point-functions~ from three sources:
+  the Unicode abbreviations, so =\al= offers =\alpha=; Lean's keywords,
+  which the server offers nothing towards for a bare word; and the
+  server's own, rewrapped so that it is not exclusive -- where Lean
+  answers nothing, whatever else is configured is still reached.
 - Semantic highlighting, when the available Eglot provides it; Eglot
-  gained semantic tokens in version 1.20.
-- A test suite: 134 unit tests, and 24 end-to-end tests that run against
-  a real Lean server.
+  gained semantic tokens in version 1.20.  Expect keywords, and =sorry=
+  and its relatives through Lean's ~leanSorryLike~ token type, rather
+  than colour for every identifier.
+- Where the server is started from is worked out rather than guessed: a
+  file inside a Lake package is served by =lake serve= from the
+  workspace root, and one outside any package by =lean --server= with
+  elan's default toolchain, as VS Code serves both.  Discovery walks to
+  the outermost =lean-toolchain=, so a package vendored under
+  =.lake/packages= is elaborated by the toolchain of the project that
+  pulled it in, and ~lean4-workspace-roots~ and
+  ~lean4-workspace-exclusions~ override where it looks.  =C-c C-r=
+  restarts the server; version 1 had an option for that key but never
+  bound it.
+- =M-x lean4-diagnose= reports how things are set up: the versions of
+  Emacs and each dependency, the Lean and Lake executables found and
+  their versions, the workspace root and its toolchain, the command the
+  server was started with, and the current diagnostics.  The counterpart
+  of VS Code's "Show Setup Information".
+- A test suite: 190 unit tests, and 35 end-to-end tests that run against
+  a real Lean server.  Both run in CI.
 
 ** Fixed
 
-- Files outside a Lake package are now served, by =lean --server= with
-  elan's default toolchain.
+- A Lake package is recognised by its =lakefile.toml= as well as by a
+  =lakefile.lean=.  Only the latter was looked for, so a package using
+  the TOML form was treated as no package at all.
 - The server command is chosen from the workspace root rather than by
   running =lake --version= in whatever directory happens to be current,
   which asked the wrong toolchain in a multi-toolchain checkout.
-- Workspace discovery walks to the outermost =lean-toolchain=, so a
-  package vendored under =.lake/packages= is elaborated by the toolchain
-  of the project that pulled it in.
-- File watching is off by default.  Lean asks to watch every =*.ilean=
-  file, which on Mathlib is tens of thousands of them.
+- File watching is off by default, behind ~lean4-enable-file-watchers~.
+  Lean asks to watch every =*.ilean= file, which on Mathlib is tens of
+  thousands of them.
+- The goal display keeps its place when it refreshes.  It is rebuilt from
+  scratch whenever the goal changes, which threw a reader part-way down a
+  long goal to the bottom of the buffer.
+- Two messages about one declaration are listed in the order they were
+  written.  They were ordered by where each message ends rather than
+  where it starts, which put them the other way round.
 - Menu entries pointed at a customize group that did not exist, and the
   README documented commands and a buffer name that did not either.
 - Opening a Lean file no longer changes anything outside its own buffer.
@@ -80,14 +175,7 @@ xref, project roots through =project.el=.
   buffer went unfontified.
 - Electric indentation is declined with ~electric-indent-inhibit~
   instead of switching ~electric-indent-local-mode~ off, which took a
-  minor mode away from anyone who had turned it on.  The goal display
-  likewise no longer turns ElDoc on for the reader.
-- The goal display follows point wherever point is moved from.  It
-  watched for movement with a hook local to the Lean buffer, so it saw
-  only commands run there: pressing a go-to control in the display sent
-  point elsewhere in the file and left the display reporting on the
-  position point had just left, until the Lean buffer was given a
-  command of its own.
+  minor mode away from anyone who had turned it on.
 
 * Version 1.1.2
 
