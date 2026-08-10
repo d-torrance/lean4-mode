@@ -59,6 +59,7 @@ Usage
 * Keys in a Lean buffer::
 * Keys in the goal display::
 * Errors and warnings::
+* Building dependencies::
 * Completion::
 
 Configuration
@@ -239,6 +240,7 @@ buffer.  To put it in a side window on the right:
 * Keys in a Lean buffer::
 * Keys in the goal display::
 * Errors and warnings::
+* Building dependencies::
 * Completion::
 
 
@@ -253,7 +255,7 @@ Key                      Description                                            
 ‘C-c C-s’                Pin the goal display to point, or unpin it                    ‘lean4-info-toggle-pin’
 ‘C-c C-SPC’              Pause or unpause the goal display                             ‘lean4-info-toggle-pause’
 ‘C-c C-k’                Echo the keystroke needed to input the symbol at point        ‘quail-show-key’
-‘C-c C-d’                Recompile and reload imports                                  ‘lean4-refresh-file-dependencies’
+‘C-c C-d’                Rebuild changed imports and reload the file                   ‘lean4-refresh-file-dependencies’
 ‘C-c C-r’                Restart the language server                                   ‘eglot-reconnect’
 ‘C-c C-x’ or ‘C-c C-l’   Execute Lean in stand-alone mode                              ‘lean4-std-exe’
 ‘C-c C-p C-l’            Build the package with Lake                                   ‘lean4-lake-build’
@@ -329,7 +331,7 @@ a trace node until something asks - a ‘simp’ trace on a real proof is
 enormous - so opening one fetches them, once.
 
 
-File: lean4-mode.info,  Node: Errors and warnings,  Next: Completion,  Prev: Keys in the goal display,  Up: Usage
+File: lean4-mode.info,  Node: Errors and warnings,  Next: Building dependencies,  Prev: Keys in the goal display,  Up: Usage
 
 2.3 Errors and warnings
 =======================
@@ -394,9 +396,35 @@ appears in the top heading, but only while pinned: unpinned, the display
 is following point and it would only lead where point already is.
 
 
-File: lean4-mode.info,  Node: Completion,  Prev: Errors and warnings,  Up: Usage
+File: lean4-mode.info,  Node: Building dependencies,  Next: Completion,  Prev: Errors and warnings,  Up: Usage
 
-2.4 Completion
+2.4 Building dependencies
+=========================
+
+Visiting a file does not build what it imports.  The server decides that
+from a field on the notification announcing the file, and ‘C-c C-d’
+(‘lean4-refresh-file-dependencies’) is what asks for a build: it closes
+and reopens the file, telling Lean to build a dependency that is out of
+date on the way.  That is the command to reach for after editing an
+import, or when the goal display reports an import that cannot be found.
+VS Code calls it "Server: Restart File".
+
+   The build happens once.  If the file worker then crashes, reopening
+the file does not set the build going again - a distinction worth having
+on a file whose imports do not compile, where the alternative is a
+rebuild per crash.
+
+   Set ‘lean4-automatically-build-dependencies’ to ‘t’ to build on every
+open instead, as VS Code's ‘lean4.automaticallyBuildDependencies’ does.
+Both default off for the same reason: on a project the size of Mathlib,
+opening one file to read it should not commit you to building everything
+beneath it.  ‘C-c C-p C-l’ (‘lean4-lake-build’) builds the package
+outright.
+
+
+File: lean4-mode.info,  Node: Completion,  Prev: Building dependencies,  Up: Usage
+
+2.5 Completion
 ==============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -458,6 +486,9 @@ File: lean4-mode.info,  Node: Frequently used options,  Next: The goal display's
    • ‘lean4-enable-file-watchers’ (default ‘nil’) - whether to honour
      the server's request to watch every ‘*.ilean’ file.  On a project
      the size of Mathlib that is tens of thousands of files.
+   • ‘lean4-automatically-build-dependencies’ (default ‘nil’) - whether
+     visiting a file may build the dependencies it imports.  See *note
+     Building dependencies::.
    • ‘lean4-server-arguments’ - extra arguments for the language server.
    • ‘lean4-workspace-roots’ and ‘lean4-workspace-exclusions’ -
      directories to treat as workspace roots, and directories in which
@@ -611,28 +642,29 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation1819
-Node: Requirements2044
-Node: From source3124
-Node: With a source-based package manager3612
-Node: Native vc (Emacs 30 or later)4123
-Node: Doom-Emacs4568
-Node: Straight4887
-Node: Upgrading from version 15244
-Node: Usage6541
-Node: Keys in a Lean buffer7825
-Node: Keys in the goal display9250
-Node: Errors and warnings13614
-Node: Completion17354
-Node: Configuration18472
-Node: Frequently used options18911
-Node: The goal display's controls20391
-Node: Older Lean versions21712
-Node: Semantic highlighting22694
-Node: Optional packages24013
-Node: Troubleshooting24506
-Node: Common Pitfalls25156
-Node: Acknowledgements25757
+Node: Installation1845
+Node: Requirements2070
+Node: From source3150
+Node: With a source-based package manager3638
+Node: Native vc (Emacs 30 or later)4149
+Node: Doom-Emacs4594
+Node: Straight4913
+Node: Upgrading from version 15270
+Node: Usage6567
+Node: Keys in a Lean buffer7877
+Node: Keys in the goal display9302
+Node: Errors and warnings13666
+Node: Building dependencies17417
+Node: Completion18679
+Node: Configuration19799
+Node: Frequently used options20238
+Node: The goal display's controls21901
+Node: Older Lean versions23222
+Node: Semantic highlighting24204
+Node: Optional packages25523
+Node: Troubleshooting26016
+Node: Common Pitfalls26666
+Node: Acknowledgements27267
 
 End Tag Table
 

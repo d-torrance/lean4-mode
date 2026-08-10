@@ -146,7 +146,7 @@ xref, project roots through =project.el=.
   their versions, the workspace root and its toolchain, the command the
   server was started with, and the current diagnostics.  The counterpart
   of VS Code's "Show Setup Information".
-- A test suite: 190 unit tests, and 35 end-to-end tests that run against
+- A test suite: 195 unit tests, and 35 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed
@@ -176,6 +176,18 @@ xref, project roots through =project.el=.
 - Electric indentation is declined with ~electric-indent-inhibit~
   instead of switching ~electric-indent-local-mode~ off, which took a
   minor mode away from anyone who had turned it on.
+- Opening a Lean file no longer builds the dependencies it imports.  Lean
+  decides that from a ~dependencyBuildMode~ field on
+  =textDocument/didOpen=, and reads its absence as "always" for the
+  benefit of clients written before the field existed -- so sending
+  nothing, as this package did, meant that visiting one file of Mathlib
+  could start a build of everything it imports.  Ordinary opens now say
+  "never" and =C-c C-d= says "once", which is what VS Code sends for each;
+  set ~lean4-automatically-build-dependencies~ to =t= for the old
+  behaviour, the counterpart of VS Code's
+  =lean4.automaticallyBuildDependencies=.  "Once" also reverts to "never"
+  on the server, so a file worker that crashes after a =C-c C-d= no
+  longer sets the build going again.
 
 * Version 1.1.2
 

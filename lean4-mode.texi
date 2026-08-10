@@ -67,6 +67,7 @@ Usage
 * Keys in a Lean buffer::
 * Keys in the goal display::
 * Errors and warnings::
+* Building dependencies::
 * Completion::
 
 Configuration
@@ -240,6 +241,7 @@ buffer.  To put it in a side window on the right:
 * Keys in a Lean buffer::
 * Keys in the goal display::
 * Errors and warnings::
+* Building dependencies::
 * Completion::
 @end menu
 
@@ -263,7 +265,7 @@ buffer.  To put it in a side window on the right:
 @tab Echo the keystroke needed to input the symbol at point
 @tab @code{quail-show-key}
 @item @samp{C-c C-d}
-@tab Recompile and reload imports
+@tab Rebuild changed imports and reload the file
 @tab @code{lean4-refresh-file-dependencies}
 @item @samp{C-c C-r}
 @tab Restart the language server
@@ -428,6 +430,29 @@ folds the way your Magit does.  The same control appears in the
 top heading, but only while pinned: unpinned, the display is following
 point and it would only lead where point already is.
 
+@node Building dependencies
+@section Building dependencies
+
+Visiting a file does not build what it imports.  The server decides that
+from a field on the notification announcing the file, and @samp{C-c C-d}
+(@code{lean4-refresh-file-dependencies}) is what asks for a build: it closes
+and reopens the file, telling Lean to build a dependency that is out of
+date on the way.  That is the command to reach for after editing an
+import, or when the goal display reports an import that cannot be found.
+VS Code calls it "Server: Restart File".
+
+The build happens once.  If the file worker then crashes, reopening the
+file does not set the build going again -- a distinction worth having on a
+file whose imports do not compile, where the alternative is a rebuild per
+crash.
+
+Set @code{lean4-automatically-build-dependencies} to @samp{t} to build on every
+open instead, as VS Code's @code{lean4.automaticallyBuildDependencies} does.
+Both default off for the same reason: on a project the size of Mathlib,
+opening one file to read it should not commit you to building everything
+beneath it.  @samp{C-c C-p C-l} (@code{lean4-lake-build}) builds the package
+outright.
+
 @node Completion
 @section Completion
 
@@ -489,6 +514,9 @@ cycles, which is what this mode did before version 2.
 @code{lean4-enable-file-watchers} (default @samp{nil}) -- whether to honour the
 server's request to watch every @samp{*.ilean} file.  On a project the size
 of Mathlib that is tens of thousands of files.
+@item
+@code{lean4-automatically-build-dependencies} (default @samp{nil}) -- whether
+visiting a file may build the dependencies it imports.  See @ref{Building dependencies}.
 @item
 @code{lean4-server-arguments} -- extra arguments for the language server.
 @item

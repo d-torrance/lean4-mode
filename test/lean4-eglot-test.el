@@ -218,5 +218,88 @@ the token a face at all."
     (should-not (fboundp 'eglot-semantic-tokens-mode))
     (should-not (lean4--setup-semantic-tokens))))
 
+;;;; Dependency builds
+
+;; A subclass, so that the `:around' method under test still applies while the
+;; primary method that would write to a process is replaced by one that
+;; records instead.  Stubbing `jsonrpc-connection-send' itself would shadow the
+;; very method being tested, and defining the replacement on
+;; `lean4-eglot-lsp-server' would shadow it for the end-to-end suite too.
+(defclass lean4-eglot-test--recorder (lean4-eglot-lsp-server) nil
+  :documentation "A server that records what it is asked to send.")
+
+(defvar lean4-eglot-test--sent nil
+  "Keyword-argument lists the recording server was asked to send.")
+
+(cl-defmethod jsonrpc-connection-send ((_server lean4-eglot-test--recorder)
+                                       &rest args &key &allow-other-keys)
+  "Record ARGS rather than writing them to a process."
+  (push args lean4-eglot-test--sent))
+
+(defun lean4-eglot-test--send (&rest args)
+  "Send ARGS through a recording server and return them as they went out.
+The server needs a live process to be constructed at all -- jsonrpc sets
+filters and buffers on it -- so it gets a pipe, which has no subprocess
+behind it and never reads what is written."
+  (let* ((lean4-eglot-test--sent nil)
+         (process (make-pipe-process :name "lean4-eglot-test" :noquery t)))
+    (unwind-protect
+        (let ((server (lean4-eglot-test--recorder
+                       :name "lean4-eglot-test" :process process)))
+          (apply #'jsonrpc-connection-send server args)
+          (car lean4-eglot-test--sent))
+      (delete-process process)
+      (dolist (buffer '(" *lean4-eglot-test output*" " *lean4-eglot-test stderr*"
+                        "*lean4-eglot-test events*"))
+        (when (get-buffer buffer) (kill-buffer buffer))))))
+
+(defun lean4-eglot-test--did-open-mode (&optional once)
+  "Return the `dependencyBuildMode' that goes out with a `didOpen'.
+With ONCE, as `lean4-refresh-file-dependencies' asks for it."
+  (let ((lean4--build-dependencies-once once))
+    (plist-get (plist-get (lean4-eglot-test--send
+                           :method :textDocument/didOpen
+                           :params '(:textDocument (:uri "file:///x.lean")))
+                          :params)
+               :dependencyBuildMode)))
+
+(ert-deftest lean4-eglot-did-open-declines-dependency-builds ()
+  "An ordinary open says so explicitly rather than saying nothing.
+Lean reads a missing `dependencyBuildMode' as \"always\", so silence
+here would build Mathlib on a file opened in order to read it."
+  (let ((lean4-automatically-build-dependencies nil))
+    (should (equal (lean4-eglot-test--did-open-mode) "never"))))
+
+(ert-deftest lean4-eglot-refresh-asks-for-one-build ()
+  "A refresh asks for \"once\", not \"always\".
+\"Once\" reverts to \"never\" on the server, so a file worker that
+crashes afterwards does not set the build going again."
+  (let ((lean4-automatically-build-dependencies nil))
+    (should (equal (lean4-eglot-test--did-open-mode 'once) "once"))))
+
+(ert-deftest lean4-eglot-dependency-builds-can-be-automatic ()
+  "The option overrides both, the way VS Code's setting does."
+  (let ((lean4-automatically-build-dependencies t))
+    (should (equal (lean4-eglot-test--did-open-mode) "always"))
+    (should (equal (lean4-eglot-test--did-open-mode 'once) "always"))))
+
+(ert-deftest lean4-eglot-did-open-keeps-the-document ()
+  "The field is added to the params rather than replacing them."
+  (should (equal (plist-get (plist-get
+                             (lean4-eglot-test--send
+                              :method :textDocument/didOpen
+                              :params '(:textDocument (:uri "file:///x.lean")))
+                             :params)
+                            :textDocument)
+                 '(:uri "file:///x.lean"))))
+
+(ert-deftest lean4-eglot-other-messages-are-untouched ()
+  "Only `textDocument/didOpen' gains the field."
+  (should-not (plist-member (plist-get (lean4-eglot-test--send
+                                        :method :textDocument/didClose
+                                        :params '(:textDocument nil))
+                                       :params)
+                            :dependencyBuildMode)))
+
 (provide 'lean4-eglot-test)
 ;;; lean4-eglot-test.el ends here

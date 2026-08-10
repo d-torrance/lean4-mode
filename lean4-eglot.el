@@ -425,6 +425,64 @@ loop.  The accessor arrived in jsonrpc 1.0.17, after the version Emacs
   "Refresh Lean's own views after SERVER publishes diagnostics for URI."
   (lean4--schedule-diagnostics server uri))
 
+;;;; Dependency builds
+
+(defcustom lean4-automatically-build-dependencies nil
+  "Whether opening a file may build the dependencies it imports.
+The counterpart of VS Code's `lean4.automaticallyBuildDependencies',
+which defaults off as well.
+
+Lean settles this per `textDocument/didOpen': the server runs `lake
+setup-file', and passes `--no-build --no-cache' to it only when the
+client has asked that dependencies not be built.  With nil, visiting a
+file never starts a build, and `lean4-refresh-file-dependencies' is how
+to ask for one.  With t, every open builds whatever is out of date,
+which on a project the size of Mathlib can be a long wait on a file you
+meant only to read."
+  :group 'lean4
+  :type 'boolean)
+
+(defvar lean4--build-dependencies-once nil
+  "When non-nil, the next `textDocument/didOpen' builds dependencies once.
+Bound by `lean4-refresh-file-dependencies'; read by
+`lean4--dependency-build-mode'.")
+
+(defun lean4--dependency-build-mode ()
+  "Return the `dependencyBuildMode' to send with a `textDocument/didOpen'.
+
+Lean offers three: \"never\", \"once\" and \"always\".  \"once\" builds
+on this open and then reverts to \"never\", so that a file worker which
+crashes and is restarted does not set the build going again -- which is
+what an explicit refresh wants and what makes it different from
+\"always\".
+
+A client that sends no mode at all is read as \"always\", for
+compatibility with clients written before the field existed.  That is
+why this is sent on every open rather than only on a refresh: the field
+has to be present even in order to say \"never\"."
+  (cond (lean4-automatically-build-dependencies "always")
+        (lean4--build-dependencies-once "once")
+        (t "never")))
+
+(cl-defmethod jsonrpc-connection-send :around
+  ((server lean4-eglot-lsp-server) &rest args &key method params
+   &allow-other-keys)
+  "Say whether SERVER may build dependencies for a file being opened.
+
+`dependencyBuildMode' rides on the `textDocument/didOpen' params, which
+Eglot assembles itself and offers no hook into, so it is added here, on
+the way out.  Every open passes through this, Eglot's own included; see
+`lean4--dependency-build-mode' for why saying nothing is not an option.
+
+Other messages are passed along untouched."
+  (if (eq method :textDocument/didOpen)
+      (apply #'cl-call-next-method server
+             (plist-put (copy-sequence args) :params
+                        (plist-put (copy-sequence params)
+                                   :dependencyBuildMode
+                                   (lean4--dependency-build-mode))))
+    (apply #'cl-call-next-method server args)))
+
 ;;;; File watching
 
 (defcustom lean4-enable-file-watchers nil
@@ -456,12 +514,17 @@ it buys."
   "Reload the current file and its imports on the server.
 Closing and reopening the document makes the file worker restart, which
 is what picks up a dependency that has been rebuilt since the file was
-opened."
+opened.  Lean is asked to build a dependency that is out of date, once,
+which is what makes this the way to act on an import just edited even
+when `lean4-automatically-build-dependencies' is nil.
+
+VS Code calls this \"Server: Restart File\"."
   (interactive)
   (unless (eglot-current-server)
     (user-error "No Lean server is running for this buffer"))
   (eglot--signal-textDocument/didClose)
-  (eglot--signal-textDocument/didOpen))
+  (let ((lean4--build-dependencies-once t))
+    (eglot--signal-textDocument/didOpen)))
 
 (provide 'lean4-eglot)
 ;;; lean4-eglot.el ends here
