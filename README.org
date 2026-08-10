@@ -120,8 +120,10 @@ are served by =lake serve=, so the package's dependencies are on the
 search path; a file outside one is served by =lean --server= using
 whichever toolchain elan selects.
 
-Type =#check id= and the word =#check= is underlined; point on =id=
-reports its type through ElDoc.
+Type =#check id= and Lean's answer appears in the goal display, which is
+where a =#check= reply belongs: Lean sends it as a note rather than as a
+problem, so nothing is underlined in the file -- see [[*Errors and
+warnings]].  Point on =id= reports its type through ElDoc.
 
 The =*Lean Goal*= buffer, the counterpart of the Info-View pane in VS
 Code, appears by itself and shows the proof state at point.  It is
@@ -143,74 +145,84 @@ buffer.  To put it in a side window on the right:
 
 ** Keys in a Lean buffer
 
-| Key                    | Description                                              | Command                           |
-|------------------------+----------------------------------------------------------+-----------------------------------|
-| =C-c C-i=              | Show or hide the goal display                            | ~lean4-toggle-info~               |
-| =C-c C-s=              | Pin the goal display to point, or unpin it               | ~lean4-info-toggle-pin~           |
-| =C-c C-SPC=            | Pause or unpause the goal display                        | ~lean4-info-toggle-pause~         |
-| =C-c C-k=              | Echo the keystroke needed to input the symbol at point    | ~quail-show-key~                  |
-| =C-c C-d=              | Rebuild changed imports and reload the file              | ~lean4-refresh-file-dependencies~ |
-|                        | -- the same command under the name Lean's messages use    | ~lean4-restart-file~              |
-| =C-c C-r=              | Restart the language server                              | ~eglot-reconnect~                 |
-| =C-c C-x= or =C-c C-l= | Execute Lean in stand-alone mode                         | ~lean4-std-exe~                   |
-| =C-c C-p C-l=          | Build the package, fetching the cache first              | ~lean4-lake-build~                |
-| =C-c C-p C-c=          | Fetch Mathlib's build cache for the package              | ~lean4-lake-fetch-cache~          |
-| =C-c C-p C-f=          | Fetch Mathlib's build cache for this file                | ~lean4-lake-fetch-file-cache~     |
-| =TAB=                  | Indent, cycling through the alternatives when pressed again | ~lean4-tab-indent~             |
+| Key                    | Description                                              | Command                                |
+|------------------------+----------------------------------------------------------+----------------------------------------|
+| =C-c C-i=              | Show or hide the goal display                            | ~lean4-toggle-info~                    |
+| =C-c C-s=              | Pin the goal display to point, or unpin it               | ~lean4-info-toggle-pin~                |
+| =C-c C-SPC=            | Pause or unpause the goal display                        | ~lean4-info-toggle-pause~              |
+| =C-c C-g=              | Bring a paused goal display up to date                   | ~lean4-info-refresh-paused~            |
+| =C-c C-a=              | Pause or unpause the file's message list                 | ~lean4-info-toggle-all-messages-pause~ |
+| =C-c C-o=              | Order that list by position or by nearness               | ~lean4-info-toggle-message-order~      |
+| =C-c C-k=              | Echo the keystroke needed to input the symbol at point    | ~quail-show-key~                      |
+| =C-c C-d=              | Rebuild changed imports and reload the file              | ~lean4-refresh-file-dependencies~      |
+|                        | -- the same command under the name Lean's messages use    | ~lean4-restart-file~                  |
+| =C-c C-r=              | Restart the language server                              | ~eglot-reconnect~                      |
+| =C-c C-x= or =C-c C-l= | Execute Lean in stand-alone mode                         | ~lean4-std-exe~                        |
+| =C-c C-p C-l=          | Build the package, fetching the cache first              | ~lean4-lake-build~                     |
+| =C-c C-p C-c=          | Fetch Mathlib's build cache for the package              | ~lean4-lake-fetch-cache~               |
+| =C-c C-p C-f=          | Fetch Mathlib's build cache for this file                | ~lean4-lake-fetch-file-cache~          |
+| =TAB=                  | Indent, cycling through the alternatives when pressed again | ~lean4-tab-indent~                  |
+
+The five that act on the goal display -- =C-c C-s=, =C-c C-SPC=,
+=C-c C-g=, =C-c C-a= and =C-c C-o= -- are bound inside the display too,
+so it can be driven from either buffer.
 
 ** Keys in the goal display
 
 Goals arrive as trees in which every subterm is labelled, so point can
 rest on any part of a goal and ask about it.
 
-| Key            | Description                                    | Command                           |
-|----------------+------------------------------------------------+-----------------------------------|
-| =RET=          | Press the control at point, or go to a message's position | ~lean4-info-return~    |
-| =M-.=          | Jump to the definition of the subterm at point  | ~xref-find-definitions~           |
-| =C-c C-t=      | Jump to the definition of its type             | ~lean4-info-goto-type-definition~ |
-| =TAB=          | Fold or unfold the trace or section at point   | ~lean4-info-toggle-fold~          |
-| =C-c C-s=      | Pin this position, or unpin the section point is in | ~lean4-info-toggle-pin~      |
-| =C-c C-SPC=    | Pause or unpause the display                   | ~lean4-info-toggle-pause~         |
-| =C-c C-g=      | Bring a paused display up to date              | ~lean4-info-refresh-paused~       |
-| =C-c C-a=      | Pause or unpause the file's message list       | ~lean4-info-toggle-all-messages-pause~ |
-| =C-c C-o=      | Order that list by position or by nearness     | ~lean4-info-toggle-message-order~ |
+| Key         | Description                                         | Command                                |
+|-------------+-----------------------------------------------------+----------------------------------------|
+| =RET=       | Press the control at point, or go to a message's position | ~lean4-info-return~               |
+| =M-.=       | Jump to the definition of the subterm at point      | ~xref-find-definitions~                |
+| =C-c C-t=   | Jump to the definition of its type                  | ~lean4-info-goto-type-definition~      |
+| =TAB=       | Fold or unfold the trace or section at point        | ~magit-section-toggle~                 |
+| =C-c C-s=   | Pin this position, or unpin the section point is in | ~lean4-info-toggle-pin~                |
+| =C-c C-SPC= | Pause or unpause the display                        | ~lean4-info-toggle-pause~              |
+| =C-c C-g=   | Bring a paused display up to date                   | ~lean4-info-refresh-paused~            |
+| =C-c C-a=   | Pause or unpause the file's message list            | ~lean4-info-toggle-all-messages-pause~ |
+| =C-c C-o=   | Order that list by position or by nearness          | ~lean4-info-toggle-message-order~      |
+
+Folding and movement come from ~magit-section~, this being one of its
+buffers: =TAB=, =n=, =p=, =M-n= and =M-p= mean in the goal display
+whatever they mean in a Magit buffer.
 
 Pinning a position keeps it on display as a section of its own, above
 the section following point, and any number of positions can be pinned.
 Each keeps updating: a pin is a marker, so it follows its declaration as
 the file is edited, and it stays on display after moving to another
-file.  Each pinned section has its own controls -- one back to the position,
-one to pause it, one to bring it up to date while paused, and one to
-unpin it.  Pausing a pin is separate from pinning it: a pinned goal
-follows its declaration through an edit unless told otherwise.  Pinning happens at point, so the followed
-section is left out until point moves, rather than showing the same
-position twice; returning to a pinned position later does show both.
+file.  Each pinned section has its own controls -- one back to the
+position, one to pause it, one to bring it up to date while paused, and
+one to unpin it.  Pinning happens at point, so the followed section is
+left out until point moves, rather than showing the same position twice;
+returning to a pinned position later does show both.
 
 =M-x lean4-info-unpin-all= removes every pin at once, which is quicker
 than unpinning several by hand; it is =Unpin every position= in both
 menus.
 
+Pinning and pausing are separate, and both can hold at once: pinned
+means the display has stopped following point, paused that it has
+stopped updating at all.  So a pinned section still follows its
+declaration through an edit until it is paused too.
+
 Every control has a key and a menu entry as well, so none of them needs
 a mouse.  The menu entries are the same in the Lean menu and in the goal
 display's own, since every one of these commands works from either
 buffer; each says what pressing it will do next, so an item reads
-"Unpin this position" where the position is already pinned.
-With several pins there is no one pin for a key to mean, so
-=C-c C-s= means the section point is standing in: inside a pinned
-section it unpins that one, and anywhere else it pins or unpins the
-position point is on in the Lean buffer.  =C-c C-SPC= and =C-c C-g= read the same way: inside a
+"Unpin this position" where the position is already pinned.  With
+several pins there is no one pin for a key to mean, so =C-c C-s= means
+the section point is standing in: inside a pinned section it unpins that
+one, and anywhere else it pins or unpins the position point is on in the
+Lean buffer.  =C-c C-SPC= and =C-c C-g= read the same way: inside a
 pinned section they pause and refresh that section, anywhere else the
 one following point.  =RET= reaches the two things in the display that
 lead anywhere: on a control it does what clicking it would, and on a
 message heading it goes to the place the message was reported for.
-Every control is therefore reachable without a mouse.
 
-The last two are bound here as well as in the Lean buffer, so the
-display can be pinned or paused without leaving it.  Clicking their
-controls does the same, and leaves the keyboard in the Lean buffer
-rather than taking focus, as VS Code does.  Both states can hold at
-once, and the heading says so: pinned means the display has stopped
-following point, paused that it has stopped updating at all.
+Clicking a control does what its key does, and puts the keyboard back in
+the Lean buffer rather than taking focus, as VS Code does.
 
 Where there is nothing at point to report -- outside a proof, say -- the
 display says =No info found.= rather than going blank, which would read
@@ -346,14 +358,15 @@ message are as interactive as terms inside a goal.
 Those covering point are listed under =Messages=, set in under the
 heading naming the position, along with the goals and the expected type.
 Every message in the file is listed under =All messages=, at the outer
-level, with two controls of its own: one orders the list by nearness to point or by
-position in the file -- nearness first by default, as in VS Code, whose
-manual has All Messages "sorted by their proximity to the text cursor by
-default" -- and one holds the list as it is, separately from the pause in
-the position heading.  While the display is paused a third control
-appears in the position heading, between the way back to the pinned
-position and the pin, which brings it up to date without unpausing it.  Both headings count what is in them by severity, the way VS
-Code's do -- =All messages (1 ⊗  5 ⓘ)= for a file with one error and
+level, with two controls of its own: one orders the list by nearness to
+point or by position in the file -- nearness first by default, as in VS
+Code, whose manual has All Messages "sorted by their proximity to the
+text cursor by default" -- and one holds the list as it is, separately
+from the pause in the position heading.  While the display is paused a
+third control appears in the position heading, between the way back to
+the pinned position and the pin, which brings it up to date without
+unpausing it.  Both headings count what is in them by severity, the way
+VS Code's do -- =All messages (1 ⊗  5 ⓘ)= for a file with one error and
 five notes.
 
 Messages Lean marks as being for the goal display rather than the
@@ -592,7 +605,7 @@ rather than by name:
 
 Loogle's own page documents the syntax.
 
-The query is read with the Lean input method inherited, so =lpha= becomes
+The query is read with the Lean input method inherited, so =\alpha= becomes
 α in the minibuffer exactly as it would in a Lean buffer -- which is the
 point of asking from inside Emacs rather than in a browser tab, since
 Loogle's syntax leans on notation.  An active region is offered as the
@@ -780,9 +793,18 @@ The glyphs are chosen for whichever frame they are drawn in, decided
 each time rather than once at startup, so one Emacs serving both a
 graphical frame and a terminal gets the right thing in each.  A
 graphical frame usually gets =📌 📍 ⏸ ⏵=, a terminal =⌖ ⌾ ⏸ ⏵=, and a
-display with nothing but ASCII gets =P [P] || >=.  Set
-~lean4-info-pin-icon~, ~lean4-info-unpin-icon~, ~lean4-info-pause-icon~
-or ~lean4-info-resume-icon~ to override.
+display with nothing but ASCII gets =P [P] || >=.
+
+Every one of the seven is an option, so any of them can be set to a
+string of your own instead: ~lean4-info-pin-icon~,
+~lean4-info-unpin-icon~, ~lean4-info-pause-icon~ and
+~lean4-info-resume-icon~ for those four, and ~lean4-info-goto-icon~
+(=↪=), ~lean4-info-refresh-icon~ (=⟳=) and ~lean4-info-sort-icon~ (=⇅=)
+for the way to a position, the refresh of a paused section and the order
+of the message list.  The last three do not swap glyph: going somewhere
+and refreshing have no second state, and neither message order is the
+one to warn about, so the face says which is in force and the tooltip
+says what a click would change it to.
 
 ** Older Lean versions
 

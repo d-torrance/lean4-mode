@@ -18,11 +18,12 @@ xref, project roots through =project.el=.
 - Maintenance has moved to [[https://github.com/d-torrance/lean4-mode][d-torrance/lean4-mode]];
   a package recipe pointing at the old repository will not see this
   release.
-- Dependencies: =dash= and =compat= are gone; =eri= and =magit-section=
-  (3.3.0 or later) remain.  Indentation cycling now comes from the =eri=
-  package on Melpa, which is the upstream of the copy this package used
-  to vendor, so ~lean4-eri-indent~ and ~lean4-eri-indent-reverse~ are
-  now ~eri-indent~.
+- Dependencies: =dash= and =compat= are gone, =magit-section= stays but
+  wants 3.3.0 rather than 2.90.1, and =eri= is new.  Indentation cycling
+  now comes from that =eri= package on Melpa, which is the upstream of
+  the copy this package used to vendor, so ~lean4-eri-indent~ and
+  ~lean4-eri-indent-reverse~ are now ~eri-indent~ and
+  ~eri-indent-reverse~.
 - Diagnostics come from Flymake rather than Flycheck.
 - The ~lean4-keybinding-*~ options are gone, and with them the
   =lean4-keybinding= customize group.  Keys live in ~lean4-mode-map~ and
@@ -30,7 +31,7 @@ xref, project roots through =project.el=.
 - ~lean4-mode-hook~ is an ordinary mode hook again; whether the server
   starts automatically is now ~lean4-auto-start-server~, default =t=.
 - ~lean4-extra-arguments~ is renamed ~lean4-server-arguments~, with the
-  old name kept as an alias.
+  old name kept as an obsolete alias.
 - Lean 3 autodetection is removed, along with ~lean4-autodetect-lean3~.
   It ran =lean -v= on every =.lean= file opened.
 - ~lean4-syntax-table~ is renamed ~lean4-mode-syntax-table~, the name
@@ -72,10 +73,10 @@ xref, project roots through =project.el=.
   ~lean4-info-interactive~ to =nil= asks for plain-text goals instead.
 - The whole display is built from ~magit-section~: every part of it
   folds with =TAB=, the fold indicators are drawn by ~magit-section~
-  itself, and folds survive the rebuild that a new goal causes.  It has a menu of its own,
-  offering the same controls as the Lean menu -- they all work from
-  either buffer -- alongside what only the display can do.  Menu entries
-  say what pressing them will do next.
+  itself, and folds survive the rebuild that a new goal causes.  It has
+  a menu of its own, offering the same controls as the Lean menu -- they
+  all work from either buffer -- alongside what only the display can do.
+  Menu entries say what pressing them will do next.
 - Any number of pinned positions, each a section of its own above the
   one following point, so several goals can be watched at once.  A pin
   is a marker, so it follows its declaration through an edit and stays
@@ -164,13 +165,6 @@ xref, project roots through =project.el=.
   sent them and rendered on the way into the buffer, so a change costs a
   redraw rather than another request -- and so reaches a pinned or paused
   section, where re-fetching would be the wrong thing.
-- The goals at point are headed =Tactic state=, with the number of them
-  on the line below, both as VS Code words and places them.  The heading
-  read =Goals:= and there was no count.  A single goal is counted too, so
-  the line is there on every proof; a finished proof still reads =goals
-  accomplished=, where VS Code counts nothing either.  The expected type
-  is headed =Expected type= rather than =Expected type:=, neither heading
-  taking a colon in VS Code.
 - Projects can be started from Emacs: ~lean4-new-project~,
   ~lean4-new-mathlib-project~ and ~lean4-download-project~, the
   counterparts of VS Code's "Create Standalone Project", "Create Project
@@ -202,15 +196,6 @@ xref, project roots through =project.el=.
   is on, indented with it.  The counterparts of VS Code's "Copy State",
   "Copy Message" and "Copy Contents to Comment".  The state is copied in
   full, whatever the display is set to hide, as VS Code copies it.
-- ~lean4-lake-build~ now does what VS Code's "Build Project" does, rather
-  than a bare =lake build=: =lake resolve-deps=, then =lake exe cache
-  get= where Mathlib's =cache= executable exists, then =lake build=, each
-  conditional on the one before and all reporting into one compilation
-  buffer.  On a project depending on Mathlib the cache step is the
-  difference between minutes and hours; where there is no such executable
-  it is skipped without complaint, but a download that fails stops the
-  build instead of leaving it to compile Mathlib locally.  For a bare
-  =lake build=, use =M-x compile=.
 - =M-x lean4-loogle-search= searches Mathlib with
   [[https://loogle.lean-lang.org][Loogle]], which matches by shape rather than by name.  Results are listed
   in a =*Lean Loogle*= buffer with their module and type; =RET= opens a
@@ -259,6 +244,25 @@ xref, project roots through =project.el=.
 - A test suite: 330 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
+** Changed
+
+- The goals at point are headed =Tactic state=, with the number of them
+  on the line below, both as VS Code words and places them.  The heading
+  read =Goals:= and there was no count.  A single goal is counted too, so
+  the line is there on every proof; a finished proof still reads =goals
+  accomplished=, where VS Code counts nothing either.  The expected type
+  is headed =Expected type= rather than =Expected type:=, neither heading
+  taking a colon in VS Code.
+- ~lean4-lake-build~ does what VS Code's "Build Project" does, rather
+  than a bare =lake build=: =lake resolve-deps=, then =lake exe cache
+  get= where Mathlib's =cache= executable exists, then =lake build=, each
+  conditional on the one before and all reporting into one compilation
+  buffer.  On a project depending on Mathlib the cache step is the
+  difference between minutes and hours; where there is no such executable
+  it is skipped without complaint, but a download that fails stops the
+  build instead of leaving it to compile Mathlib locally.  For a bare
+  =lake build=, use =M-x compile=.
+
 ** Fixed
 
 - A Lake package is recognised by its =lakefile.toml= as well as by a
@@ -283,12 +287,6 @@ xref, project roots through =project.el=.
   Lean input method in every other buffer, and it emptied
   ~compilation-mode-font-lock-keywords~, so every later =M-x compile=
   buffer went unfontified.
-- The =✓= against a completed proof now appears at all.  It was drawn as an
-  empty overlay carrying a string and then given the ~evaporate~ property,
-  which Emacs honours by deleting an empty overlay the instant it is set --
-  so the marker was destroyed before it could be displayed and
-  ~lean4-show-goals-accomplished~ did nothing.  Found while giving the
-  unsolved-goals marker the same treatment.
 - Electric indentation is declined with ~electric-indent-inhibit~
   instead of switching ~electric-indent-local-mode~ off, which took a
   minor mode away from anyone who had turned it on.

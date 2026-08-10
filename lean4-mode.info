@@ -243,8 +243,10 @@ are served by ‘lake serve’, so the package's dependencies are on the
 search path; a file outside one is served by ‘lean --server’ using
 whichever toolchain elan selects.
 
-   Type ‘#check id’ and the word ‘#check’ is underlined; point on ‘id’
-reports its type through ElDoc.
+   Type ‘#check id’ and Lean's answer appears in the goal display, which
+is where a ‘#check’ reply belongs: Lean sends it as a note rather than
+as a problem, so nothing is underlined in the file - see *note Errors
+and warnings::.  Point on ‘id’ reports its type through ElDoc.
 
    The ‘*Lean Goal*’ buffer, the counterpart of the Info-View pane in VS
 Code, appears by itself and shows the proof state at point.  It is
@@ -288,10 +290,13 @@ File: lean4-mode.info,  Node: Keys in a Lean buffer,  Next: Keys in the goal dis
 =========================
 
 Key                      Description                                                   Command
----------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------
 ‘C-c C-i’                Show or hide the goal display                                 ‘lean4-toggle-info’
 ‘C-c C-s’                Pin the goal display to point, or unpin it                    ‘lean4-info-toggle-pin’
 ‘C-c C-SPC’              Pause or unpause the goal display                             ‘lean4-info-toggle-pause’
+‘C-c C-g’                Bring a paused goal display up to date                        ‘lean4-info-refresh-paused’
+‘C-c C-a’                Pause or unpause the file's message list                      ‘lean4-info-toggle-all-messages-pause’
+‘C-c C-o’                Order that list by position or by nearness                    ‘lean4-info-toggle-message-order’
 ‘C-c C-k’                Echo the keystroke needed to input the symbol at point        ‘quail-show-key’
 ‘C-c C-d’                Rebuild changed imports and reload the file                   ‘lean4-refresh-file-dependencies’
                          - the same command under the name Lean's messages use         ‘lean4-restart-file’
@@ -301,6 +306,10 @@ Key                      Description                                            
 ‘C-c C-p C-c’            Fetch Mathlib's build cache for the package                   ‘lean4-lake-fetch-cache’
 ‘C-c C-p C-f’            Fetch Mathlib's build cache for this file                     ‘lean4-lake-fetch-file-cache’
 ‘TAB’                    Indent, cycling through the alternatives when pressed again   ‘lean4-tab-indent’
+
+   The five that act on the goal display - ‘C-c C-s’, ‘C-c C-SPC’, ‘C-c
+C-g’, ‘C-c C-a’ and ‘C-c C-o’ - are bound inside the display too, so it
+can be driven from either buffer.
 
 
 File: lean4-mode.info,  Node: Keys in the goal display,  Next: The tactic state,  Prev: Keys in a Lean buffer,  Up: Usage
@@ -316,12 +325,16 @@ Key           Description                                                 Comman
 ‘RET’         Press the control at point, or go to a message's position   ‘lean4-info-return’
 ‘M-.’         Jump to the definition of the subterm at point              ‘xref-find-definitions’
 ‘C-c C-t’     Jump to the definition of its type                          ‘lean4-info-goto-type-definition’
-‘TAB’         Fold or unfold the trace or section at point                ‘lean4-info-toggle-fold’
+‘TAB’         Fold or unfold the trace or section at point                ‘magit-section-toggle’
 ‘C-c C-s’     Pin this position, or unpin the section point is in         ‘lean4-info-toggle-pin’
 ‘C-c C-SPC’   Pause or unpause the display                                ‘lean4-info-toggle-pause’
 ‘C-c C-g’     Bring a paused display up to date                           ‘lean4-info-refresh-paused’
 ‘C-c C-a’     Pause or unpause the file's message list                    ‘lean4-info-toggle-all-messages-pause’
 ‘C-c C-o’     Order that list by position or by nearness                  ‘lean4-info-toggle-message-order’
+
+   Folding and movement come from ‘magit-section’, this being one of its
+buffers: ‘TAB’, ‘n’, ‘p’, ‘M-n’ and ‘M-p’ mean in the goal display
+whatever they mean in a Magit buffer.
 
    Pinning a position keeps it on display as a section of its own, above
 the section following point, and any number of positions can be pinned.
@@ -329,15 +342,18 @@ Each keeps updating: a pin is a marker, so it follows its declaration as
 the file is edited, and it stays on display after moving to another
 file.  Each pinned section has its own controls - one back to the
 position, one to pause it, one to bring it up to date while paused, and
-one to unpin it.  Pausing a pin is separate from pinning it: a pinned
-goal follows its declaration through an edit unless told otherwise.
-Pinning happens at point, so the followed section is left out until
-point moves, rather than showing the same position twice; returning to a
-pinned position later does show both.
+one to unpin it.  Pinning happens at point, so the followed section is
+left out until point moves, rather than showing the same position twice;
+returning to a pinned position later does show both.
 
    ‘M-x lean4-info-unpin-all’ removes every pin at once, which is
 quicker than unpinning several by hand; it is ‘Unpin every position’ in
 both menus.
+
+   Pinning and pausing are separate, and both can hold at once: pinned
+means the display has stopped following point, paused that it has
+stopped updating at all.  So a pinned section still follows its
+declaration through an edit until it is paused too.
 
    Every control has a key and a menu entry as well, so none of them
 needs a mouse.  The menu entries are the same in the Lean menu and in
@@ -352,14 +368,9 @@ pinned section they pause and refresh that section, anywhere else the
 one following point.  ‘RET’ reaches the two things in the display that
 lead anywhere: on a control it does what clicking it would, and on a
 message heading it goes to the place the message was reported for.
-Every control is therefore reachable without a mouse.
 
-   The last two are bound here as well as in the Lean buffer, so the
-display can be pinned or paused without leaving it.  Clicking their
-controls does the same, and leaves the keyboard in the Lean buffer
-rather than taking focus, as VS Code does.  Both states can hold at
-once, and the heading says so: pinned means the display has stopped
-following point, paused that it has stopped updating at all.
+   Clicking a control does what its key does, and puts the keyboard back
+in the Lean buffer rather than taking focus, as VS Code does.
 
    Where there is nothing at point to report - outside a proof, say -
 the display says ‘No info found.’ rather than going blank, which would
@@ -801,7 +812,7 @@ which searches Mathlib by shape rather than by name:
 
    Loogle's own page documents the syntax.
 
-   The query is read with the Lean input method inherited, so ‘lpha’
+   The query is read with the Lean input method inherited, so ‘\alpha’
 becomes α in the minibuffer exactly as it would in a Lean buffer - which
 is the point of asking from inside Emacs rather than in a browser tab,
 since Loogle's syntax leans on notation.  An active region is offered as
@@ -1034,9 +1045,18 @@ state on a frame with no second glyph to swap to.
 each time rather than once at startup, so one Emacs serving both a
 graphical frame and a terminal gets the right thing in each.  A
 graphical frame usually gets ‘📌 📍 ⏸ ⏵’, a terminal ‘⌖ ⌾ ⏸ ⏵’, and a
-display with nothing but ASCII gets ‘P [P] || >’.  Set
-‘lean4-info-pin-icon’, ‘lean4-info-unpin-icon’, ‘lean4-info-pause-icon’
-or ‘lean4-info-resume-icon’ to override.
+display with nothing but ASCII gets ‘P [P] || >’.
+
+   Every one of the seven is an option, so any of them can be set to a
+string of your own instead: ‘lean4-info-pin-icon’,
+‘lean4-info-unpin-icon’, ‘lean4-info-pause-icon’ and
+‘lean4-info-resume-icon’ for those four, and ‘lean4-info-goto-icon’
+(‘↪’), ‘lean4-info-refresh-icon’ (‘⟳’) and ‘lean4-info-sort-icon’ (‘⇅’)
+for the way to a position, the refresh of a paused section and the order
+of the message list.  The last three do not swap glyph: going somewhere
+and refreshing have no second state, and neither message order is the
+one to warn about, so the face says which is in force and the tooltip
+says what a click would change it to.
 
 
 File: lean4-mode.info,  Node: Older Lean versions,  Next: Semantic highlighting,  Prev: The goal display's controls,  Up: Configuration
@@ -1271,37 +1291,37 @@ Node: Doom-Emacs5171
 Node: Straight5490
 Node: Upgrading from version 15847
 Node: Usage7144
-Node: Keys in a Lean buffer8829
-Node: Keys in the goal display10611
-Node: The tactic state15131
-Node: Copying what is on display16350
-Node: How much of a goal to show17377
-Node: Errors and warnings20888
-Node: Building dependencies24983
-Node: Starting a project26253
-Node: Building28045
-Node: Mathlib's build cache29237
-Node: Choosing which Lean to use30594
-Node: Elan itself32929
-Node: Git and curl34145
-Node: Searching Mathlib with Loogle35892
-Node: The module hierarchy37907
-Node: It needs a built project39950
-Node: Other Lake operations40600
-Node: Completion42025
-Node: Finding a symbol you cannot name43188
-Node: Configuration44439
-Node: Frequently used options44878
-Node: The goal display's controls46541
-Node: Older Lean versions47862
-Node: Semantic highlighting48844
-Node: Optional packages50163
-Node: Troubleshooting50656
-Node: Where the documentation is52240
-Node: "Timed out after 30 seconds" opening a file outside a project53251
-Node: "Imports are out of date and must be rebuilt"54439
-Node: Common Pitfalls55962
-Node: Acknowledgements56563
+Node: Keys in a Lean buffer9003
+Node: Keys in the goal display11375
+Node: The tactic state15910
+Node: Copying what is on display17129
+Node: How much of a goal to show18156
+Node: Errors and warnings21667
+Node: Building dependencies25762
+Node: Starting a project27032
+Node: Building28824
+Node: Mathlib's build cache30016
+Node: Choosing which Lean to use31373
+Node: Elan itself33708
+Node: Git and curl34924
+Node: Searching Mathlib with Loogle36671
+Node: The module hierarchy38687
+Node: It needs a built project40730
+Node: Other Lake operations41380
+Node: Completion42805
+Node: Finding a symbol you cannot name43968
+Node: Configuration45219
+Node: Frequently used options45658
+Node: The goal display's controls47321
+Node: Older Lean versions49193
+Node: Semantic highlighting50175
+Node: Optional packages51494
+Node: Troubleshooting51987
+Node: Where the documentation is53571
+Node: "Timed out after 30 seconds" opening a file outside a project54582
+Node: "Imports are out of date and must be rebuilt"55770
+Node: Common Pitfalls57293
+Node: Acknowledgements57894
 
 End Tag Table
 
