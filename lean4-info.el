@@ -683,20 +683,40 @@ still had none."
 (defun lean4-info-mouse-1 (event)
   "Do whatever EVENT was clicked on.
 
-A control does what it says; anywhere else folds the section clicked.
+A control does what it says, a heading folds, and anywhere else point
+simply moves there -- which is what most of this buffer is for: the
+goals are made of subterms, and clicking one is how the reader asks
+ElDoc what it is.  Folding on a click anywhere took that away, and
+folded the subterm out of sight into the bargain.
+
 One command rather than a binding per control: `magit-section' puts its
 own keymap over a section, and the way to be heard through that is its
 `keymap' slot, which is per section rather than per character.  Reading
-the click position tells us which control it was, so the section-wide
+the click position tells us what was clicked, so the section-wide
 binding is enough."
   (interactive "e")
   (let ((posn (event-start event)))
     (with-selected-window (posn-window posn)
       (let ((position (posn-point posn)))
-        (if-let* ((command (get-text-property position 'lean4-info-command)))
-            (lean4-info--run-control command)
+        (cond
+         ((get-text-property position 'lean4-info-command)
+          (lean4-info--run-control
+           (get-text-property position 'lean4-info-command)))
+         ((lean4-info--on-heading-p position)
           (goto-char position)
-          (call-interactively #'magit-section-toggle))))))
+          (call-interactively #'magit-section-toggle))
+         (t (goto-char position)))))))
+
+(defun lean4-info--on-heading-p (&optional position)
+  "Return non-nil if POSITION, or point, is on a heading that folds."
+  (let ((position (or position (point))))
+    (when-let* ((section (save-excursion (goto-char position)
+                                         (magit-current-section)))
+                (start (oref section start)))
+      (and (oref section content)
+           (<= start position)
+           (<= position (save-excursion (goto-char start)
+                                        (line-end-position)))))))
 
 (defvar-keymap lean4-info-section-map
   :doc "Keymap over every section of the goal display.

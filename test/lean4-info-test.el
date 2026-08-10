@@ -240,6 +240,30 @@ position and the one for the file."
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
+(ert-deftest lean4-info-a-click-folds-only-on-a-heading ()
+  "Clicking a heading folds it; clicking its body only moves point.
+
+Regression test.  Folding on a click anywhere meant the goals could not
+be clicked at all -- they are made of subterms, and clicking one is how
+the reader asks ElDoc what it is -- and the click folded the subterm out
+of sight as well."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (with-current-buffer lean4-info-buffer-name
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (magit-insert-section (lean4-info-section 'root)
+            (magit-insert-section (lean4-info-section 'goals)
+              (magit-insert-heading "Goals:")
+              (magit-insert-section-body (insert "⊢ n + 0 = n\n")))))
+        (let* ((section (car (oref magit-root-section children)))
+               (heading (oref section start))
+               (body (save-excursion (goto-char heading)
+                                     (line-beginning-position 2))))
+          (should (lean4-info--on-heading-p heading))
+          (should-not (lean4-info--on-heading-p body))))
+    (kill-buffer lean4-info-buffer-name)))
+
 (ert-deftest lean4-info-sections-are-told-apart-across-a-rebuild ()
   "Folding one section does not fold its siblings when the display rebuilds.
 
