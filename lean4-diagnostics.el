@@ -167,6 +167,14 @@ everything, as VS Code's Problems view does."
              (lean4-diagnostics-tags diagnostic))
        t))
 
+(defun lean4-diagnostics-unsolved-goals-p (diagnostic)
+  "Return non-nil if raw LSP DIAGNOSTIC reports goals left unproved.
+Read from Lean\='s own tag rather than from the message text, which is
+what makes this survive a rewording."
+  (and (memq lean4-diagnostics-tag-unsolved-goals
+             (lean4-diagnostics-tags diagnostic))
+       t))
+
 ;;;; Capabilities
 
 ;; `incrementalDiagnosticSupport' is deliberately not asked for.  It is not
@@ -195,13 +203,55 @@ The counterpart of the double check-mark VS Code shows in the gutter."
   "Face for the marker shown against a completed proof."
   :group 'lean4)
 
+(defcustom lean4-show-unsolved-goals t
+  "Whether to mark the line where an \"unsolved goals\" error ends.
+The counterpart of VS Code\='s `lean4.showUnsolvedGoalsDecoration', which
+defaults on as well.  It draws a tool at the end of the line, away from
+the text, where the underline alone says only that something is wrong
+there."
+  :group 'lean4
+  :type 'boolean)
+
+(defface lean4-unsolved-goals
+  '((t :inherit shadow))
+  "Face for the marker shown where goals are left unproved."
+  :group 'lean4)
+
+(defun lean4-diagnostics--unsolved-goals-marker ()
+  "Return the marker to draw for goals left unproved.
+VS Code uses a tool; a frame that cannot show one gets something it can."
+  (if (char-displayable-p ?\N{HAMMER AND WRENCH})
+      " \N{HAMMER AND WRENCH}"
+    " (goals)"))
+
 (defvar-local lean4-diagnostics--accomplished-overlays nil
-  "Overlays marking declarations with no goals left.")
+  "Overlays marking what Lean has tagged: finished proofs and unproved goals.
+
+Every one of these is empty -- it carries a `before-string' or an
+`after-string' and covers no text -- so none of them may be given the
+`evaporate' property.  Emacs deletes an empty overlay the moment that
+property is set on it, which is what kept the completed-proof marker from
+ever appearing.  They are cleared by hand instead, on every pass.")
 
 (defun lean4-diagnostics--clear-accomplished ()
-  "Remove the goals-accomplished markers from the current buffer."
+  "Remove the tag markers from the current buffer."
   (mapc #'delete-overlay lean4-diagnostics--accomplished-overlays)
   (setq lean4-diagnostics--accomplished-overlays nil))
+
+(defun lean4-diagnostics--mark-unsolved (diagnostic)
+  "Mark the end of the line DIAGNOSTIC\='s range ends on.
+At the end of the line rather than at the range, as VS Code places it:
+the underline already says where, and a marker inside the code would sit
+in the middle of the term it is about."
+  (when-let* ((region (ignore-errors
+                        (lean4--range-region (plist-get diagnostic :range)))))
+    (save-excursion
+      (goto-char (cdr region))
+      (let ((overlay (make-overlay (line-end-position) (line-end-position))))
+        (overlay-put overlay 'after-string
+                     (propertize (lean4-diagnostics--unsolved-goals-marker)
+                                 'face 'lean4-unsolved-goals))
+        (push overlay lean4-diagnostics--accomplished-overlays)))))
 
 (defun lean4-diagnostics--mark-accomplished (diagnostics)
   "Mark the declarations DIAGNOSTICS report as having no goals left.
@@ -209,17 +259,20 @@ DIAGNOSTICS are raw LSP objects, including the silent ones: Lean reports
 a finished proof precisely as a silent diagnostic, so this has to run
 before they are filtered away."
   (lean4-diagnostics--clear-accomplished)
-  (when lean4-show-goals-accomplished
-    (dolist (diagnostic (append diagnostics nil))
-      (when (lean4-diagnostics-goals-accomplished-p diagnostic)
-        (when-let* ((region (ignore-errors
-                              (lean4--range-region
-                               (plist-get diagnostic :range))))
-                    (overlay (make-overlay (car region) (car region))))
-          (overlay-put overlay 'before-string
-                       (propertize "✓ " 'face 'lean4-goals-accomplished))
-          (overlay-put overlay 'evaporate t)
-          (push overlay lean4-diagnostics--accomplished-overlays))))))
+  (dolist (diagnostic (append diagnostics nil))
+    (cond
+     ((and lean4-show-goals-accomplished
+           (lean4-diagnostics-goals-accomplished-p diagnostic))
+      (when-let* ((region (ignore-errors
+                            (lean4--range-region
+                             (plist-get diagnostic :range))))
+                  (overlay (make-overlay (car region) (car region))))
+        (overlay-put overlay 'before-string
+                     (propertize "✓ " 'face 'lean4-goals-accomplished))
+        (push overlay lean4-diagnostics--accomplished-overlays)))
+     ((and lean4-show-unsolved-goals
+           (lean4-diagnostics-unsolved-goals-p diagnostic))
+      (lean4-diagnostics--mark-unsolved diagnostic)))))
 
 (cl-defmethod eglot-handle-notification :around
   ((server lean4-eglot-lsp-server)

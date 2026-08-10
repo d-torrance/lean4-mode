@@ -71,6 +71,7 @@ Usage
 * The module hierarchy::
 * Other Lake operations::
 * Completion::
+* Finding a symbol you cannot name::
 
 Choosing which Lean to use
 
@@ -91,6 +92,7 @@ Configuration
 
 Troubleshooting
 
+* Where the documentation is::
 * "Imports are out of date and must be rebuilt"::
 
 
@@ -276,6 +278,7 @@ buffer.  To put it in a side window on the right:
 * The module hierarchy::
 * Other Lake operations::
 * Completion::
+* Finding a symbol you cannot name::
 
 
 File: lean4-mode.info,  Node: Keys in a Lean buffer,  Next: Keys in the goal display,  Up: Usage
@@ -385,6 +388,13 @@ rather than only on a branching one.
    A finished proof reads ‘goals accomplished’ instead, which is Lean's
 own wording for it; VS Code says ‘No goals’ there and counts nothing,
 and neither does this.
+
+   In the Lean buffer itself, Lean tags two things and both are marked:
+a declaration whose goals are all discharged gets a ‘✓’ before it, and a
+line where an "unsolved goals" error ends gets a ‘🛠’ after it, away from
+the code.  ‘lean4-show-goals-accomplished’ and
+‘lean4-show-unsolved-goals’ turn them off; both default on, as VS Code's
+do.  A frame that cannot draw the tool gets ‘(goals)’ instead.
 
    The expected type at point follows, under ‘Expected type’, and is not
 counted - VS Code counts only the tactic state.  Neither heading takes a
@@ -905,7 +915,7 @@ are the whole of it.  VS Code's "Open Local Project" exists because it
 has a window to point at a folder.
 
 
-File: lean4-mode.info,  Node: Completion,  Prev: Other Lake operations,  Up: Usage
+File: lean4-mode.info,  Node: Completion,  Next: Finding a symbol you cannot name,  Prev: Other Lake operations,  Up: Usage
 
 2.15 Completion
 ===============
@@ -927,6 +937,32 @@ whatever else you have configured.
 
    Typing an abbreviation in full still works without completion: the
 Lean input method replaces it as soon as it is unambiguous.
+
+
+File: lean4-mode.info,  Node: Finding a symbol you cannot name,  Prev: Completion,  Up: Usage
+
+2.16 Finding a symbol you cannot name
+=====================================
+
+Completion goes from an abbreviation to a symbol, which is no help when
+the abbreviation is what you do not know.  Three commands go the other
+way, listing every symbol with the abbreviations that produce it - so a
+symbol can be found by typing either it or one of them.  They are in the
+‘Lean’ menu under ‘Unicode input’, and are VS Code's three.
+
+Command                       Does
+----------------------------------------------------------------------------
+‘lean4-input-insert-symbol’   inserts the symbol at point
+‘lean4-input-copy-symbol’     puts it in the kill ring
+‘lean4-input-find-symbol’     reports its abbreviations, then offers both
+
+   The shortest abbreviation comes first, that being the one worth
+learning.  Copying is for pasting somewhere the input method does not
+reach - another program, or a prompt with no input method of its own.
+
+   ‘C-c C-k’ goes the other way for a symbol already in the buffer: it
+says which keystrokes would have produced the one at point.  ‘M-x
+lean4-input-show-translations’ lists the whole table.
 
 
 File: lean4-mode.info,  Node: Configuration,  Next: Troubleshooting,  Prev: Usage,  Up: Top
@@ -1101,12 +1137,34 @@ buffer visiting no file at all is written to a temporary one instead.
 
 * Menu:
 
+* Where the documentation is::
 * "Imports are out of date and must be rebuilt"::
 
 
-File: lean4-mode.info,  Node: "Imports are out of date and must be rebuilt",  Up: Troubleshooting
+File: lean4-mode.info,  Node: Where the documentation is,  Next: "Imports are out of date and must be rebuilt",  Up: Troubleshooting
 
-4.1 "Imports are out of date and must be rebuilt"
+4.1 Where the documentation is
+==============================
+
+Command                              Opens
+-----------------------------------------------------------------------
+‘lean4-show-manual’                  this manual
+‘lean4-show-troubleshooting-guide’   this manual, at Troubleshooting
+‘lean4-show-setup-guide’             Lean's own installation guide
+‘lean4-show-documentation’           Lean's documentation
+
+   All four are in the ‘Lean’ menu under ‘Help’, along with ‘M-x
+lean4-diagnose’.  The first two are VS Code's "Show Manual" and "Show
+Troubleshooting Guide", pointed at this package's manual rather than the
+extension's; the other two open the same pages VS Code opens.
+
+   The manual is shipped as Info beside the source, so it is found
+whether or not the package was installed anywhere Info knows to look.
+
+
+File: lean4-mode.info,  Node: "Imports are out of date and must be rebuilt",  Prev: Where the documentation is,  Up: Troubleshooting
+
+4.2 "Imports are out of date and must be rebuilt"
 =================================================
 
 Lean says this, and adds _use the "Restart File" command in your
@@ -1176,43 +1234,45 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2288
-Node: Requirements2513
-Node: From source3593
-Node: With a source-based package manager4081
-Node: Native vc (Emacs 30 or later)4592
-Node: Doom-Emacs5037
-Node: Straight5356
-Node: Upgrading from version 15713
-Node: Usage7010
-Node: Keys in a Lean buffer8658
-Node: Keys in the goal display10440
-Node: The tactic state14960
-Node: Copying what is on display15752
-Node: How much of a goal to show16779
-Node: Errors and warnings20290
-Node: Building dependencies24385
-Node: Starting a project25655
-Node: Building27447
-Node: Mathlib's build cache28639
-Node: Choosing which Lean to use29996
-Node: Elan itself32331
-Node: Git and curl33547
-Node: Searching Mathlib with Loogle35294
-Node: The module hierarchy37309
-Node: It needs a built project39352
-Node: Other Lake operations40002
-Node: Completion41427
-Node: Configuration42549
-Node: Frequently used options42988
-Node: The goal display's controls44651
-Node: Older Lean versions45972
-Node: Semantic highlighting46954
-Node: Optional packages48273
-Node: Troubleshooting48766
-Node: "Imports are out of date and must be rebuilt"50253
-Node: Common Pitfalls51706
-Node: Acknowledgements52307
+Node: Installation2356
+Node: Requirements2581
+Node: From source3661
+Node: With a source-based package manager4149
+Node: Native vc (Emacs 30 or later)4660
+Node: Doom-Emacs5105
+Node: Straight5424
+Node: Upgrading from version 15781
+Node: Usage7078
+Node: Keys in a Lean buffer8763
+Node: Keys in the goal display10545
+Node: The tactic state15065
+Node: Copying what is on display16284
+Node: How much of a goal to show17311
+Node: Errors and warnings20822
+Node: Building dependencies24917
+Node: Starting a project26187
+Node: Building27979
+Node: Mathlib's build cache29171
+Node: Choosing which Lean to use30528
+Node: Elan itself32863
+Node: Git and curl34079
+Node: Searching Mathlib with Loogle35826
+Node: The module hierarchy37841
+Node: It needs a built project39884
+Node: Other Lake operations40534
+Node: Completion41959
+Node: Finding a symbol you cannot name43122
+Node: Configuration44373
+Node: Frequently used options44812
+Node: The goal display's controls46475
+Node: Older Lean versions47796
+Node: Semantic highlighting48778
+Node: Optional packages50097
+Node: Troubleshooting50590
+Node: Where the documentation is52108
+Node: "Imports are out of date and must be rebuilt"53103
+Node: Common Pitfalls54591
+Node: Acknowledgements55192
 
 End Tag Table
 

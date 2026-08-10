@@ -411,5 +411,96 @@ leanprover.github.io/tutorial/js/input-method.js"
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Administrative details
 
+;;;; Finding a symbol by name
+
+;; The input method goes from an abbreviation to a symbol.  These go the other
+;; way: they list every symbol with the abbreviations that produce it, so that
+;; one can be found without knowing what it is called.  VS Code offers the same
+;; three commands, and shows each symbol with its abbreviations beside it.
+
+(defun lean4-input-symbols ()
+  "Return every symbol the input method can produce, with its abbreviations.
+
+An alist of symbol to the abbreviations that yield it, shortest first --
+the order VS Code shows them in, the shortest being the one worth
+learning.  Symbols reachable more than one way appear once."
+  (let ((symbols nil))
+    (pcase-dolist (`(,key . ,translations) (lean4-input--completion-candidates))
+      (dolist (symbol translations)
+        (let ((cell (assoc symbol symbols)))
+          (if cell
+              (setcdr cell (cons key (cdr cell)))
+            (push (cons symbol (list key)) symbols)))))
+    (dolist (cell symbols)
+      (setcdr cell (sort (nreverse (cdr cell))
+                         (lambda (a b)
+                           (if (= (length a) (length b))
+                               (string< a b)
+                             (< (length a) (length b)))))))
+    (nreverse symbols)))
+
+(defun lean4-input--symbol-candidates ()
+  "Return the symbols to offer, as an alist of what to show to the symbol.
+The abbreviations are part of what is shown rather than an annotation, so
+that a symbol can be found by typing one of them: completion matches
+against the candidate itself."
+  (mapcar (lambda (cell)
+            (cons (format "%s  %s" (car cell) (string-join (cdr cell) " "))
+                  (car cell)))
+          (lean4-input-symbols)))
+
+(defun lean4-input--read-symbol (prompt)
+  "Read one of the input method\='s symbols, with PROMPT."
+  (let ((candidates (lean4-input--symbol-candidates)))
+    (unless candidates
+      (user-error "The Lean input method has no abbreviations loaded"))
+    (or (cdr (assoc (completing-read prompt candidates nil t) candidates))
+        (user-error "No symbol chosen"))))
+
+;;;###autoload
+(defun lean4-input-insert-symbol (symbol)
+  "Insert SYMBOL at point.
+
+Interactively, offers every symbol the Lean input method can produce,
+each shown with the abbreviations that yield it -- so it can be found by
+typing either the symbol or an abbreviation.  For a symbol whose
+abbreviation is already known, typing that abbreviation is quicker; this
+is for the ones that are not.  The counterpart of VS Code\='s \"Insert
+Unicode Symbol\"."
+  (interactive (list (lean4-input--read-symbol "Insert symbol: ")))
+  (insert symbol))
+
+;;;###autoload
+(defun lean4-input-copy-symbol (symbol)
+  "Put SYMBOL in the kill ring.
+For pasting somewhere the input method does not reach -- another
+program, or a minibuffer prompt that has no input method of its own.  The
+counterpart of VS Code\='s \"Copy Unicode Symbol\"."
+  (interactive (list (lean4-input--read-symbol "Copy symbol: ")))
+  (kill-new symbol)
+  (message "Copied %s" symbol))
+
+;;;###autoload
+(defun lean4-input-find-symbol (symbol)
+  "Look SYMBOL up and then choose what to do with it.
+
+Reports the abbreviations that produce it, and offers to insert it or
+copy it.  The counterpart of VS Code\='s \"Find Unicode Symbol\", which
+likewise asks what to do only after the symbol has been found."
+  (interactive (list (lean4-input--read-symbol "Find symbol: ")))
+  (let ((abbreviations (cdr (assoc symbol (lean4-input-symbols)))))
+    (pcase (car (read-multiple-choice
+                 (format "%s (%s) " symbol
+                         (if abbreviations
+                             (string-join abbreviations " ")
+                           "no abbreviation"))
+                 '((?i "insert") (?c "copy") (?q "do nothing"))))
+      (?i (insert symbol))
+      (?c (kill-new symbol) (message "Copied %s" symbol))
+      (_ (message "%s is %s" symbol
+                  (if abbreviations
+                      (string-join abbreviations " ")
+                    "reachable by no abbreviation"))))))
+
 (provide 'lean4-input)
 ;;; lean4-input.el ends here

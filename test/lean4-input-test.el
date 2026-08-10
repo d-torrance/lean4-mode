@@ -15,6 +15,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'cl-lib)
 (require 'seq)
 (require 'lean4-input)
 
@@ -140,6 +141,77 @@ letting one through would insert the literal text \"$CURSOR\"."
 (ert-deftest lean4-input-capf-annotates-with-the-character ()
   "Candidates are annotated with what they produce."
   (should (string-search "α" (lean4-input--annotate "\\alpha"))))
+
+;;;; Finding a symbol by name
+
+(ert-deftest lean4-input-symbols-group-by-symbol ()
+  "Each symbol appears once, with every abbreviation that yields it."
+  (cl-letf (((symbol-function 'lean4-input--completion-candidates)
+             (lambda () '(("\\a" "α") ("\\alpha" "α") ("\\b" "β")))))
+    (let ((symbols (lean4-input-symbols)))
+      (should (equal (length symbols) 2))
+      (should (equal (cdr (assoc "α" symbols)) '("\\a" "\\alpha")))
+      (should (equal (cdr (assoc "β" symbols)) '("\\b"))))))
+
+(ert-deftest lean4-input-symbols-put-the-shortest-first ()
+  "The shortest abbreviation is the one worth learning, so it leads.
+Ties go alphabetically rather than in whatever order the table was read."
+  (cl-letf (((symbol-function 'lean4-input--completion-candidates)
+             (lambda () '(("\\alpha" "α") ("\\Ga" "α") ("\\a" "α")))))
+    (should (equal (cdr (assoc "α" (lean4-input-symbols)))
+                   '("\\a" "\\Ga" "\\alpha")))))
+
+(ert-deftest lean4-input-candidates-can-be-searched-by-abbreviation ()
+  "The abbreviations are in the candidate, not merely annotating it.
+Completion matches the candidate string, so an annotation could not be
+typed to find a symbol."
+  (cl-letf (((symbol-function 'lean4-input--completion-candidates)
+             (lambda () '(("\\a" "α") ("\\alpha" "α")))))
+    (let ((candidates (lean4-input--symbol-candidates)))
+      (should (equal candidates '(("α  \\a \\alpha" . "α"))))
+      (should (string-search "\\alpha" (car (car candidates)))))))
+
+(ert-deftest lean4-input-insert-symbol-inserts-it ()
+  "The command puts the chosen symbol in the buffer."
+  (with-temp-buffer
+    (lean4-input-insert-symbol "α")
+    (should (equal (buffer-string) "α"))))
+
+(ert-deftest lean4-input-copy-symbol-fills-the-kill-ring ()
+  "Copying is for pasting where the input method does not reach."
+  (let ((kill-ring nil) (kill-ring-yank-pointer nil))
+    (cl-letf (((symbol-function 'message) #'ignore))
+      (lean4-input-copy-symbol "∑"))
+    (should (equal (current-kill 0) "∑"))))
+
+(ert-deftest lean4-input-find-symbol-then-acts ()
+  "Looking a symbol up offers to insert it or copy it."
+  (cl-letf (((symbol-function 'lean4-input-symbols) (lambda () '(("α" "\\a")))))
+    (with-temp-buffer
+      (cl-letf (((symbol-function 'read-multiple-choice)
+                 (lambda (&rest _) '(?i "insert"))))
+        (lean4-input-find-symbol "α"))
+      (should (equal (buffer-string) "α")))
+    (let ((kill-ring nil) (kill-ring-yank-pointer nil))
+      (cl-letf (((symbol-function 'read-multiple-choice)
+                 (lambda (&rest _) '(?c "copy")))
+                ((symbol-function 'message) #'ignore))
+        (lean4-input-find-symbol "α"))
+      (should (equal (current-kill 0) "α")))
+    ;; Declining reports the abbreviations and changes nothing.
+    (with-temp-buffer
+      (cl-letf (((symbol-function 'read-multiple-choice)
+                 (lambda (&rest _) '(?q "do nothing")))
+                ((symbol-function 'message) #'ignore))
+        (lean4-input-find-symbol "α"))
+      (should (equal (buffer-string) "")))))
+
+(ert-deftest lean4-input-symbols-are-really-there ()
+  "Against the shipped abbreviation table rather than a stub."
+  (let ((symbols (lean4-input-symbols)))
+    (should (> (length symbols) 1000))
+    (should (member "\\a" (cdr (assoc "α" symbols))))
+    (should (member "\\sum" (cdr (assoc "∑" symbols))))))
 
 (provide 'lean4-input-test)
 ;;; lean4-input-test.el ends here

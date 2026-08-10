@@ -242,7 +242,21 @@ xref, project roots through =project.el=.
   package manager is not recognised it says what to install and stops; on
   Windows without winget it points at git-scm.com rather than downloading a
   pinned installer as VS Code does.
-- A test suite: 316 unit tests, and 37 end-to-end tests that run against
+- Three commands for finding a symbol whose abbreviation you do not know:
+  ~lean4-input-insert-symbol~, ~lean4-input-copy-symbol~ and
+  ~lean4-input-find-symbol~, the counterparts of VS Code's three.  Each
+  lists every symbol with the abbreviations that produce it, shortest
+  first, so one can be found by typing either.
+- A =🛠= is drawn after the line where an "unsolved goals" error ends,
+  from Lean's own tag rather than from the message text.
+  ~lean4-show-unsolved-goals~ turns it off; VS Code's
+  =showUnsolvedGoalsDecoration= defaults on as well.
+- ~lean4-show-manual~, ~lean4-show-troubleshooting-guide~,
+  ~lean4-show-setup-guide~ and ~lean4-show-documentation~, gathered in the
+  =Lean= menu under =Help=.  The first two open this package's own manual,
+  shipped as Info beside the source; the others open the pages VS Code
+  opens.
+- A test suite: 330 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed
@@ -269,6 +283,12 @@ xref, project roots through =project.el=.
   Lean input method in every other buffer, and it emptied
   ~compilation-mode-font-lock-keywords~, so every later =M-x compile=
   buffer went unfontified.
+- The =✓= against a completed proof now appears at all.  It was drawn as an
+  empty overlay carrying a string and then given the ~evaporate~ property,
+  which Emacs honours by deleting an empty overlay the instant it is set --
+  so the marker was destroyed before it could be displayed and
+  ~lean4-show-goals-accomplished~ did nothing.  Found while giving the
+  unsolved-goals marker the same treatment.
 - Electric indentation is declined with ~electric-indent-inhibit~
   instead of switching ~electric-indent-local-mode~ off, which took a
   minor mode away from anyone who had turned it on.

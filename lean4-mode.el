@@ -190,6 +190,13 @@ and which is what this mode did before."
       buffer-file-name]
      ["Fetch cache for open files"     lean4-lake-fetch-open-file-caches t])
     ["Search Mathlib with Loogle..." lean4-loogle-search t]
+    ("Unicode input"
+     ["Insert a symbol..."          lean4-input-insert-symbol      t]
+     ["Copy a symbol..."            lean4-input-copy-symbol        t]
+     ["Look a symbol up..."         lean4-input-find-symbol        t]
+     "--"
+     ["Key for the symbol at point" quail-show-key                 t]
+     ["All abbreviations..."        lean4-input-show-translations  t])
     ("Lean version"
      ["Set this project's Lean version..." lean4-select-project-toolchain t]
      ["Set the default Lean version..."    lean4-select-default-toolchain t]
@@ -208,7 +215,64 @@ and which is what this mode did before."
      "--"
      ["Copy this module's name"   lean4-module-copy-name         t])
     "--"
+    ("Help"
+     ["Lean4-Mode manual"     lean4-show-manual                t]
+     ["Troubleshooting"       lean4-show-troubleshooting-guide t]
+     "--"
+     ["Lean's setup guide"    lean4-show-setup-guide           t]
+     ["Lean's documentation"  lean4-show-documentation         t]
+     "--"
+     ["Report on this setup"  lean4-diagnose                   t])
     ["Customize lean4-mode" (customize-group 'lean4)          t]))
+
+;;;; Documentation
+
+;; VS Code shows its own manual and setup guide in editor tabs.  The
+;; counterparts of the first two are this package's own manual, which is
+;; shipped as Info; the other two are pages on lean-lang.org, and VS Code opens
+;; the same ones.
+
+(defun lean4--show-manual (&optional node)
+  "Show this package\='s Info manual, at NODE if given.
+
+Prefers the \"lean4-mode.info\" shipped beside the source, since a
+package installed from a checkout is not in `Info-directory-list' and
+would otherwise not be found at all."
+  (require 'info)
+  (let* ((library (locate-library "lean4-mode"))
+         (directory (and library (file-name-directory library)))
+         (file (and directory (expand-file-name "lean4-mode.info" directory))))
+    (info (format "(%s)%s"
+                  (if (and file (file-readable-p file)) file "lean4-mode")
+                  (or node "")))))
+
+;;;###autoload
+(defun lean4-show-manual ()
+  "Show this package\='s manual.
+The counterpart of VS Code\='s \"Show Manual\", which shows its own."
+  (interactive)
+  (lean4--show-manual))
+
+;;;###autoload
+(defun lean4-show-troubleshooting-guide ()
+  "Show what to do when something is not working.
+The counterpart of VS Code\='s \"Show Troubleshooting Guide\"."
+  (interactive)
+  (lean4--show-manual "Troubleshooting"))
+
+;;;###autoload
+(defun lean4-show-setup-guide ()
+  "Open Lean\='s own instructions for installing it.
+The counterpart of VS Code\='s \"Show Setup Guide\"."
+  (interactive)
+  (browse-url "https://lean-lang.org/lean4/doc/setup.html"))
+
+;;;###autoload
+(defun lean4-show-documentation ()
+  "Open Lean\='s documentation.
+The page VS Code\='s \"Show Documentation Resources\" opens."
+  (interactive)
+  (browse-url "https://lean-lang.org/learn/"))
 
 (defconst lean4-hooks-alist
   '((before-save-hook . lean4-whitespace-cleanup))

@@ -238,6 +238,13 @@ A finished proof reads =goals accomplished= instead, which is Lean's own
 wording for it; VS Code says =No goals= there and counts nothing, and
 neither does this.
 
+In the Lean buffer itself, Lean tags two things and both are marked: a
+declaration whose goals are all discharged gets a =✓= before it, and a
+line where an "unsolved goals" error ends gets a =🛠= after it, away from
+the code.  ~lean4-show-goals-accomplished~ and
+~lean4-show-unsolved-goals~ turn them off; both default on, as VS Code's
+do.  A frame that cannot draw the tool gets =(goals)= instead.
+
 The expected type at point follows, under =Expected type=, and is not
 counted -- VS Code counts only the tactic state.  Neither heading takes
 a colon, as neither does in VS Code.
@@ -704,6 +711,28 @@ whatever else you have configured.
 Typing an abbreviation in full still works without completion: the Lean
 input method replaces it as soon as it is unambiguous.
 
+** Finding a symbol you cannot name
+
+Completion goes from an abbreviation to a symbol, which is no help when
+the abbreviation is what you do not know.  Three commands go the other
+way, listing every symbol with the abbreviations that produce it -- so a
+symbol can be found by typing either it or one of them.  They are in the
+=Lean= menu under =Unicode input=, and are VS Code's three.
+
+| Command                     | Does                                     |
+|-----------------------------+------------------------------------------|
+| ~lean4-input-insert-symbol~ | inserts the symbol at point              |
+| ~lean4-input-copy-symbol~   | puts it in the kill ring                 |
+| ~lean4-input-find-symbol~   | reports its abbreviations, then offers both |
+
+The shortest abbreviation comes first, that being the one worth learning.
+Copying is for pasting somewhere the input method does not reach -- another
+program, or a prompt with no input method of its own.
+
+=C-c C-k= goes the other way for a symbol already in the buffer: it says
+which keystrokes would have produced the one at point.  =M-x
+lean4-input-show-translations= lists the whole table.
+
 * Configuration
 
 Lean4-Mode uses [[https://www.gnu.org/software/emacs/manual/html_node/eglot/][Eglot]], the LSP client built into Emacs 29 and later, so
@@ -838,6 +867,23 @@ reports.
 Note that it is the file on disk that is compiled, not the buffer: save
 first, or what Lean reports will be about the previous version.  A buffer
 visiting no file at all is written to a temporary one instead.
+
+** Where the documentation is
+
+| Command                            | Opens                             |
+|------------------------------------+-----------------------------------|
+| ~lean4-show-manual~                | this manual                       |
+| ~lean4-show-troubleshooting-guide~ | this manual, at Troubleshooting   |
+| ~lean4-show-setup-guide~           | Lean's own installation guide     |
+| ~lean4-show-documentation~         | Lean's documentation              |
+
+All four are in the =Lean= menu under =Help=, along with =M-x
+lean4-diagnose=.  The first two are VS Code's "Show Manual" and "Show
+Troubleshooting Guide", pointed at this package's manual rather than the
+extension's; the other two open the same pages VS Code opens.
+
+The manual is shipped as Info beside the source, so it is found whether or
+not the package was installed anywhere Info knows to look.
 
 ** "Imports are out of date and must be rebuilt"
 
