@@ -127,7 +127,8 @@ The =*Lean Goal*= buffer, the counterpart of the Info-View pane in VS
 Code, appears by itself and shows the proof state at point.  It is
 displayed, not selected, so point stays in the file.  =C-c C-i= hides
 and shows it, and ~lean4-info-auto-open~ turns the automatic opening
-off.
+off; =M-x lean4-info-open= then shows it by hand, again without selecting
+it.
 
 Where it appears is up to =display-buffer-alist=, as for any other
 buffer.  To put it in a side window on the right:
@@ -183,6 +184,10 @@ unpin it.  Pausing a pin is separate from pinning it: a pinned goal
 follows its declaration through an edit unless told otherwise.  Pinning happens at point, so the followed
 section is left out until point moves, rather than showing the same
 position twice; returning to a pinned position later does show both.
+
+=M-x lean4-info-unpin-all= removes every pin at once, which is quicker
+than unpinning several by hand; it is =Unpin every position= in both
+menus.
 
 Every control has a key and a menu entry as well, so none of them needs
 a mouse.  The menu entries are the same in the Lean menu and in the goal
@@ -310,6 +315,12 @@ filtered; the settings simply have nothing to act on.
 Diagnostics are reported through Flymake, which Eglot drives.  =C-c ! n=
 and =C-c ! p= move between them, and ~flymake-show-buffer-diagnostics~
 lists them.
+
+=M-x lean4-diagnostics-next-sorry= moves to the next declaration still
+admitted with =sorry=, skipping every other kind of diagnostic; a prefix
+argument moves that many.  It is built on Flymake rather than beside it,
+and it wraps round to the first when there are none left below point.
+VS Code leaves this to its Problems view.
 
 Not everything Lean sends is a problem.  It reports a completed proof,
 trace output and whatever a project's own tactics emit at note severity,
@@ -749,6 +760,21 @@ when run from somewhere else.
 
 Include its output when reporting a problem; the counterpart in VS Code
 is "Troubleshooting: Show Setup Information".
+
+=M-x lean4-show-version= reports just the Lean version, when that is all
+that is wanted.
+
+=C-c C-x= or =C-c C-l= (~lean4-std-exe~) runs Lean over the file on its
+own, outside the server, which is the quickest way to see what the
+compiler alone makes of it.  =M-x lean4-execute= does the same but asks
+first for arguments to pass to =lean=.  Both run inside =lake env= where
+the file belongs to a package, so that its dependencies are found, and
+both go through =compile=, so =M-x next-error= walks whatever Lean
+reports.
+
+Note that it is the file on disk that is compiled, not the buffer: save
+first, or what Lean reports will be about the previous version.  A buffer
+visiting no file at all is written to a temporary one instead.
 
 * Common Pitfalls
 
