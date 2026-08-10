@@ -27,6 +27,11 @@ xref, project roots through =project.el=.
   old name kept as an alias.
 - Lean 3 autodetection is removed, along with ~lean4-autodetect-lean3~.
   It ran =lean -v= on every =.lean= file opened.
+- ~lean4-syntax-table~ is renamed ~lean4-mode-syntax-table~, the name
+  the major mode conventions ask for, with the old name kept as an
+  obsolete alias.  The empty ~lean4-abbrev-table~ is gone; the mode now
+  uses the ~lean4-mode-abbrev-table~ that ~define-derived-mode~ makes
+  for it, which is where =M-x edit-abbrevs= looks.
 
 ** Added
 

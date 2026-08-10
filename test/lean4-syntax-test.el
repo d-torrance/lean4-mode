@@ -99,7 +99,7 @@ It admits a goal without proving it, so it must be visually loud."
 Note this is about the syntax table only.  Word *motion* additionally
 honours script boundaries, so `forward-word' still stops between the
 Greek and the subscript below -- that is Emacs behaviour, not something
-`lean4-syntax-table' controls."
+`lean4-mode-syntax-table' controls."
   (lean4-syntax-test--with-buffer ""
     (dolist (char '(?α ?β ?γ ?Γ ?₁ ?¹ ?ℕ ?𝒜))
       (should (eq (char-syntax char) ?w)))))
@@ -118,7 +118,7 @@ commands that act on the symbol at point see all of it."
 
 (ert-deftest lean4-syntax-guillemet-identifier-body-is-not-comment ()
   "The body of a guillemet-escaped identifier is not fontified as comment.
-`lean4-syntax-table' gives `«' and `»' comment syntax so that arbitrary
+`lean4-mode-syntax-table' gives `«' and `»' comment syntax so that arbitrary
 text between them -- Lean allows spaces and operators there -- cannot
 derail the parser.  A font-lock rule then paints the body back to the
 default face and leaves only the delimiters looking like comment.  This

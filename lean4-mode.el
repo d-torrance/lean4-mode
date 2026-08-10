@@ -137,9 +137,6 @@ and which is what this mode did before."
          (call-interactively lean4-indent-function))
         (t (indent-for-tab-command))))
 
-(define-abbrev-table 'lean4-abbrev-table
-  '())
-
 (defvar-keymap lean4-mode-map
   :doc "Keymap used in Lean 4 mode."
   "C-c C-x"     #'lean4-std-exe
@@ -204,8 +201,7 @@ to be added or removed from the hook variable.")
   "Major mode for Lean language.
 
 \\{lean4-mode-map}"
-  :syntax-table lean4-syntax-table
-  :abbrev-table lean4-abbrev-table
+  :syntax-table lean4-mode-syntax-table
   :group 'lean4
   (setq-local comment-start "--")
   (setq-local comment-start-skip "[-/]-[ \t]*")

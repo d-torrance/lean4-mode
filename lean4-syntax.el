@@ -64,7 +64,10 @@
   (eval `(rx word-start (or ,@lean4-debugging) word-end)))
 
 
-(defconst lean4-syntax-table
+(define-obsolete-variable-alias 'lean4-syntax-table
+  'lean4-mode-syntax-table "2.0.0")
+
+(defconst lean4-mode-syntax-table
   (let ((st (make-syntax-table)))
     ;; Matching parens
     (modify-syntax-entry ?\[ "(]" st)
@@ -141,7 +144,12 @@
     (modify-syntax-entry ?\" "\"" st)
     (modify-syntax-entry ?\\ "/" st)
 
-    st))
+    st)
+  "Syntax table for `lean4-mode', shared with `lean4-info-mode'.
+
+Named for the mode rather than for the package because that is where a
+reader of Emacs looks for it: the conventions for a major mode ask for
+`MODE-syntax-table'.")
 
 (defconst lean4-font-lock-defaults
   `((;; attributes

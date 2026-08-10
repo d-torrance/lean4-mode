@@ -85,7 +85,7 @@ rather than on the buffer's name."
         (should (eq (keymap-lookup nil "TAB") 'magit-section-toggle))
         ;; Its own bindings win over the parent's.
         (should (eq (keymap-lookup nil "RET") 'lean4-info-return))
-        (should (eq (syntax-table) lean4-syntax-table))
+        (should (eq (syntax-table) lean4-mode-syntax-table))
         ;; `g' is `revert-buffer' here, from `special-mode', and reverting
         ;; a buffer with no file behind it fails unless it is told what to
         ;; do instead.

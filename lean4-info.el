@@ -184,7 +184,7 @@ reader\\='s own ElDoc and xref frontends present them.
 Read-only and undo-less already, from `magit-section-mode'.
 
 \\{lean4-info-mode-map}"
-  :syntax-table lean4-syntax-table
+  :syntax-table lean4-mode-syntax-table
   :interactive nil
   :group 'lean4-info
   ;; `g', which `special-mode' binds to `revert-buffer', otherwise fails
@@ -258,7 +258,7 @@ Font lock alone, rather than a major mode kept solely to carry these two
 settings: nothing here reads a mode, and the goal display's own mode is
 `lean4-info-mode', which is a different thing entirely."
   (with-temp-buffer
-    (set-syntax-table lean4-syntax-table)
+    (set-syntax-table lean4-mode-syntax-table)
     (setq-local font-lock-defaults lean4-info-font-lock-defaults)
     (insert text)
     (font-lock-ensure)

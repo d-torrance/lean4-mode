@@ -132,5 +132,16 @@ says the same thing without touching the mode\\='s own state."
     (should electric-indent-inhibit)
     (should-not (local-variable-p 'electric-indent-mode))))
 
+(ert-deftest lean4-mode-tables-are-named-for-the-mode ()
+  "The syntax and abbrev tables carry the names the conventions ask for.
+`(elisp) Major Mode Conventions' asks for `MODE-syntax-table' and
+`MODE-abbrev-table', which is where `edit-abbrevs' and a reader of Emacs
+both look."
+  (should (syntax-table-p lean4-mode-syntax-table))
+  (should (abbrev-table-p lean4-mode-abbrev-table))
+  (lean4-mode-test--with-mode
+    (should (eq (syntax-table) lean4-mode-syntax-table))
+    (should (eq local-abbrev-table lean4-mode-abbrev-table))))
+
 (provide 'lean4-mode-test)
 ;;; lean4-mode-test.el ends here
