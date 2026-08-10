@@ -188,7 +188,13 @@ xref, project roots through =project.el=.
   Import modifiers -- =private=, =all=, =meta= -- are shown for modules
   using Lean's =module= keyword.  Needs a built project: the server
   answers from the =.ilean= index a build leaves behind.
-- A test suite: 246 unit tests, and 37 end-to-end tests that run against
+- The goal display can be copied out of: ~lean4-info-copy-state~ and
+  ~lean4-info-copy-message~ to the kill ring, and
+  ~lean4-info-copy-to-comment~ into a =/- -/= block above the line point
+  is on, indented with it.  The counterparts of VS Code's "Copy State",
+  "Copy Message" and "Copy Contents to Comment".  The state is copied in
+  full, whatever the display is set to hide, as VS Code copies it.
+- A test suite: 255 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed

@@ -59,6 +59,7 @@ Usage
 * Keys in a Lean buffer::
 * Keys in the goal display::
 * The tactic state::
+* Copying what is on display::
 * How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
@@ -249,6 +250,7 @@ buffer.  To put it in a side window on the right:
 * Keys in a Lean buffer::
 * Keys in the goal display::
 * The tactic state::
+* Copying what is on display::
 * How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
@@ -347,7 +349,7 @@ a trace node until something asks - a ‘simp’ trace on a real proof is
 enormous - so opening one fetches them, once.
 
 
-File: lean4-mode.info,  Node: The tactic state,  Next: How much of a goal to show,  Prev: Keys in the goal display,  Up: Usage
+File: lean4-mode.info,  Node: The tactic state,  Next: Copying what is on display,  Prev: Keys in the goal display,  Up: Usage
 
 2.3 The tactic state
 ====================
@@ -366,9 +368,31 @@ counted - VS Code counts only the tactic state.  Neither heading takes a
 colon, as neither does in VS Code.
 
 
-File: lean4-mode.info,  Node: How much of a goal to show,  Next: Errors and warnings,  Prev: The tactic state,  Up: Usage
+File: lean4-mode.info,  Node: Copying what is on display,  Next: How much of a goal to show,  Prev: The tactic state,  Up: Usage
 
-2.4 How much of a goal to show
+2.4 Copying what is on display
+==============================
+
+Command                        Copies
+---------------------------------------------------------------------------
+‘lean4-info-copy-state’        the tactic state, to the kill ring
+‘lean4-info-copy-to-comment’   the tactic state, into the Lean buffer
+‘lean4-info-copy-message’      the message point is in, to the kill ring
+
+   The first two are in both menus and work from either buffer; the
+third needs point to be inside a message in the goal display, messages
+being sections.  ‘lean4-info-copy-to-comment’ puts the state in a ‘/-
+-/’ block above the line point is on, indented with it, as VS Code's
+"Copy Contents to Comment" does.
+
+   The state is copied in full, whatever the settings above are hiding:
+text pasted into an issue is no use with half the hypotheses missing.
+This is what VS Code copies too.
+
+
+File: lean4-mode.info,  Node: How much of a goal to show,  Next: Errors and warnings,  Prev: Copying what is on display,  Up: Usage
+
+2.5 How much of a goal to show
 ==============================
 
 A goal in Mathlib can carry more hypotheses than fit on a screen, most
@@ -425,7 +449,7 @@ filtered; the settings simply have nothing to act on.
 
 File: lean4-mode.info,  Node: Errors and warnings,  Next: Building dependencies,  Prev: How much of a goal to show,  Up: Usage
 
-2.5 Errors and warnings
+2.6 Errors and warnings
 =======================
 
 Diagnostics are reported through Flymake, which Eglot drives.  ‘C-c ! n’
@@ -490,7 +514,7 @@ is following point and it would only lead where point already is.
 
 File: lean4-mode.info,  Node: Building dependencies,  Next: Mathlib's build cache,  Prev: Errors and warnings,  Up: Usage
 
-2.6 Building dependencies
+2.7 Building dependencies
 =========================
 
 Visiting a file does not build what it imports.  The server decides that
@@ -516,7 +540,7 @@ outright.
 
 File: lean4-mode.info,  Node: Mathlib's build cache,  Next: The module hierarchy,  Prev: Building dependencies,  Up: Usage
 
-2.7 Mathlib's build cache
+2.8 Mathlib's build cache
 =========================
 
 Mathlib is far too large to build locally, and does not need to be: its
@@ -543,7 +567,7 @@ whatever Lake reports, as with any other build.
 
 File: lean4-mode.info,  Node: The module hierarchy,  Next: Other Lake operations,  Prev: Mathlib's build cache,  Up: Usage
 
-2.8 The module hierarchy
+2.9 The module hierarchy
 ========================
 
 What a module imports, and what imports it, as a tree in a ‘*Lean Module
@@ -582,7 +606,7 @@ and non-meta’ for one imported both ways.
 
 File: lean4-mode.info,  Node: It needs a built project,  Up: The module hierarchy
 
-2.8.1 It needs a built project
+2.9.1 It needs a built project
 ------------------------------
 
 The server answers these from its reference data, which it builds from
@@ -597,8 +621,8 @@ after a rebuild may be the one from before it; ‘g’ asks again.
 
 File: lean4-mode.info,  Node: Other Lake operations,  Next: Completion,  Prev: The module hierarchy,  Up: Usage
 
-2.9 Other Lake operations
-=========================
+2.10 Other Lake operations
+==========================
 
 Two more commands live in the same ‘Project’ menu.
 
@@ -627,7 +651,7 @@ has a window to point at a folder.
 
 File: lean4-mode.info,  Node: Completion,  Prev: Other Lake operations,  Up: Usage
 
-2.10 Completion
+2.11 Completion
 ===============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -845,35 +869,36 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2026
-Node: Requirements2251
-Node: From source3331
-Node: With a source-based package manager3819
-Node: Native vc (Emacs 30 or later)4330
-Node: Doom-Emacs4775
-Node: Straight5094
-Node: Upgrading from version 15451
-Node: Usage6748
-Node: Keys in a Lean buffer8187
-Node: Keys in the goal display9857
-Node: The tactic state14218
-Node: How much of a goal to show15010
-Node: Errors and warnings18511
-Node: Building dependencies22264
-Node: Mathlib's build cache23537
-Node: The module hierarchy24899
-Node: It needs a built project26591
-Node: Other Lake operations27239
-Node: Completion28662
-Node: Configuration29784
-Node: Frequently used options30223
-Node: The goal display's controls31886
-Node: Older Lean versions33207
-Node: Semantic highlighting34189
-Node: Optional packages35508
-Node: Troubleshooting36001
-Node: Common Pitfalls36651
-Node: Acknowledgements37252
+Node: Installation2057
+Node: Requirements2282
+Node: From source3362
+Node: With a source-based package manager3850
+Node: Native vc (Emacs 30 or later)4361
+Node: Doom-Emacs4806
+Node: Straight5125
+Node: Upgrading from version 15482
+Node: Usage6779
+Node: Keys in a Lean buffer8249
+Node: Keys in the goal display9919
+Node: The tactic state14280
+Node: Copying what is on display15072
+Node: How much of a goal to show16099
+Node: Errors and warnings19610
+Node: Building dependencies23363
+Node: Mathlib's build cache24636
+Node: The module hierarchy25998
+Node: It needs a built project27690
+Node: Other Lake operations28338
+Node: Completion29763
+Node: Configuration30885
+Node: Frequently used options31324
+Node: The goal display's controls32987
+Node: Older Lean versions34308
+Node: Semantic highlighting35290
+Node: Optional packages36609
+Node: Troubleshooting37102
+Node: Common Pitfalls37752
+Node: Acknowledgements38353
 
 End Tag Table
 

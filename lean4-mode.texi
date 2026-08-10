@@ -67,6 +67,7 @@ Usage
 * Keys in a Lean buffer::
 * Keys in the goal display::
 * The tactic state::
+* Copying what is on display::
 * How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
@@ -250,6 +251,7 @@ buffer.  To put it in a side window on the right:
 * Keys in a Lean buffer::
 * Keys in the goal display::
 * The tactic state::
+* Copying what is on display::
 * How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
@@ -403,6 +405,30 @@ neither does this.
 The expected type at point follows, under @samp{Expected type}, and is not
 counted -- VS Code counts only the tactic state.  Neither heading takes
 a colon, as neither does in VS Code.
+
+@node Copying what is on display
+@section Copying what is on display
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@headitem Command
+@tab Copies
+@item @code{lean4-info-copy-state}
+@tab the tactic state, to the kill ring
+@item @code{lean4-info-copy-to-comment}
+@tab the tactic state, into the Lean buffer
+@item @code{lean4-info-copy-message}
+@tab the message point is in, to the kill ring
+@end multitable
+
+The first two are in both menus and work from either buffer; the third
+needs point to be inside a message in the goal display, messages being
+sections.  @code{lean4-info-copy-to-comment} puts the state in a @samp{/- -/} block
+above the line point is on, indented with it, as VS Code's "Copy Contents
+to Comment" does.
+
+The state is copied in full, whatever the settings above are hiding: text
+pasted into an issue is no use with half the hypotheses missing.  This is
+what VS Code copies too.
 
 @node How much of a goal to show
 @section How much of a goal to show

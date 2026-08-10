@@ -435,6 +435,94 @@ included: that is what VS Code does."
       term-goal
     (lean4-render-term-goal term-goal (lean4-info--goal-settings))))
 
+;;;; Copying what is on display
+
+(defun lean4-info--source ()
+  "Return the Lean buffer the display is reporting on, or nil.
+These commands work from either buffer, and in the display the Lean
+buffer has to be looked up rather than assumed."
+  (if (derived-mode-p 'lean4-info-mode)
+      (and (buffer-live-p lean4-info--source-buffer) lean4-info--source-buffer)
+    (current-buffer)))
+
+(defun lean4-info--state-text ()
+  "Return the tactic state as plain text, or nil if there is none.
+
+Unfiltered, whatever `lean4-info-show-goal-names' and the rest are set
+to: VS Code copies the whole state too, and text pasted into an issue or
+a comment is no use with half the hypotheses missing.  Lean\\='s own goal
+prefix is kept, which for a `conv' goal is not `⊢'."
+  (when-let* ((source (lean4-info--source)))
+    (with-current-buffer source
+      (let ((goals lean4-goals))
+        (cond
+         ((null goals) nil)
+         ((eq goals 'accomplished) "goals accomplished")
+         ((stringp goals) (substring-no-properties goals))
+         ((stringp (car goals))
+          (mapconcat #'substring-no-properties goals "\n\n"))
+         (t (substring-no-properties (lean4-render-goals goals))))))))
+
+;;;###autoload
+(defun lean4-info-copy-state ()
+  "Put the tactic state on display in the kill ring.
+The counterpart of VS Code\\='s \"Copy State\"."
+  (interactive)
+  (let ((text (or (lean4-info--state-text)
+                  (user-error "No tactic state to copy"))))
+    (kill-new text)
+    (message "Copied the tactic state")))
+
+;;;###autoload
+(defun lean4-info-copy-message ()
+  "Put the message at point in the kill ring.
+Point has to be within a message in the goal display; the messages are
+sections, so this is whichever one it is standing in.  The counterpart of
+VS Code\\='s \"Copy Message\"."
+  (interactive)
+  (unless (derived-mode-p 'lean4-info-mode)
+    (user-error "Not in the goal display"))
+  (let* ((section (or (lean4-info--message-section-at-point)
+                      (user-error "No message at point")))
+         (text (buffer-substring-no-properties
+                (or (oref section content) (oref section start))
+                (oref section end))))
+    (kill-new (string-trim text))
+    (message "Copied the message")))
+
+(defun lean4-info--message-section-at-point ()
+  "Return the message section point is in, or nil."
+  (let ((section (magit-current-section)))
+    (while (and section
+                (not (let ((value (oref section value)))
+                       (and (consp value) (eq (car value) 'message)))))
+      (setq section (oref section parent)))
+    section))
+
+;;;###autoload
+(defun lean4-info-copy-to-comment ()
+  "Insert the tactic state as a comment above the line point is on.
+
+Goes into the Lean buffer, so it works from the goal display as well.
+VS Code words this \"Copy Contents to Comment\" and wraps the state in a
+block comment above the cursor, which is what this does."
+  (interactive)
+  (let* ((text (or (lean4-info--state-text)
+                   (user-error "No tactic state to copy")))
+         (source (or (lean4-info--source)
+                     (user-error "No Lean buffer to copy into"))))
+    (with-current-buffer source
+      (when buffer-read-only
+        (user-error "%s is read-only" (buffer-name)))
+      (save-excursion
+        (beginning-of-line)
+        (let ((indentation (make-string (current-indentation) ?\s)))
+          (insert indentation "/-\n"
+                  (replace-regexp-in-string
+                   "^" indentation (string-trim-right text) nil 'literal)
+                  "\n" indentation "-/\n"))))
+    (message "Copied the tactic state into %s" (buffer-name source))))
+
 (defun lean4-info--report-setting (description)
   "Redraw the goal display and say DESCRIPTION of what it now shows."
   (lean4-info--redisplay-source)
@@ -2284,7 +2372,9 @@ creates a pin, which is the nil answer."
     ["Order all messages" lean4-info-toggle-message-order
      :label (if (eq lean4-info-message-order 'point)
                 "Order all messages by position in the file"
-              "Order all messages by nearness to point")])
+              "Order all messages by nearness to point")]
+    ["Copy the tactic state" lean4-info-copy-state]
+    ["Copy the state into a comment" lean4-info-copy-to-comment])
   "Menu entries for the goal display\\='s controls.
 Shared by `lean4-mode-menu' and `lean4-info-mode-menu': the commands
 work from either buffer, so it would only confuse matters for the two
@@ -2326,6 +2416,7 @@ Shared by `lean4-mode-menu' and `lean4-info-mode-menu', as
     ,@lean4-info-menu-items
     ,lean4-info-display-menu
     "--"
+    ["Copy the message at point" lean4-info-copy-message t]
     ["Go to type definition" lean4-info-goto-type-definition t]
     ["Close goal display" lean4-toggle-info t]
     ["Customize goal display" (customize-group 'lean4-info) t]))

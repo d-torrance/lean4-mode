@@ -1431,6 +1431,114 @@ at the reader for as long as it is on screen."
           (advice-remove 'erase-buffer 'lean4-info-test-count)))
     (kill-buffer lean4-info-buffer-name)))
 
+;;;; Copying what is on display
+
+(ert-deftest lean4-info-copies-the-state-unfiltered ()
+  "The whole state is copied, whatever the display is set to show.
+Text pasted into an issue is no use with half the hypotheses missing."
+  (with-temp-buffer
+    (setq-local lean4-goals
+                '((:goalPrefix "⊢ " :type (:text "True")
+                   :hyps [(:names ["inst"] :type (:text "Monoid α")
+                           :isInstance t)])))
+    (let ((lean4-info-hide-instance-assumptions t))
+      (should (equal (lean4-info--state-text)
+                     "inst : Monoid α\n⊢ True")))))
+
+(ert-deftest lean4-info-copies-leans-own-goal-prefix ()
+  "A `conv' goal is not introduced by an unadorned turnstile."
+  (with-temp-buffer
+    (setq-local lean4-goals '((:goalPrefix "| " :hyps [] :type (:text "a + b"))))
+    (should (equal (lean4-info--state-text) "| a + b"))))
+
+(ert-deftest lean4-info-copies-plain-and-accomplished-states ()
+  "Text stays text, and a finished proof says so."
+  (with-temp-buffer
+    (setq-local lean4-goals '("⊢ A" "⊢ B"))
+    (should (equal (lean4-info--state-text) "⊢ A\n\n⊢ B")))
+  (with-temp-buffer
+    (setq-local lean4-goals 'accomplished)
+    (should (equal (lean4-info--state-text) "goals accomplished")))
+  (with-temp-buffer
+    (setq-local lean4-goals nil)
+    (should-not (lean4-info--state-text))))
+
+(ert-deftest lean4-info-copy-state-fills-the-kill-ring ()
+  "The command puts the state where `yank' will find it."
+  (with-temp-buffer
+    (setq-local lean4-goals '((:goalPrefix "⊢ " :hyps [] :type (:text "True"))))
+    (let ((kill-ring nil) (kill-ring-yank-pointer nil))
+      (cl-letf (((symbol-function 'message) #'ignore))
+        (lean4-info-copy-state))
+      (should (equal (current-kill 0) "⊢ True")))))
+
+(ert-deftest lean4-info-copy-state-declines-when-there-is-none ()
+  "Nothing to copy is a user error, not an empty kill."
+  (with-temp-buffer
+    (setq-local lean4-goals nil)
+    (should-error (lean4-info-copy-state) :type 'user-error)))
+
+(ert-deftest lean4-info-copies-the-state-into-a-comment ()
+  "The state goes in as a block comment above the line, indented with it."
+  (with-temp-buffer
+    (setq-local lean4-goals
+                '((:goalPrefix "⊢ " :hyps [(:names ["h"] :type (:text "P"))]
+                   :type (:text "True"))))
+    (insert "theorem t : True := by\n  sorry\n")
+    (goto-char (point-min))
+    (forward-line 1)
+    (end-of-line)
+    (cl-letf (((symbol-function 'message) #'ignore))
+      (lean4-info-copy-to-comment))
+    (should (equal (buffer-string)
+                   (concat "theorem t : True := by\n"
+                           "  /-\n"
+                           "  h : P\n"
+                           "  ⊢ True\n"
+                           "  -/\n"
+                           "  sorry\n")))))
+
+(ert-deftest lean4-info-copy-to-comment-leaves-point-alone ()
+  "Inserting above the line does not move point off it."
+  (with-temp-buffer
+    (setq-local lean4-goals '((:goalPrefix "⊢ " :hyps [] :type (:text "True"))))
+    (insert "  sorry\n")
+    (goto-char (point-min))
+    (end-of-line)
+    (let ((column (current-column)))
+      (cl-letf (((symbol-function 'message) #'ignore))
+        (lean4-info-copy-to-comment))
+      (should (equal (buffer-substring-no-properties
+                      (line-beginning-position) (line-end-position))
+                     "  sorry"))
+      (should (= (current-column) column)))))
+
+(ert-deftest lean4-info-copy-message-needs-the-display ()
+  "The message to copy is the one point is in, so it needs that buffer."
+  (with-temp-buffer
+    (should-error (lean4-info-copy-message) :type 'user-error)))
+
+(ert-deftest lean4-info-copy-message-takes-the-one-point-is-in ()
+  "Point anywhere inside a message copies that message and not its neighbour.
+Messages are sections, so this walks out to the enclosing one -- point is
+usually on a term deep inside the body."
+  (with-temp-buffer
+    (lean4-info-mode)
+    (let ((inhibit-read-only t))
+      (magit-insert-section (lean4-info-test-root)
+        (dolist (name '("first" "second"))
+          (magit-insert-section (lean4-info-section (list 'message name))
+            (magit-insert-heading (format "Fixture.lean:1:0 %s\n" name))
+            (magit-insert-section-body
+              (insert (format "the body of the %s message\n" name)))))))
+    (goto-char (point-min))
+    (search-forward "the body of the second")
+    (let ((kill-ring nil) (kill-ring-yank-pointer nil))
+      (cl-letf (((symbol-function 'message) #'ignore))
+        (lean4-info-copy-message))
+      (should (string-search "second" (current-kill 0)))
+      (should-not (string-search "first" (current-kill 0))))))
+
 ;;;; How much of a goal to show
 
 (ert-deftest lean4-info-goal-settings-invert-show-goal-names ()
