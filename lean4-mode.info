@@ -353,6 +353,10 @@ rather than only on a branching one.
 own wording for it; VS Code says ‘No goals’ there and counts nothing,
 and neither does this.
 
+   The expected type at point follows, under ‘Expected type’, and is not
+counted - VS Code counts only the tactic state.  Neither heading takes a
+colon, as neither does in VS Code.
+
 
 File: lean4-mode.info,  Node: How much of a goal to show,  Next: Errors and warnings,  Prev: The tactic state,  Up: Usage
 
@@ -761,20 +765,20 @@ Node: Usage6645
 Node: Keys in a Lean buffer8033
 Node: Keys in the goal display9703
 Node: The tactic state14064
-Node: How much of a goal to show14670
-Node: Errors and warnings18171
-Node: Building dependencies21924
-Node: Mathlib's build cache23197
-Node: Completion24549
-Node: Configuration25669
-Node: Frequently used options26108
-Node: The goal display's controls27771
-Node: Older Lean versions29092
-Node: Semantic highlighting30074
-Node: Optional packages31393
-Node: Troubleshooting31886
-Node: Common Pitfalls32536
-Node: Acknowledgements33137
+Node: How much of a goal to show14856
+Node: Errors and warnings18357
+Node: Building dependencies22110
+Node: Mathlib's build cache23383
+Node: Completion24735
+Node: Configuration25855
+Node: Frequently used options26294
+Node: The goal display's controls27957
+Node: Older Lean versions29278
+Node: Semantic highlighting30260
+Node: Optional packages31579
+Node: Troubleshooting32072
+Node: Common Pitfalls32722
+Node: Acknowledgements33323
 
 End Tag Table
 

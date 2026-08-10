@@ -747,7 +747,8 @@ BUFFER is the Lean buffer the messages belong to."
     (magit-insert-section (lean4-info-section 'term-goal
                                               (eq lean4-info-expected-type-visibility
                                                   'collapsed))
-      (magit-insert-heading (lean4-info--heading-text "Expected type:"))
+      ;; VS Code's wording, and no colon, as with "Tactic state" above.
+      (magit-insert-heading (lean4-info--heading-text "Expected type"))
       (lean4-info--section-body
         (lean4-info--insert (lean4-info--term-goal-text term-goal) "\n"))))
   (lean4-info--mk-message-section

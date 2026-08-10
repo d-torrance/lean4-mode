@@ -232,6 +232,10 @@ A finished proof reads =goals accomplished= instead, which is Lean's own
 wording for it; VS Code says =No goals= there and counts nothing, and
 neither does this.
 
+The expected type at point follows, under =Expected type=, and is not
+counted -- VS Code counts only the tactic state.  Neither heading takes
+a colon, as neither does in VS Code.
+
 ** How much of a goal to show
 
 A goal in Mathlib can carry more hypotheses than fit on a screen, most of

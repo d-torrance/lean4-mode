@@ -1554,14 +1554,16 @@ A server too old for the interactive RPC sends them already rendered."
       (let ((inhibit-read-only t))
         (magit-insert-section (lean4-info-test-root)
           (lean4-info--insert-position nil "⊢ Expected" nil (current-buffer))))
-      (should-not (string-search "Expected type:" (buffer-string)))))
+      (should-not (string-search "Expected type" (buffer-string)))))
   (let ((lean4-info-expected-type-visibility 'expanded))
     (with-temp-buffer
       (lean4-info-mode)
       (let ((inhibit-read-only t))
         (magit-insert-section (lean4-info-test-root)
           (lean4-info--insert-position nil "⊢ Expected" nil (current-buffer))))
-      (should (string-search "Expected type:" (buffer-string))))))
+      (should (string-search "Expected type" (buffer-string)))
+      ;; VS Code's wording, and no colon, as with "Tactic state".
+      (should-not (string-search "Expected type:" (buffer-string))))))
 
 (ert-deftest lean4-info-toggles-report-and-redisplay ()
   "Each toggle flips its option and asks for a redraw."
