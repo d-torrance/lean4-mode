@@ -63,6 +63,7 @@ Usage
 * Errors and warnings::
 * Building dependencies::
 * Mathlib's build cache::
+* Other Lake operations::
 * Completion::
 
 Configuration
@@ -247,6 +248,7 @@ buffer.  To put it in a side window on the right:
 * Errors and warnings::
 * Building dependencies::
 * Mathlib's build cache::
+* Other Lake operations::
 * Completion::
 
 
@@ -506,7 +508,7 @@ beneath it.  ‘C-c C-p C-l’ (‘lean4-lake-build’) builds the package
 outright.
 
 
-File: lean4-mode.info,  Node: Mathlib's build cache,  Next: Completion,  Prev: Building dependencies,  Up: Usage
+File: lean4-mode.info,  Node: Mathlib's build cache,  Next: Other Lake operations,  Prev: Building dependencies,  Up: Usage
 
 2.7 Mathlib's build cache
 =========================
@@ -533,9 +535,39 @@ package is the thing to run once, after cloning.
 whatever Lake reports, as with any other build.
 
 
-File: lean4-mode.info,  Node: Completion,  Prev: Mathlib's build cache,  Up: Usage
+File: lean4-mode.info,  Node: Other Lake operations,  Next: Completion,  Prev: Mathlib's build cache,  Up: Usage
 
-2.8 Completion
+2.8 Other Lake operations
+=========================
+
+Two more commands live in the same ‘Project’ menu.
+
+   ‘lean4-lake-clean’ runs ‘lake clean’, and asks first: on a project
+the size of Mathlib that discards hours of building, though
+‘lean4-lake-fetch-cache’ gets most of it back.
+
+   ‘lean4-lake-update-dependency’ runs ‘lake update’ on one dependency,
+offering the package's direct Git dependencies for completion - read
+from ‘lake-manifest.json’, which is Lake's record of what it resolved
+them to.  It asks first too, and means it: VS Code's warning is that the
+command is for maintainers of a project, and that if the new version is
+incompatible with another dependency or with the code here, the project
+may stop building.  It also rewrites the manifest, which most projects
+keep under version control.
+
+   Unlike VS Code it leaves ‘lean-toolchain’ alone.  VS Code offers to
+match it to the updated dependency's; that is a second decision, about a
+file both Lake and elan read, and is better made deliberately.
+
+   Opening a project needs nothing from this package: a Lean file is
+served by whichever workspace encloses it, so ‘C-x C-f’ and ‘project.el’
+are the whole of it.  VS Code's "Open Local Project" exists because it
+has a window to point at a folder.
+
+
+File: lean4-mode.info,  Node: Completion,  Prev: Other Lake operations,  Up: Usage
+
+2.9 Completion
 ==============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -753,32 +785,33 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation1923
-Node: Requirements2148
-Node: From source3228
-Node: With a source-based package manager3716
-Node: Native vc (Emacs 30 or later)4227
-Node: Doom-Emacs4672
-Node: Straight4991
-Node: Upgrading from version 15348
-Node: Usage6645
-Node: Keys in a Lean buffer8033
-Node: Keys in the goal display9703
-Node: The tactic state14064
-Node: How much of a goal to show14856
-Node: Errors and warnings18357
-Node: Building dependencies22110
-Node: Mathlib's build cache23383
-Node: Completion24735
-Node: Configuration25855
-Node: Frequently used options26294
-Node: The goal display's controls27957
-Node: Older Lean versions29278
-Node: Semantic highlighting30260
-Node: Optional packages31579
-Node: Troubleshooting32072
-Node: Common Pitfalls32722
-Node: Acknowledgements33323
+Node: Installation1949
+Node: Requirements2174
+Node: From source3254
+Node: With a source-based package manager3742
+Node: Native vc (Emacs 30 or later)4253
+Node: Doom-Emacs4698
+Node: Straight5017
+Node: Upgrading from version 15374
+Node: Usage6671
+Node: Keys in a Lean buffer8085
+Node: Keys in the goal display9755
+Node: The tactic state14116
+Node: How much of a goal to show14908
+Node: Errors and warnings18409
+Node: Building dependencies22162
+Node: Mathlib's build cache23435
+Node: Other Lake operations24798
+Node: Completion26222
+Node: Configuration27342
+Node: Frequently used options27781
+Node: The goal display's controls29444
+Node: Older Lean versions30765
+Node: Semantic highlighting31747
+Node: Optional packages33066
+Node: Troubleshooting33559
+Node: Common Pitfalls34209
+Node: Acknowledgements34810
 
 End Tag Table
 

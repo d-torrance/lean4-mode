@@ -181,5 +181,90 @@ server.  Inside BODY, `root' is the tree's root."
             (setq buffer-file-name nil))
           (kill-buffer buffer))))))
 
+;;;; Cleaning
+
+(ert-deftest lean4-lake-clean-asks-before-deleting ()
+  "Cleaning is confirmed first, and declining runs nothing."
+  (lean4-lake-test--in-file "Pkg/Mod.lean" '("lakefile.toml" "Pkg/Mod.lean")
+    (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+      (should (string-suffix-p "clean"
+                               (car (lean4-lake-test--capture
+                                      (lean4-lake-clean))))))
+    (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) nil)))
+      (should-error (lean4-lake-test--capture (lean4-lake-clean))
+                    :type 'user-error))))
+
+;;;; Dependencies
+
+(defmacro lean4-lake-test--with-manifest (json &rest body)
+  "Write JSON as the Lake manifest of a package and evaluate BODY.
+Inside BODY, `root' is the package directory."
+  (declare (indent 1) (debug (form body)))
+  `(lean4-lake-test--with-tree '("lakefile.toml")
+     (write-region ,json nil (expand-file-name "lake-manifest.json" root)
+                   nil 'silent)
+     ,@body))
+
+(ert-deftest lean4-lake-dependencies-read-the-current-manifest ()
+  "From manifest version 7 on, a package's fields are at the top level."
+  (lean4-lake-test--with-manifest
+      "{\"version\": \"1.2.0\", \"name\": \"pkg\",
+        \"packagesDir\": \".lake/packages\",
+        \"packages\": [{\"type\": \"git\", \"name\": \"mathlib\",
+                      \"url\": \"https://example.invalid/mathlib\",
+                      \"rev\": \"abc\", \"inherited\": false}]}"
+    (should (equal (lean4-lake--direct-dependencies root) '("mathlib")))))
+
+(ert-deftest lean4-lake-dependencies-read-a-legacy-manifest ()
+  "Up to version 6 the fields sat under a `git' object.
+A checkout old enough to have one is exactly what would otherwise fail
+silently."
+  (lean4-lake-test--with-manifest
+      "{\"version\": 6, \"packagesDir\": \".lake/packages\",
+        \"packages\": [{\"git\": {\"name\": \"batteries\",
+                               \"url\": \"https://example.invalid/b\",
+                               \"rev\": \"abc\", \"inherited\": false}}]}"
+    (should (equal (lean4-lake--direct-dependencies root) '("batteries")))))
+
+(ert-deftest lean4-lake-dependencies-skip-inherited-and-path ()
+  "Only direct Git dependencies can be updated from here.
+An inherited package is a dependency's own dependency, and a path
+dependency has no revision to move."
+  (lean4-lake-test--with-manifest
+      "{\"version\": \"1.2.0\", \"name\": \"pkg\",
+        \"packagesDir\": \".lake/packages\",
+        \"packages\": [{\"type\": \"git\", \"name\": \"direct\",
+                      \"url\": \"https://example.invalid/d\",
+                      \"rev\": \"a\", \"inherited\": false},
+                     {\"type\": \"git\", \"name\": \"indirect\",
+                      \"url\": \"https://example.invalid/i\",
+                      \"rev\": \"b\", \"inherited\": true},
+                     {\"type\": \"path\", \"name\": \"local\"}]}"
+    (should (equal (lean4-lake--direct-dependencies root) '("direct")))))
+
+(ert-deftest lean4-lake-dependencies-tolerate-a-bad-manifest ()
+  "A missing or unreadable manifest yields nil rather than an error.
+The format is Lake's to change, and erroring on one we do not recognise
+is how a client breaks on the next version."
+  (lean4-lake-test--with-tree '("lakefile.toml")
+    (should-not (lean4-lake--direct-dependencies root)))
+  (lean4-lake-test--with-manifest "not json at all {"
+    (should-not (lean4-lake--direct-dependencies root)))
+  (lean4-lake-test--with-manifest "{\"version\": \"1.2.0\"}"
+    (should-not (lean4-lake--direct-dependencies root))))
+
+(ert-deftest lean4-lake-update-dependency-names-it-and-asks ()
+  "The chosen dependency is passed to `lake update', once confirmed."
+  (lean4-lake-test--in-file "Pkg/Mod.lean" '("lakefile.toml" "Pkg/Mod.lean")
+    (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+      (should (string-suffix-p "update mathlib"
+                               (car (lean4-lake-test--capture
+                                      (lean4-lake-update-dependency
+                                       "mathlib"))))))
+    (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) nil)))
+      (should-error (lean4-lake-test--capture
+                     (lean4-lake-update-dependency "mathlib"))
+                    :type 'user-error))))
+
 (provide 'lean4-lake-test)
 ;;; lean4-lake-test.el ends here

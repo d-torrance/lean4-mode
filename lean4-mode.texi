@@ -71,6 +71,7 @@ Usage
 * Errors and warnings::
 * Building dependencies::
 * Mathlib's build cache::
+* Other Lake operations::
 * Completion::
 
 Configuration
@@ -248,6 +249,7 @@ buffer.  To put it in a side window on the right:
 * Errors and warnings::
 * Building dependencies::
 * Mathlib's build cache::
+* Other Lake operations::
 * Completion::
 @end menu
 
@@ -593,6 +595,33 @@ is the thing to run once, after cloning.
 
 Output goes to a compilation buffer, so @samp{M-x next-error} walks whatever
 Lake reports, as with any other build.
+
+@node Other Lake operations
+@section Other Lake operations
+
+Two more commands live in the same @samp{Project} menu.
+
+@code{lean4-lake-clean} runs @samp{lake clean}, and asks first: on a project the
+size of Mathlib that discards hours of building, though
+@code{lean4-lake-fetch-cache} gets most of it back.
+
+@code{lean4-lake-update-dependency} runs @samp{lake update} on one dependency,
+offering the package's direct Git dependencies for completion -- read
+from @samp{lake-manifest.json}, which is Lake's record of what it resolved
+them to.  It asks first too, and means it: VS Code's warning is that the
+command is for maintainers of a project, and that if the new version is
+incompatible with another dependency or with the code here, the project
+may stop building.  It also rewrites the manifest, which most projects
+keep under version control.
+
+Unlike VS Code it leaves @samp{lean-toolchain} alone.  VS Code offers to match
+it to the updated dependency's; that is a second decision, about a file
+both Lake and elan read, and is better made deliberately.
+
+Opening a project needs nothing from this package: a Lean file is served
+by whichever workspace encloses it, so @samp{C-x C-f} and @samp{project.el} are the
+whole of it.  VS Code's "Open Local Project" exists because it has a
+window to point at a folder.
 
 @node Completion
 @section Completion

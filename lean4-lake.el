@@ -56,6 +56,87 @@ navigated the way every other build's are."
   (interactive)
   (lean4-lake--run "build"))
 
+(defun lean4-lake-clean ()
+  "Delete the package\\='s build artefacts, with `lake clean'.
+
+Asks first, as VS Code does: on a project the size of Mathlib this
+discards hours of building, though `lean4-lake-fetch-cache' can get most
+of it back.  `lean4-lake-build' rebuilds."
+  (interactive)
+  (let ((root (lean4-lake-find-dir-safe)))
+    (unless (yes-or-no-p (format "Delete all build artefacts in %s? " root))
+      (user-error "Not cleaning %s" root))
+    (lean4-lake--run "clean")))
+
+;;;; Dependencies
+
+;; `lake-manifest.json' is where Lake records what it resolved each dependency
+;; to.  Two shapes are in the wild: up to manifest version 6 each package is
+;; `{"git": {"name": ...}}', and from 7 on -- which is what any current Lake
+;; writes -- it is `{"type": "git", "name": ...}'.  Both are read here, since
+;; a checkout old enough to have the first is exactly the sort this would
+;; otherwise fail on silently.
+
+(defun lean4-lake--manifest-packages (root)
+  "Return the packages named in ROOT\\='s Lake manifest, as plists.
+Nil when there is no manifest, or it cannot be parsed: a manifest is
+Lake\\='s to write, and a client that errors on one it does not recognise
+is a client that breaks on the next format."
+  (let ((file (expand-file-name "lake-manifest.json" root)))
+    (when (file-readable-p file)
+      (ignore-errors
+        (with-temp-buffer
+          (insert-file-contents file)
+          (goto-char (point-min))
+          (plist-get (json-parse-buffer :object-type 'plist
+                                        :array-type 'list
+                                        :null-object nil
+                                        :false-object nil)
+                     :packages))))))
+
+(defun lean4-lake--direct-dependencies (root)
+  "Return the names of ROOT\\='s direct Git dependencies.
+
+Inherited ones are left out -- they are a dependency\\='s dependencies, and
+updating one from here is not what `lake update' means -- as are path
+dependencies, which have no revision to move."
+  (delq nil
+        (mapcar (lambda (package)
+                  (let ((git (plist-get package :git)))
+                    (when (or git (equal (plist-get package :type) "git"))
+                      (let ((fields (or git package)))
+                        (unless (plist-get fields :inherited)
+                          (plist-get fields :name))))))
+                (lean4-lake--manifest-packages root))))
+
+(defun lean4-lake-update-dependency (name)
+  "Update the dependency NAME to its most recent version, with `lake update'.
+
+Read from `lake-manifest.json', which is what Lake resolved the
+package\\='s dependencies to.
+
+Asks first, and means it.  VS Code words the warning this way: the
+command is intended for maintainers of the project, and if the updated
+version is incompatible with another dependency or with the code here,
+the project may not build any more.  It also rewrites the manifest, which
+is under version control in most projects.
+
+Does not touch \"lean-toolchain\".  VS Code offers to match it to the
+updated dependency\\='s; that is a second decision about a file Lake and
+elan both read, and is better made deliberately."
+  (interactive
+   (let* ((root (lean4-lake-find-dir-safe))
+          (names (lean4-lake--direct-dependencies root)))
+     (unless names
+       (user-error "No Git dependencies recorded in %slake-manifest.json"
+                   (file-name-as-directory root)))
+     (list (completing-read "Update dependency: " names nil t))))
+  (unless (yes-or-no-p
+           (format "Update %s to its latest version, and rewrite the manifest? "
+                   name))
+    (user-error "Not updating %s" name))
+  (lean4-lake--run "update" name))
+
 ;;;; Mathlib's build cache
 
 ;; `lake exe cache get' is Mathlib's own executable rather than anything Lake

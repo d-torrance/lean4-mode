@@ -170,6 +170,8 @@ and which is what this mode did before."
     "--"
     ("Project"
      ["Build with Lake"                lean4-lake-build              t]
+     ["Clean build artefacts"          lean4-lake-clean              t]
+     ["Update a dependency..."         lean4-lake-update-dependency  t]
      "--"
      ;; Mathlib's own executable, so these are absent in a project that does
      ;; not depend on it; whether it is there is Lake's answer to give.

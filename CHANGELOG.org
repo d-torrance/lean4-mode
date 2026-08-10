@@ -171,7 +171,13 @@ xref, project roots through =project.el=.
   accomplished=, where VS Code counts nothing either.  The expected type
   is headed =Expected type= rather than =Expected type:=, neither heading
   taking a colon in VS Code.
-- A test suite: 229 unit tests, and 36 end-to-end tests that run against
+- ~lean4-lake-clean~ deletes the package's build artefacts and
+  ~lean4-lake-update-dependency~ updates one dependency, offering the
+  package's direct Git dependencies for completion from
+  =lake-manifest.json=.  Both ask first, as VS Code's counterparts do,
+  and both join the =Project= menu.  Manifest versions before and after 7
+  are read, the shape having changed at that point.
+- A test suite: 235 unit tests, and 36 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed
