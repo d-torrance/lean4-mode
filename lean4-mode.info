@@ -65,6 +65,7 @@ Usage
 * Building dependencies::
 * Building::
 * Mathlib's build cache::
+* Searching Mathlib with Loogle::
 * The module hierarchy::
 * Other Lake operations::
 * Completion::
@@ -257,6 +258,7 @@ buffer.  To put it in a side window on the right:
 * Building dependencies::
 * Building::
 * Mathlib's build cache::
+* Searching Mathlib with Loogle::
 * The module hierarchy::
 * Other Lake operations::
 * Completion::
@@ -569,7 +571,7 @@ though, stops the build rather than leaving it to do that work locally.
 resolution, ‘M-x compile’ is the thing.
 
 
-File: lean4-mode.info,  Node: Mathlib's build cache,  Next: The module hierarchy,  Prev: Building,  Up: Usage
+File: lean4-mode.info,  Node: Mathlib's build cache,  Next: Searching Mathlib with Loogle,  Prev: Building,  Up: Usage
 
 2.9 Mathlib's build cache
 =========================
@@ -596,9 +598,43 @@ package is the thing to run once, after cloning.
 whatever Lake reports, as with any other build.
 
 
-File: lean4-mode.info,  Node: The module hierarchy,  Next: Other Lake operations,  Prev: Mathlib's build cache,  Up: Usage
+File: lean4-mode.info,  Node: Searching Mathlib with Loogle,  Next: The module hierarchy,  Prev: Mathlib's build cache,  Up: Usage
 
-2.10 The module hierarchy
+2.10 Searching Mathlib with Loogle
+==================================
+
+‘M-x lean4-loogle-search’ asks Loogle (https://loogle.lean-lang.org),
+which searches Mathlib by shape rather than by name:
+
+   • ‘Nat.succ_le_succ’ finds the declaration of that name.
+   • ‘?a + ?b = ?b + ?a’ finds the commutativity lemmas.
+   • ‘Real.sin, Real.cos’ finds what mentions both.
+   • A query beginning with a turnstile, ‘|-’ followed by a pattern,
+     finds what _concludes_ a statement of that shape.
+
+   Loogle's own page documents the syntax.
+
+   The query is read with the Lean input method inherited, so ‘lpha’
+becomes α in the minibuffer exactly as it would in a Lean buffer - which
+is the point of asking from inside Emacs rather than in a browser tab,
+since Loogle's syntax leans on notation.  An active region is offered as
+the starting point.
+
+   Results appear in a ‘*Lean Loogle*’ buffer: each is its name, the
+module it lives in, and its type, foldable like everything else.  ‘RET’
+opens the result's documentation in a browser, as clicking its name does
+in VS Code; ‘w’ copies its name; ‘g’ asks again; ‘q’ buries the buffer.
+Where Loogle offers a spelling suggestion it is a button that searches
+for it instead.
+
+   This needs no Lean server and no project: Loogle is a web service,
+and it answers about Mathlib rather than about the code in hand.
+‘lean4-loogle-url’ points elsewhere, for a Loogle of your own.
+
+
+File: lean4-mode.info,  Node: The module hierarchy,  Next: Other Lake operations,  Prev: Searching Mathlib with Loogle,  Up: Usage
+
+2.11 The module hierarchy
 =========================
 
 What a module imports, and what imports it, as a tree in a ‘*Lean Module
@@ -637,7 +673,7 @@ and non-meta’ for one imported both ways.
 
 File: lean4-mode.info,  Node: It needs a built project,  Up: The module hierarchy
 
-2.10.1 It needs a built project
+2.11.1 It needs a built project
 -------------------------------
 
 The server answers these from its reference data, which it builds from
@@ -652,7 +688,7 @@ after a rebuild may be the one from before it; ‘g’ asks again.
 
 File: lean4-mode.info,  Node: Other Lake operations,  Next: Completion,  Prev: The module hierarchy,  Up: Usage
 
-2.11 Other Lake operations
+2.12 Other Lake operations
 ==========================
 
 Two more commands live in the same ‘Project’ menu.
@@ -682,7 +718,7 @@ has a window to point at a folder.
 
 File: lean4-mode.info,  Node: Completion,  Prev: Other Lake operations,  Up: Usage
 
-2.12 Completion
+2.13 Completion
 ===============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -900,37 +936,38 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2070
-Node: Requirements2295
-Node: From source3375
-Node: With a source-based package manager3863
-Node: Native vc (Emacs 30 or later)4374
-Node: Doom-Emacs4819
-Node: Straight5138
-Node: Upgrading from version 15495
-Node: Usage6792
-Node: Keys in a Lean buffer8275
-Node: Keys in the goal display9945
-Node: The tactic state14306
-Node: Copying what is on display15098
-Node: How much of a goal to show16125
-Node: Errors and warnings19636
-Node: Building dependencies23389
-Node: Building24649
-Node: Mathlib's build cache25844
-Node: The module hierarchy27193
-Node: It needs a built project28887
-Node: Other Lake operations29537
-Node: Completion30962
-Node: Configuration32084
-Node: Frequently used options32523
-Node: The goal display's controls34186
-Node: Older Lean versions35507
-Node: Semantic highlighting36489
-Node: Optional packages37808
-Node: Troubleshooting38301
-Node: Common Pitfalls38951
-Node: Acknowledgements39552
+Node: Installation2104
+Node: Requirements2329
+Node: From source3409
+Node: With a source-based package manager3897
+Node: Native vc (Emacs 30 or later)4408
+Node: Doom-Emacs4853
+Node: Straight5172
+Node: Upgrading from version 15529
+Node: Usage6826
+Node: Keys in a Lean buffer8343
+Node: Keys in the goal display10013
+Node: The tactic state14374
+Node: Copying what is on display15166
+Node: How much of a goal to show16193
+Node: Errors and warnings19704
+Node: Building dependencies23457
+Node: Building24717
+Node: Mathlib's build cache25912
+Node: Searching Mathlib with Loogle27270
+Node: The module hierarchy28875
+Node: It needs a built project30577
+Node: Other Lake operations31227
+Node: Completion32652
+Node: Configuration33774
+Node: Frequently used options34213
+Node: The goal display's controls35876
+Node: Older Lean versions37197
+Node: Semantic highlighting38179
+Node: Optional packages39498
+Node: Troubleshooting39991
+Node: Common Pitfalls40641
+Node: Acknowledgements41242
 
 End Tag Table
 

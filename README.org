@@ -435,6 +435,35 @@ is the thing to run once, after cloning.
 Output goes to a compilation buffer, so =M-x next-error= walks whatever
 Lake reports, as with any other build.
 
+** Searching Mathlib with Loogle
+
+=M-x lean4-loogle-search= asks [[https://loogle.lean-lang.org][Loogle]], which searches Mathlib by shape
+rather than by name:
+
+- =Nat.succ_le_succ= finds the declaration of that name.
+- =?a + ?b = ?b + ?a= finds the commutativity lemmas.
+- =Real.sin, Real.cos= finds what mentions both.
+- A query beginning with a turnstile, =|-= followed by a pattern, finds
+  what /concludes/ a statement of that shape.
+
+Loogle's own page documents the syntax.
+
+The query is read with the Lean input method inherited, so =lpha= becomes
+α in the minibuffer exactly as it would in a Lean buffer -- which is the
+point of asking from inside Emacs rather than in a browser tab, since
+Loogle's syntax leans on notation.  An active region is offered as the
+starting point.
+
+Results appear in a =*Lean Loogle*= buffer: each is its name, the module it
+lives in, and its type, foldable like everything else.  =RET= opens the
+result's documentation in a browser, as clicking its name does in VS Code;
+=w= copies its name; =g= asks again; =q= buries the buffer.  Where Loogle
+offers a spelling suggestion it is a button that searches for it instead.
+
+This needs no Lean server and no project: Loogle is a web service, and it
+answers about Mathlib rather than about the code in hand.
+~lean4-loogle-url~ points elsewhere, for a Loogle of your own.
+
 ** The module hierarchy
 
 What a module imports, and what imports it, as a tree in a

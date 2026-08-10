@@ -203,7 +203,15 @@ xref, project roots through =project.el=.
   it is skipped without complaint, but a download that fails stops the
   build instead of leaving it to compile Mathlib locally.  For a bare
   =lake build=, use =M-x compile=.
-- A test suite: 259 unit tests, and 37 end-to-end tests that run against
+- =M-x lean4-loogle-search= searches Mathlib with
+  [[https://loogle.lean-lang.org][Loogle]], which matches by shape rather than by name.  Results are listed
+  in a =*Lean Loogle*= buffer with their module and type; =RET= opens a
+  result's documentation, =w= copies its name, =g= asks again, and a
+  spelling suggestion from Loogle is a button that searches for it.  The
+  query is read with the Lean input method inherited, so =\alpha= becomes α
+  in the minibuffer, Loogle's syntax leaning on notation.  The counterpart
+  of VS Code's "Search With Loogle".
+- A test suite: 273 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed

@@ -73,6 +73,7 @@ Usage
 * Building dependencies::
 * Building::
 * Mathlib's build cache::
+* Searching Mathlib with Loogle::
 * The module hierarchy::
 * Other Lake operations::
 * Completion::
@@ -258,6 +259,7 @@ buffer.  To put it in a side window on the right:
 * Building dependencies::
 * Building::
 * Mathlib's build cache::
+* Searching Mathlib with Loogle::
 * The module hierarchy::
 * Other Lake operations::
 * Completion::
@@ -659,6 +661,42 @@ is the thing to run once, after cloning.
 
 Output goes to a compilation buffer, so @samp{M-x next-error} walks whatever
 Lake reports, as with any other build.
+
+@node Searching Mathlib with Loogle
+@section Searching Mathlib with Loogle
+
+@samp{M-x lean4-loogle-search} asks @uref{https://loogle.lean-lang.org, Loogle}, which searches Mathlib by shape
+rather than by name:
+
+@itemize
+@item
+@samp{Nat.succ_le_succ} finds the declaration of that name.
+@item
+@samp{?a + ?b = ?b + ?a} finds the commutativity lemmas.
+@item
+@samp{Real.sin, Real.cos} finds what mentions both.
+@item
+A query beginning with a turnstile, @samp{|-} followed by a pattern, finds
+what @emph{concludes} a statement of that shape.
+@end itemize
+
+Loogle's own page documents the syntax.
+
+The query is read with the Lean input method inherited, so @samp{lpha} becomes
+α in the minibuffer exactly as it would in a Lean buffer -- which is the
+point of asking from inside Emacs rather than in a browser tab, since
+Loogle's syntax leans on notation.  An active region is offered as the
+starting point.
+
+Results appear in a @samp{*Lean Loogle*} buffer: each is its name, the module it
+lives in, and its type, foldable like everything else.  @samp{RET} opens the
+result's documentation in a browser, as clicking its name does in VS Code;
+@samp{w} copies its name; @samp{g} asks again; @samp{q} buries the buffer.  Where Loogle
+offers a spelling suggestion it is a button that searches for it instead.
+
+This needs no Lean server and no project: Loogle is a web service, and it
+answers about Mathlib rather than about the code in hand.
+@code{lean4-loogle-url} points elsewhere, for a Loogle of your own.
 
 @node The module hierarchy
 @section The module hierarchy
