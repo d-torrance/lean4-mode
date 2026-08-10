@@ -297,6 +297,40 @@ folded the subterm out of sight as well."
       (kill-buffer lean4-info-buffer-name))))
 
 
+(ert-deftest lean4-info-a-childless-trace-does-not-look-foldable ()
+  "A trace node with no children gets no body, and so no indicator.
+
+Lean says which is which: a leaf arrives as `strict' with an empty
+array, and only a node that really has children arrives as `lazy'.
+Giving a leaf a body would promise something to unfold and then unfold
+nothing."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (with-current-buffer lean4-info-buffer-name
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (magit-insert-section (lean4-info-section 'root)
+            (lean4-info--insert-trace
+             '(:children (:strict []) :cls "Leaf" :collapsed :json-false
+               :msg (:text "a leaf"))
+             '(0))
+            (lean4-info--insert-trace
+             '(:children (:lazy (:__rpcref "1")) :cls "Lazy" :collapsed t
+               :msg (:text "has children"))
+             '(1))))
+        (pcase-let ((`(,leaf ,lazy) (oref magit-root-section children)))
+          ;; A leaf is its heading and nothing else, so `magit-section'
+          ;; has nothing to hide and draws no indicator.
+          (should (= (oref leaf content) (oref leaf end)))
+          (should-not (oref leaf washer))
+          ;; A node whose children Lean has not sent starts folded, so
+          ;; `magit-section' keeps its body as a washer and runs it when
+          ;; the reader opens the section -- which is what it counts as
+          ;; foldable, and draws the indicator for.
+          (should (oref lazy hidden))
+          (should (oref lazy washer))))
+    (kill-buffer lean4-info-buffer-name)))
+
 (ert-deftest lean4-info-sections-are-told-apart-across-a-rebuild ()
   "Folding one section does not fold its siblings when the display rebuilds.
 
