@@ -177,7 +177,18 @@ xref, project roots through =project.el=.
   =lake-manifest.json=.  Both ask first, as VS Code's counterparts do,
   and both join the =Project= menu.  Manifest versions before and after 7
   are read, the shape having changed at that point.
-- A test suite: 235 unit tests, and 36 end-to-end tests that run against
+- The module hierarchy, in a =*Lean Module Hierarchy*= buffer:
+  ~lean4-module-hierarchy~ shows what this file's module imports and
+  ~lean4-module-hierarchy-inverse~ what imports it, both as a
+  ~magit-section~ tree that folds with =TAB=, visits with =RET= and
+  refetches with =g=.  ~lean4-module-copy-name~ copies the module's name,
+  as VS Code's "Copy Module Name" does.  A level is fetched as it is
+  opened, Mathlib's import graph being far too large to ask for at once,
+  and a module already shown further up is marked rather than expanded.
+  Import modifiers -- =private=, =all=, =meta= -- are shown for modules
+  using Lean's =module= keyword.  Needs a built project: the server
+  answers from the =.ilean= index a build leaves behind.
+- A test suite: 246 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed

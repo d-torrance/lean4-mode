@@ -393,6 +393,50 @@ is the thing to run once, after cloning.
 Output goes to a compilation buffer, so =M-x next-error= walks whatever
 Lake reports, as with any other build.
 
+** The module hierarchy
+
+What a module imports, and what imports it, as a tree in a
+=*Lean Module Hierarchy*= buffer.
+
+| Command                         | Shows                              |
+|---------------------------------+------------------------------------|
+| ~lean4-module-hierarchy~        | what this file's module imports    |
+| ~lean4-module-hierarchy-inverse~ | what imports this file's module   |
+| ~lean4-module-copy-name~        | copies the module's name           |
+
+All three are in the =Lean= menu under =Module hierarchy=.  VS Code binds
+its two to =Alt+Shift+M= and =Alt+Shift+N=; no keys are bound here, those
+chords not being Emacs ones, so bind them to taste:
+
+#+begin_src elisp
+(keymap-set lean4-mode-map "C-c C-p C-m" #'lean4-module-hierarchy)
+#+end_src
+
+The buffer is a ~magit-section~ tree, so it folds with =TAB= and moves the
+way the goal display does.  =RET= visits the module at point, =g= asks for
+the tree again, and =q= buries it.
+
+A level is fetched when it is opened, not before: Mathlib's import graph
+is far too large to ask for at once.  An unopened node shows =...= until
+its children arrive.  A module that already appears further up the tree is
+marked =(shown above)= and not expanded, since the import graph has
+diamonds and following one would go round for ever.
+
+Imports of a module using Lean's =module= keyword carry modifiers, and
+those are shown beside the name: =private=, =all=, =meta=, or =meta and
+non-meta= for one imported both ways.
+
+*** It needs a built project
+
+The server answers these from its reference data, which it builds from the
+=.ilean= files a build leaves behind.  In a project that has not been
+built the tree is empty -- correctly so, there being nothing indexed to
+report.  Run =C-c C-p C-l= (~lean4-lake-build~), or
+=C-c C-p C-c= (~lean4-lake-fetch-cache~) on a Mathlib project, first.
+
+~lean4-enable-file-watchers~ is off by default, so a tree fetched after a
+rebuild may be the one from before it; =g= asks again.
+
 ** Other Lake operations
 
 Two more commands live in the same =Project= menu.

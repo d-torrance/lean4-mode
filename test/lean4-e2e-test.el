@@ -289,6 +289,26 @@ Uses a real goal because the point is the whole chain: Lean's own
             (should (string-search "True" (buffer-string)))))
       (delete-other-windows))))
 
+;;;; Module hierarchy
+
+(ert-deftest lean4-e2e-module-hierarchy-is-offered-and-answers ()
+  "The server offers a module hierarchy and says which module a file is.
+
+Only the plumbing is checked here.  The tree itself comes from the
+watchdog's reference data, which it builds from the `.ilean' files a
+build leaves behind -- and this fixture deliberately does not compile, so
+there are none to read.  `lean4-module-test' draws the tree from payloads
+instead."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (should (lean4-module-supported-p))
+    (let ((module (jsonrpc-request
+                   (eglot-current-server)
+                   :$/lean/prepareModuleHierarchy
+                   (list :textDocument (lean4-text-document-identifier)))))
+      (should (equal (lean4-module--name module) "Fixture"))
+      (should (string-suffix-p "Fixture.lean" (lean4-module--uri module))))))
+
 ;;;; Interactive RPC
 
 (defun lean4-e2e--rpc (call)

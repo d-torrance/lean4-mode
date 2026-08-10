@@ -63,8 +63,13 @@ Usage
 * Errors and warnings::
 * Building dependencies::
 * Mathlib's build cache::
+* The module hierarchy::
 * Other Lake operations::
 * Completion::
+
+The module hierarchy
+
+* It needs a built project::
 
 Configuration
 
@@ -248,6 +253,7 @@ buffer.  To put it in a side window on the right:
 * Errors and warnings::
 * Building dependencies::
 * Mathlib's build cache::
+* The module hierarchy::
 * Other Lake operations::
 * Completion::
 
@@ -508,7 +514,7 @@ beneath it.  ‘C-c C-p C-l’ (‘lean4-lake-build’) builds the package
 outright.
 
 
-File: lean4-mode.info,  Node: Mathlib's build cache,  Next: Other Lake operations,  Prev: Building dependencies,  Up: Usage
+File: lean4-mode.info,  Node: Mathlib's build cache,  Next: The module hierarchy,  Prev: Building dependencies,  Up: Usage
 
 2.7 Mathlib's build cache
 =========================
@@ -535,9 +541,63 @@ package is the thing to run once, after cloning.
 whatever Lake reports, as with any other build.
 
 
-File: lean4-mode.info,  Node: Other Lake operations,  Next: Completion,  Prev: Mathlib's build cache,  Up: Usage
+File: lean4-mode.info,  Node: The module hierarchy,  Next: Other Lake operations,  Prev: Mathlib's build cache,  Up: Usage
 
-2.8 Other Lake operations
+2.8 The module hierarchy
+========================
+
+What a module imports, and what imports it, as a tree in a ‘*Lean Module
+Hierarchy*’ buffer.
+
+Command                            Shows
+---------------------------------------------------------------------
+‘lean4-module-hierarchy’           what this file's module imports
+‘lean4-module-hierarchy-inverse’   what imports this file's module
+‘lean4-module-copy-name’           copies the module's name
+
+   All three are in the ‘Lean’ menu under ‘Module hierarchy’.  VS Code
+binds its two to ‘Alt+Shift+M’ and ‘Alt+Shift+N’; no keys are bound
+here, those chords not being Emacs ones, so bind them to taste:
+
+     (keymap-set lean4-mode-map "C-c C-p C-m" #'lean4-module-hierarchy)
+
+   The buffer is a ‘magit-section’ tree, so it folds with ‘TAB’ and
+moves the way the goal display does.  ‘RET’ visits the module at point,
+‘g’ asks for the tree again, and ‘q’ buries it.
+
+   A level is fetched when it is opened, not before: Mathlib's import
+graph is far too large to ask for at once.  An unopened node shows ‘...’
+until its children arrive.  A module that already appears further up the
+tree is marked ‘(shown above)’ and not expanded, since the import graph
+has diamonds and following one would go round for ever.
+
+   Imports of a module using Lean's ‘module’ keyword carry modifiers,
+and those are shown beside the name: ‘private’, ‘all’, ‘meta’, or ‘meta
+and non-meta’ for one imported both ways.
+
+* Menu:
+
+* It needs a built project::
+
+
+File: lean4-mode.info,  Node: It needs a built project,  Up: The module hierarchy
+
+2.8.1 It needs a built project
+------------------------------
+
+The server answers these from its reference data, which it builds from
+the ‘.ilean’ files a build leaves behind.  In a project that has not
+been built the tree is empty - correctly so, there being nothing indexed
+to report.  Run ‘C-c C-p C-l’ (‘lean4-lake-build’), or ‘C-c C-p C-c’
+(‘lean4-lake-fetch-cache’) on a Mathlib project, first.
+
+   ‘lean4-enable-file-watchers’ is off by default, so a tree fetched
+after a rebuild may be the one from before it; ‘g’ asks again.
+
+
+File: lean4-mode.info,  Node: Other Lake operations,  Next: Completion,  Prev: The module hierarchy,  Up: Usage
+
+2.9 Other Lake operations
 =========================
 
 Two more commands live in the same ‘Project’ menu.
@@ -567,8 +627,8 @@ has a window to point at a folder.
 
 File: lean4-mode.info,  Node: Completion,  Prev: Other Lake operations,  Up: Usage
 
-2.9 Completion
-==============
+2.10 Completion
+===============
 
 Completion is offered through ‘completion-at-point-functions’, so any
 completion interface works: the default ‘*Completions*’ buffer,
@@ -785,33 +845,35 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation1949
-Node: Requirements2174
-Node: From source3254
-Node: With a source-based package manager3742
-Node: Native vc (Emacs 30 or later)4253
-Node: Doom-Emacs4698
-Node: Straight5017
-Node: Upgrading from version 15374
-Node: Usage6671
-Node: Keys in a Lean buffer8085
-Node: Keys in the goal display9755
-Node: The tactic state14116
-Node: How much of a goal to show14908
-Node: Errors and warnings18409
-Node: Building dependencies22162
-Node: Mathlib's build cache23435
-Node: Other Lake operations24798
-Node: Completion26222
-Node: Configuration27342
-Node: Frequently used options27781
-Node: The goal display's controls29444
-Node: Older Lean versions30765
-Node: Semantic highlighting31747
-Node: Optional packages33066
-Node: Troubleshooting33559
-Node: Common Pitfalls34209
-Node: Acknowledgements34810
+Node: Installation2026
+Node: Requirements2251
+Node: From source3331
+Node: With a source-based package manager3819
+Node: Native vc (Emacs 30 or later)4330
+Node: Doom-Emacs4775
+Node: Straight5094
+Node: Upgrading from version 15451
+Node: Usage6748
+Node: Keys in a Lean buffer8187
+Node: Keys in the goal display9857
+Node: The tactic state14218
+Node: How much of a goal to show15010
+Node: Errors and warnings18511
+Node: Building dependencies22264
+Node: Mathlib's build cache23537
+Node: The module hierarchy24899
+Node: It needs a built project26591
+Node: Other Lake operations27239
+Node: Completion28662
+Node: Configuration29784
+Node: Frequently used options30223
+Node: The goal display's controls31886
+Node: Older Lean versions33207
+Node: Semantic highlighting34189
+Node: Optional packages35508
+Node: Troubleshooting36001
+Node: Common Pitfalls36651
+Node: Acknowledgements37252
 
 End Tag Table
 

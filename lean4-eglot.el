@@ -114,6 +114,12 @@ The counterpart of VS Code's `lean4.serverArgs'."
   :group 'lean4
   :type '(repeat string))
 
+(defun lean4-text-document-identifier ()
+  "Return the LSP `TextDocumentIdentifier' for the current buffer.
+Exposed so that the libraries sending Lean\\='s own document requests need
+no `eglot--' symbol of their own."
+  (eglot--TextDocumentIdentifier))
+
 (defun lean4--server-command (root)
   "Return the command starting a Lean language server for ROOT.
 A Lake package is served by Lake itself, so that the package's

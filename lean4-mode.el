@@ -64,6 +64,7 @@
 (require 'lean4-info)
 (require 'lean4-fringe)
 (require 'lean4-lake)
+(require 'lean4-module)
 
 ;; Declare symbols defined in external dependencies.  This silences
 ;; byte-compiler warnings:
@@ -179,6 +180,11 @@ and which is what this mode did before."
      ["Fetch cache for this file"      lean4-lake-fetch-file-cache
       buffer-file-name]
      ["Fetch cache for open files"     lean4-lake-fetch-open-file-caches t])
+    ("Module hierarchy"
+     ["What this file imports"    lean4-module-hierarchy         t]
+     ["What imports this file"    lean4-module-hierarchy-inverse t]
+     "--"
+     ["Copy this module's name"   lean4-module-copy-name         t])
     "--"
     ["Customize lean4-mode" (customize-group 'lean4)          t]))
 

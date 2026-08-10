@@ -71,8 +71,13 @@ Usage
 * Errors and warnings::
 * Building dependencies::
 * Mathlib's build cache::
+* The module hierarchy::
 * Other Lake operations::
 * Completion::
+
+The module hierarchy
+
+* It needs a built project::
 
 Configuration
 
@@ -249,6 +254,7 @@ buffer.  To put it in a side window on the right:
 * Errors and warnings::
 * Building dependencies::
 * Mathlib's build cache::
+* The module hierarchy::
 * Other Lake operations::
 * Completion::
 @end menu
@@ -595,6 +601,61 @@ is the thing to run once, after cloning.
 
 Output goes to a compilation buffer, so @samp{M-x next-error} walks whatever
 Lake reports, as with any other build.
+
+@node The module hierarchy
+@section The module hierarchy
+
+What a module imports, and what imports it, as a tree in a
+@samp{*Lean Module Hierarchy*} buffer.
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@headitem Command
+@tab Shows
+@item @code{lean4-module-hierarchy}
+@tab what this file's module imports
+@item @code{lean4-module-hierarchy-inverse}
+@tab what imports this file's module
+@item @code{lean4-module-copy-name}
+@tab copies the module's name
+@end multitable
+
+All three are in the @samp{Lean} menu under @samp{Module hierarchy}.  VS Code binds
+its two to @samp{Alt+Shift+M} and @samp{Alt+Shift+N}; no keys are bound here, those
+chords not being Emacs ones, so bind them to taste:
+
+@lisp
+(keymap-set lean4-mode-map "C-c C-p C-m" #'lean4-module-hierarchy)
+@end lisp
+
+The buffer is a @code{magit-section} tree, so it folds with @samp{TAB} and moves the
+way the goal display does.  @samp{RET} visits the module at point, @samp{g} asks for
+the tree again, and @samp{q} buries it.
+
+A level is fetched when it is opened, not before: Mathlib's import graph
+is far too large to ask for at once.  An unopened node shows @samp{...} until
+its children arrive.  A module that already appears further up the tree is
+marked @samp{(shown above)} and not expanded, since the import graph has
+diamonds and following one would go round for ever.
+
+Imports of a module using Lean's @samp{module} keyword carry modifiers, and
+those are shown beside the name: @samp{private}, @samp{all}, @samp{meta}, or @samp{meta and
+non-meta} for one imported both ways.
+
+@menu
+* It needs a built project::
+@end menu
+
+@node It needs a built project
+@subsection It needs a built project
+
+The server answers these from its reference data, which it builds from the
+@samp{.ilean} files a build leaves behind.  In a project that has not been
+built the tree is empty -- correctly so, there being nothing indexed to
+report.  Run @samp{C-c C-p C-l} (@code{lean4-lake-build}), or
+@samp{C-c C-p C-c} (@code{lean4-lake-fetch-cache}) on a Mathlib project, first.
+
+@code{lean4-enable-file-watchers} is off by default, so a tree fetched after a
+rebuild may be the one from before it; @samp{g} asks again.
 
 @node Other Lake operations
 @section Other Lake operations
