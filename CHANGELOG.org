@@ -194,7 +194,16 @@ xref, project roots through =project.el=.
   is on, indented with it.  The counterparts of VS Code's "Copy State",
   "Copy Message" and "Copy Contents to Comment".  The state is copied in
   full, whatever the display is set to hide, as VS Code copies it.
-- A test suite: 255 unit tests, and 37 end-to-end tests that run against
+- ~lean4-lake-build~ now does what VS Code's "Build Project" does, rather
+  than a bare =lake build=: =lake resolve-deps=, then =lake exe cache
+  get= where Mathlib's =cache= executable exists, then =lake build=, each
+  conditional on the one before and all reporting into one compilation
+  buffer.  On a project depending on Mathlib the cache step is the
+  difference between minutes and hours; where there is no such executable
+  it is skipped without complaint, but a download that fails stops the
+  build instead of leaving it to compile Mathlib locally.  For a bare
+  =lake build=, use =M-x compile=.
+- A test suite: 259 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed

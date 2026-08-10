@@ -129,11 +129,102 @@ server.  Inside BODY, `root' is the tree's root."
          (setq buffer-file-name nil)))))
 
 (ert-deftest lean4-lake-build-runs-lake-build-at-the-root ()
-  "`lake build' runs in the package directory, not the file's."
+  "The build runs in the package directory, not the file's, and ends in one."
   (lean4-lake-test--in-file "Pkg/Mod.lean" '("lakefile.toml" "Pkg/Mod.lean")
     (let ((captured (lean4-lake-test--capture (lean4-lake-build))))
       (should (string-suffix-p "build" (car captured)))
       (should (equal (file-truename (cdr captured)) (file-truename root))))))
+
+(ert-deftest lean4-lake-build-has-the-three-steps-in-order ()
+  "Resolving comes before the cache, and the cache before the build.
+This is VS Code's \"Build Project\", which is not a bare `lake build'."
+  (let* ((command (lean4-lake--build-command))
+         (resolve (string-search "resolve-deps" command))
+         (probe (string-search "exe cache >" command))
+         (fetch (string-search "exe cache get" command))
+         (build (string-search "build" command)))
+    (should resolve)
+    (should probe)
+    (should fetch)
+    (should build)
+    (should (< resolve probe fetch build))
+    ;; The probe's output is the executable's help text, and is discarded.
+    (should (string-search ">/dev/null 2>&1" command))))
+
+;; Run against a stub rather than Lake itself: what is being checked is which
+;; steps run and which do not, and that needs no toolchain -- only a shell,
+;; which `compile' needs anyway.
+(defun lean4-lake-test--stub-build (available get-ok)
+  "Run the build command with a stubbed Lake, returning what it did.
+
+AVAILABLE says whether `lake exe cache' exists, GET-OK whether `lake exe
+cache get' succeeds.  Returns a cons of the exit status and the list of
+argument lists the stub was called with."
+  (let* ((directory (make-temp-file "lean4-lake-stub" 'directory))
+         (stub (expand-file-name "lake" directory))
+         (log (expand-file-name "log" directory)))
+    (unwind-protect
+        (progn
+          (write-region
+           (concat "#!/bin/sh\n"
+                   "echo \"$*\" >> \"$LEAN4_TEST_LOG\"\n"
+                   "if [ \"$1 $2\" = \"exe cache\" ] && [ -z \"$3\" ]; then\n"
+                   "  [ \"$LEAN4_TEST_AVAILABLE\" = 1 ] && exit 0\n"
+                   "  exit 1\n"
+                   "fi\n"
+                   "if [ \"$1 $2 $3\" = \"exe cache get\" ]; then\n"
+                   "  [ \"$LEAN4_TEST_GET_OK\" = 1 ] && exit 0\n"
+                   "  exit 1\n"
+                   "fi\n"
+                   "exit 0\n")
+           nil stub nil 'silent)
+          (set-file-modes stub #o755)
+          (let* ((lean4-rootdir nil)
+                 (lean4-lake-name stub)
+                 (default-directory directory)
+                 (process-environment
+                  (append (list (format "LEAN4_TEST_LOG=%s" log)
+                                (format "LEAN4_TEST_AVAILABLE=%d"
+                                        (if available 1 0))
+                                (format "LEAN4_TEST_GET_OK=%d" (if get-ok 1 0)))
+                          process-environment))
+                 (status (call-process-shell-command
+                          (lean4-lake--build-command) nil nil)))
+            (cons status
+                  (and (file-readable-p log)
+                       (with-temp-buffer
+                         (insert-file-contents log)
+                         (split-string (buffer-string) "\n" t))))))
+      (delete-directory directory 'recursive))))
+
+(ert-deftest lean4-lake-build-skips-the-cache-where-there-is-none ()
+  "A project without Mathlib's `cache' executable still builds.
+The probe failing is not an error; it is the answer that there is nothing
+to fetch."
+  (skip-unless (executable-find "sh"))
+  (pcase-let ((`(,status . ,calls) (lean4-lake-test--stub-build nil nil)))
+    (should (equal status 0))
+    (should (equal calls '("resolve-deps" "exe cache" "build")))))
+
+(ert-deftest lean4-lake-build-fetches-the-cache-where-there-is-one ()
+  "With the executable present, the cache is fetched before building."
+  (skip-unless (executable-find "sh"))
+  (pcase-let ((`(,status . ,calls) (lean4-lake-test--stub-build t t)))
+    (should (equal status 0))
+    (should (equal calls
+                   '("resolve-deps" "exe cache" "exe cache get" "build")))))
+
+(ert-deftest lean4-lake-build-stops-when-the-cache-fetch-fails ()
+  "A cache download that fails stops the build.
+
+The whole point of fetching first: left to itself, `lake build' would
+answer a failed download by building Mathlib locally, which is hours.  VS
+Code stops here too."
+  (skip-unless (executable-find "sh"))
+  (pcase-let ((`(,status . ,calls) (lean4-lake-test--stub-build t nil)))
+    (should-not (equal status 0))
+    (should (equal calls '("resolve-deps" "exe cache" "exe cache get")))
+    (should-not (member "build" calls))))
 
 (ert-deftest lean4-lake-fetch-cache-asks-for-the-whole-package ()
   "Fetching the cache names no files."

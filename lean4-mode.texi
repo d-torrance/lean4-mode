@@ -71,6 +71,7 @@ Usage
 * How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
+* Building::
 * Mathlib's build cache::
 * The module hierarchy::
 * Other Lake operations::
@@ -255,6 +256,7 @@ buffer.  To put it in a side window on the right:
 * How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
+* Building::
 * Mathlib's build cache::
 * The module hierarchy::
 * Other Lake operations::
@@ -290,7 +292,7 @@ buffer.  To put it in a side window on the right:
 @tab Execute Lean in stand-alone mode
 @tab @code{lean4-std-exe}
 @item @samp{C-c C-p C-l}
-@tab Build the package with Lake
+@tab Build the package, fetching the cache first
 @tab @code{lean4-lake-build}
 @item @samp{C-c C-p C-c}
 @tab Fetch Mathlib's build cache for the package
@@ -594,6 +596,36 @@ Both default off for the same reason: on a project the size of Mathlib,
 opening one file to read it should not commit you to building everything
 beneath it.  @samp{C-c C-p C-l} (@code{lean4-lake-build}) builds the package
 outright.
+
+@node Building
+@section Building
+
+@samp{C-c C-p C-l} (@code{lean4-lake-build}) builds the package the way VS Code's
+"Build Project" does, which is three steps rather than a bare @samp{lake
+build}:
+
+@enumerate
+@item
+@samp{lake resolve-deps} clones a dependency the manifest names but the
+checkout has not got.
+@item
+@samp{lake exe cache get} downloads Mathlib's build artefacts, where that
+executable exists -- see @ref{Mathlib's build cache}.  On a project that
+depends on Mathlib this is the step between minutes and hours.
+@item
+@samp{lake build} builds what is left.
+@end enumerate
+
+Each step is conditional on the one before, so a failure stops the rest,
+and all three report into one compilation buffer where @samp{M-x next-error}
+walks whatever any of them said.
+
+The cache step is skipped, without complaint, in a project that has no
+@samp{cache} executable -- most projects.  A cache download that @emph{fails},
+though, stops the build rather than leaving it to do that work locally.
+
+For a bare @samp{lake build}, with no network and no dependency resolution,
+@samp{M-x compile} is the thing.
 
 @node Mathlib's build cache
 @section Mathlib's build cache

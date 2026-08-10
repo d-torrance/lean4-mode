@@ -151,7 +151,7 @@ buffer.  To put it in a side window on the right:
 | =C-c C-d=              | Rebuild changed imports and reload the file              | ~lean4-refresh-file-dependencies~ |
 | =C-c C-r=              | Restart the language server                              | ~eglot-reconnect~                 |
 | =C-c C-x= or =C-c C-l= | Execute Lean in stand-alone mode                         | ~lean4-std-exe~                   |
-| =C-c C-p C-l=          | Build the package with Lake                              | ~lean4-lake-build~                |
+| =C-c C-p C-l=          | Build the package, fetching the cache first              | ~lean4-lake-build~                |
 | =C-c C-p C-c=          | Fetch Mathlib's build cache for the package              | ~lean4-lake-fetch-cache~          |
 | =C-c C-p C-f=          | Fetch Mathlib's build cache for this file                | ~lean4-lake-fetch-file-cache~     |
 | =TAB=                  | Indent, cycling through the alternatives when pressed again | ~lean4-tab-indent~             |
@@ -387,6 +387,30 @@ Both default off for the same reason: on a project the size of Mathlib,
 opening one file to read it should not commit you to building everything
 beneath it.  =C-c C-p C-l= (~lean4-lake-build~) builds the package
 outright.
+
+** Building
+
+=C-c C-p C-l= (~lean4-lake-build~) builds the package the way VS Code's
+"Build Project" does, which is three steps rather than a bare =lake
+build=:
+
+1. =lake resolve-deps= clones a dependency the manifest names but the
+   checkout has not got.
+2. =lake exe cache get= downloads Mathlib's build artefacts, where that
+   executable exists -- see [[*Mathlib's build cache]].  On a project that
+   depends on Mathlib this is the step between minutes and hours.
+3. =lake build= builds what is left.
+
+Each step is conditional on the one before, so a failure stops the rest,
+and all three report into one compilation buffer where =M-x next-error=
+walks whatever any of them said.
+
+The cache step is skipped, without complaint, in a project that has no
+=cache= executable -- most projects.  A cache download that /fails/,
+though, stops the build rather than leaving it to do that work locally.
+
+For a bare =lake build=, with no network and no dependency resolution,
+=M-x compile= is the thing.
 
 ** Mathlib's build cache
 

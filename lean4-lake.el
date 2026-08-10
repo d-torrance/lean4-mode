@@ -42,19 +42,64 @@
   (or (lean4-lake-find-dir)
       (error "Cannot find lakefile in any directory above %s" (buffer-file-name))))
 
-(defun lean4-lake--run (&rest arguments)
-  "Run Lake with ARGUMENTS in the enclosing package, through `compile'.
-The output lands in a compilation buffer, so Lake's own errors are
-navigated the way every other build's are."
+(defun lean4-lake--command (&rest arguments)
+  "Return the shell command that runs Lake with ARGUMENTS."
+  (mapconcat #'shell-quote-argument
+             (cons (lean4--program lean4-lake-name) arguments)
+             " "))
+
+(defun lean4-lake--run-shell (command)
+  "Run COMMAND in the enclosing package, through `compile'.
+The output lands in a compilation buffer, so Lake\\='s own errors are
+navigated the way every other build\\='s are."
   (let ((default-directory (file-name-as-directory (lean4-lake-find-dir-safe))))
-    (compile (mapconcat #'shell-quote-argument
-                        (cons (lean4--program lean4-lake-name) arguments)
-                        " "))))
+    (compile command)))
+
+(defun lean4-lake--run (&rest arguments)
+  "Run Lake with ARGUMENTS in the enclosing package, through `compile'."
+  (lean4-lake--run-shell (apply #'lean4-lake--command arguments)))
+
+(defun lean4-lake--build-command ()
+  "Return the command VS Code\\='s \"Build Project\" amounts to.
+
+Three steps, each conditional on the one before, which is what makes this
+different from a bare `lake build':
+
+  `lake resolve-deps' clones a dependency the manifest names but the
+  checkout has not got.  `lake build' would fail on a missing one, and
+  less clearly.
+
+  `lake exe cache get' downloads Mathlib\\='s build artefacts, so that they
+  are not built here.  This is the step that matters: without it, building
+  a project that depends on Mathlib means hours rather than minutes.
+
+  `lake build' builds what is left.
+
+The cache step is Mathlib\\='s own executable and does not exist elsewhere,
+so it is guarded by asking Lake for it first -- exactly what VS Code does,
+and for the same reason: a project without the executable should build
+anyway, while a cache download that *fails* should stop the build rather
+than leave it to do the work locally.  The guard\\='s own output is
+discarded, being the executable\\='s help text; VS Code filters it too.
+
+Joined with `&&' rather than run one at a time so that all three report
+into a single compilation buffer, where `next-error' walks whatever any of
+them said.  A POSIX shell is assumed, as `compile' assumes one anyway."
+  (format "%s && { if %s >/dev/null 2>&1; then %s; fi; } && %s"
+          (lean4-lake--command "resolve-deps")
+          (lean4-lake--command "exe" "cache")
+          (lean4-lake--command "exe" "cache" "get")
+          (lean4-lake--command "build")))
 
 (defun lean4-lake-build ()
-  "Call lake build."
+  "Build the package, as VS Code\\='s \"Build Project\" does.
+
+Resolves missing dependencies, fetches Mathlib\\='s build cache where there
+is one to fetch, and then builds; see `lean4-lake--build-command' for why
+each step is there.  For a bare `lake build', with no network and no
+dependency resolution, use \\[compile]."
   (interactive)
-  (lean4-lake--run "build"))
+  (lean4-lake--run-shell (lean4-lake--build-command)))
 
 (defun lean4-lake-clean ()
   "Delete the package\\='s build artefacts, with `lake clean'.
