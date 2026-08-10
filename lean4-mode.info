@@ -74,6 +74,7 @@ Usage
 Choosing which Lean to use
 
 * Elan itself::
+* Git and curl::
 
 The module hierarchy
 
@@ -662,9 +663,10 @@ instead, in order to stay compatible with it,
 * Menu:
 
 * Elan itself::
+* Git and curl::
 
 
-File: lean4-mode.info,  Node: Elan itself,  Up: Choosing which Lean to use
+File: lean4-mode.info,  Node: Elan itself,  Next: Git and curl,  Up: Choosing which Lean to use
 
 2.10.1 Elan itself
 ------------------
@@ -690,6 +692,42 @@ twice.
    ‘lean4-install-toolchain’ downloads a version without making it the
 default, for fetching one ahead of needing it; choosing a ‘(not
 installed)’ version in any of the other commands fetches it anyway.
+
+
+File: lean4-mode.info,  Node: Git and curl,  Prev: Elan itself,  Up: Choosing which Lean to use
+
+2.10.2 Git and curl
+-------------------
+
+Elan downloads toolchains with curl and Lake clones dependencies with
+Git, so neither works without them.  ‘lean4-install-dependencies’ checks
+for both - the same two VS Code checks - and offers either to run the
+install command or to put it in the kill ring, which is the choice VS
+Code offers as ‘Proceed’ and ‘Copy Script to Clipboard’.  The command is
+shown either way.  Where nothing is missing, it says so and stops.
+
+   What it offers depends on the system:
+
+System                Runs                           Copies
+--------------------------------------------------------------------------
+Debian and the like   ‘pkexec ... apt-get install’   ‘sudo apt install’
+Fedora and the like   ‘pkexec dnf install’           ‘sudo dnf install’
+macOS                 Apple's Command Line Tools     the same script
+Windows with winget   ‘winget install Git.Git’       the same command
+
+   On Linux it is ‘pkexec’ that asks for the password, and it is the
+‘sudo’ form that gets copied.  Without ‘pkexec’ there is nothing to run
+and only the ‘sudo’ command is offered.  On Windows without winget, and
+on any system whose package manager is not recognised, this says what to
+install and stops.
+
+   Unlike VS Code, no pinned Git installer is downloaded on Windows
+without winget: a version pinned in this package would go stale between
+releases, so it points at git-scm.com (https://git-scm.com/download/win)
+instead, which is always current.
+
+   As with elan, Emacs will not find a newly installed program until the
+environment it was started with is refreshed.
 
 
 File: lean4-mode.info,  Node: Searching Mathlib with Loogle,  Next: The module hierarchy,  Prev: Choosing which Lean to use,  Up: Usage
@@ -1058,40 +1096,41 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2180
-Node: Requirements2405
-Node: From source3485
-Node: With a source-based package manager3973
-Node: Native vc (Emacs 30 or later)4484
-Node: Doom-Emacs4929
-Node: Straight5248
-Node: Upgrading from version 15605
-Node: Usage6902
-Node: Keys in a Lean buffer8527
-Node: Keys in the goal display10197
-Node: The tactic state14717
-Node: Copying what is on display15509
-Node: How much of a goal to show16536
-Node: Errors and warnings20047
-Node: Building dependencies24142
-Node: Building25402
-Node: Mathlib's build cache26597
-Node: Choosing which Lean to use27952
-Node: Elan itself30270
-Node: Searching Mathlib with Loogle31465
-Node: The module hierarchy33480
-Node: It needs a built project35523
-Node: Other Lake operations36173
-Node: Completion37598
-Node: Configuration38720
-Node: Frequently used options39159
-Node: The goal display's controls40822
-Node: Older Lean versions42143
-Node: Semantic highlighting43125
-Node: Optional packages44444
-Node: Troubleshooting44937
-Node: Common Pitfalls46364
-Node: Acknowledgements46965
+Node: Installation2197
+Node: Requirements2422
+Node: From source3502
+Node: With a source-based package manager3990
+Node: Native vc (Emacs 30 or later)4501
+Node: Doom-Emacs4946
+Node: Straight5265
+Node: Upgrading from version 15622
+Node: Usage6919
+Node: Keys in a Lean buffer8544
+Node: Keys in the goal display10214
+Node: The tactic state14734
+Node: Copying what is on display15526
+Node: How much of a goal to show16553
+Node: Errors and warnings20064
+Node: Building dependencies24159
+Node: Building25419
+Node: Mathlib's build cache26614
+Node: Choosing which Lean to use27969
+Node: Elan itself30304
+Node: Git and curl31520
+Node: Searching Mathlib with Loogle33267
+Node: The module hierarchy35282
+Node: It needs a built project37325
+Node: Other Lake operations37975
+Node: Completion39400
+Node: Configuration40522
+Node: Frequently used options40961
+Node: The goal display's controls42624
+Node: Older Lean versions43945
+Node: Semantic highlighting44927
+Node: Optional packages46246
+Node: Troubleshooting46739
+Node: Common Pitfalls48166
+Node: Acknowledgements48767
 
 End Tag Table
 

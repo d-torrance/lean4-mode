@@ -509,6 +509,37 @@ twice.
 default, for fetching one ahead of needing it; choosing a =(not
 installed)= version in any of the other commands fetches it anyway.
 
+*** Git and curl
+
+Elan downloads toolchains with curl and Lake clones dependencies with Git,
+so neither works without them.  ~lean4-install-dependencies~ checks for
+both -- the same two VS Code checks -- and offers either to run the
+install command or to put it in the kill ring, which is the choice VS Code
+offers as =Proceed= and =Copy Script to Clipboard=.  The command is shown
+either way.  Where nothing is missing, it says so and stops.
+
+What it offers depends on the system:
+
+| System                | Runs                          | Copies                |
+|-----------------------+-------------------------------+-----------------------|
+| Debian and the like   | =pkexec ... apt-get install=  | =sudo apt install=    |
+| Fedora and the like   | =pkexec dnf install=          | =sudo dnf install=    |
+| macOS                 | Apple's Command Line Tools    | the same script       |
+| Windows with winget   | =winget install Git.Git=      | the same command      |
+
+On Linux it is =pkexec= that asks for the password, and it is the =sudo=
+form that gets copied.  Without =pkexec= there is nothing to run and only
+the =sudo= command is offered.  On Windows without winget, and on any
+system whose package manager is not recognised, this says what to install
+and stops.
+
+Unlike VS Code, no pinned Git installer is downloaded on Windows without
+winget: a version pinned in this package would go stale between releases,
+so it points at [[https://git-scm.com/download/win][git-scm.com]] instead, which is always current.
+
+As with elan, Emacs will not find a newly installed program until the
+environment it was started with is refreshed.
+
 ** Searching Mathlib with Loogle
 
 =M-x lean4-loogle-search= asks [[https://loogle.lean-lang.org][Loogle]], which searches Mathlib by shape

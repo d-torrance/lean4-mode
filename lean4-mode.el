@@ -193,6 +193,7 @@ and which is what this mode did before."
      "--"
      ["Update elan"                        lean4-update-elan              t]
      ["Install elan..."                    lean4-install-elan             t]
+     ["Install Git and curl..."            lean4-install-dependencies     t]
      ["Remove elan..."                     lean4-uninstall-elan           t])
     ("Module hierarchy"
      ["What this file imports"    lean4-module-hierarchy         t]

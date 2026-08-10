@@ -82,6 +82,7 @@ Usage
 Choosing which Lean to use
 
 * Elan itself::
+* Git and curl::
 
 The module hierarchy
 
@@ -728,6 +729,7 @@ to use.
 
 @menu
 * Elan itself::
+* Git and curl::
 @end menu
 
 @node Elan itself
@@ -753,6 +755,49 @@ twice.
 @code{lean4-install-toolchain} downloads a version without making it the
 default, for fetching one ahead of needing it; choosing a @samp{(not
 installed)} version in any of the other commands fetches it anyway.
+
+@node Git and curl
+@subsection Git and curl
+
+Elan downloads toolchains with curl and Lake clones dependencies with Git,
+so neither works without them.  @code{lean4-install-dependencies} checks for
+both -- the same two VS Code checks -- and offers either to run the
+install command or to put it in the kill ring, which is the choice VS Code
+offers as @samp{Proceed} and @samp{Copy Script to Clipboard}.  The command is shown
+either way.  Where nothing is missing, it says so and stops.
+
+What it offers depends on the system:
+
+@multitable {aaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaa}
+@headitem System
+@tab Runs
+@tab Copies
+@item Debian and the like
+@tab @samp{pkexec ... apt-get install}
+@tab @samp{sudo apt install}
+@item Fedora and the like
+@tab @samp{pkexec dnf install}
+@tab @samp{sudo dnf install}
+@item macOS
+@tab Apple's Command Line Tools
+@tab the same script
+@item Windows with winget
+@tab @samp{winget install Git.Git}
+@tab the same command
+@end multitable
+
+On Linux it is @samp{pkexec} that asks for the password, and it is the @samp{sudo}
+form that gets copied.  Without @samp{pkexec} there is nothing to run and only
+the @samp{sudo} command is offered.  On Windows without winget, and on any
+system whose package manager is not recognised, this says what to install
+and stops.
+
+Unlike VS Code, no pinned Git installer is downloaded on Windows without
+winget: a version pinned in this package would go stale between releases,
+so it points at @uref{https://git-scm.com/download/win, git-scm.com} instead, which is always current.
+
+As with elan, Emacs will not find a newly installed program until the
+environment it was started with is refreshed.
 
 @node Searching Mathlib with Loogle
 @section Searching Mathlib with Loogle

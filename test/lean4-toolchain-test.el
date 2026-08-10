@@ -329,5 +329,138 @@ VS Code draws the same distinction: a project pins a version."
       (should (member '("toolchain" "install" "leanprover/lean4:v4.33.0")
                       calls)))))
 
+;;;; What Lean's setup needs
+
+;; Only one of these branches can be reached on any given machine, so each is
+;; put together by saying which programs exist and what system this is.
+
+(defmacro lean4-toolchain-test--on (system available &rest body)
+  "Evaluate BODY as though on SYSTEM with only AVAILABLE programs installed."
+  (declare (indent 2) (debug (form form body)))
+  `(let ((system-type ,system))
+     (cl-letf (((symbol-function 'executable-find)
+                (lambda (program &rest _) (car (member program ,available)))))
+       ,@body)))
+
+(ert-deftest lean4-toolchain-notices-what-is-missing ()
+  "Git and curl are the two, and only the absent ones are named."
+  (lean4-toolchain-test--on 'gnu/linux '("git" "curl")
+    (should-not (lean4-missing-dependencies)))
+  (lean4-toolchain-test--on 'gnu/linux '("curl")
+    (should (equal (lean4-missing-dependencies) '("git"))))
+  (lean4-toolchain-test--on 'gnu/linux '()
+    (should (equal (lean4-missing-dependencies) '("git" "curl")))))
+
+(ert-deftest lean4-toolchain-installs-dependencies-with-apt ()
+  "Debian and its like: pkexec runs it, and sudo is what gets copied."
+  (lean4-toolchain-test--on 'gnu/linux '("apt-get" "pkexec")
+    (let ((plan (lean4-dependency-installation '("git" "curl"))))
+      (should (string-search "pkexec bash -c" (plist-get plan :script)))
+      (should (string-search "apt-get install -y git curl"
+                             (plist-get plan :script)))
+      ;; Without this, apt-get on some systems is intolerably slow.
+      (should (string-prefix-p "ulimit -Sn 1024; " (plist-get plan :script)))
+      (should (string-search "DEBIAN_FRONTEND=noninteractive"
+                             (plist-get plan :script)))
+      (should (equal (plist-get plan :manual)
+                     "sudo apt update && sudo apt install git curl")))))
+
+(ert-deftest lean4-toolchain-apt-without-pkexec-can-still-be-copied ()
+  "No pkexec means nothing to run, but the sudo command is still worth having."
+  (lean4-toolchain-test--on 'gnu/linux '("apt-get")
+    (let ((plan (lean4-dependency-installation '("git"))))
+      (should-not (plist-get plan :script))
+      (should (equal (plist-get plan :manual) "sudo apt update && sudo apt install git")))))
+
+(ert-deftest lean4-toolchain-installs-dependencies-with-dnf ()
+  "Fedora and its like, when apt is not the package manager."
+  (lean4-toolchain-test--on 'gnu/linux '("dnf" "pkexec")
+    (let ((plan (lean4-dependency-installation '("git"))))
+      (should (equal (plist-get plan :script) "pkexec dnf install -y git"))
+      (should (equal (plist-get plan :manual) "sudo dnf install git")))))
+
+(ert-deftest lean4-toolchain-prefers-apt-over-dnf ()
+  "A system with both is treated as Debian, as VS Code treats it."
+  (lean4-toolchain-test--on 'gnu/linux '("apt-get" "dnf" "pkexec")
+    (should (string-search "apt-get"
+                           (plist-get (lean4-dependency-installation '("git"))
+                                      :script)))))
+
+(ert-deftest lean4-toolchain-installs-dependencies-on-macos ()
+  "Git arrives with Apple's Command Line Tools."
+  (lean4-toolchain-test--on 'darwin '()
+    (let ((plan (lean4-dependency-installation '("git"))))
+      (should (string-search "softwareupdate" (plist-get plan :script)))
+      (should (string-search "Command Line Tools" (plist-get plan :script)))
+      (should (string-search "xcode-select" (plist-get plan :note))))))
+
+(ert-deftest lean4-toolchain-installs-dependencies-with-winget ()
+  "Windows, where winget is there to do it."
+  (lean4-toolchain-test--on 'windows-nt '("winget")
+    (let ((plan (lean4-dependency-installation '("git"))))
+      (should (string-search "winget install -e --id Git.Git"
+                             (plist-get plan :script)))
+      (should (equal (plist-get plan :shell) "powershell")))))
+
+(ert-deftest lean4-toolchain-windows-without-winget-is-told-where-to-look ()
+  "VS Code downloads a pinned Git installer here; this points at the
+download page instead, a pinned version being one that goes stale."
+  (lean4-toolchain-test--on 'windows-nt '()
+    (let ((plan (lean4-dependency-installation '("git"))))
+      (should-not (plist-get plan :script))
+      (should (string-search "git-scm.com" (plist-get plan :note))))))
+
+(ert-deftest lean4-toolchain-unknown-system-says-what-to-install ()
+  "Nothing is guessed at where no package manager is recognised."
+  (lean4-toolchain-test--on 'gnu/linux '()
+    (let ((plan (lean4-dependency-installation '("git" "curl"))))
+      (should-not (plist-get plan :script))
+      (should (string-search "git and curl" (plist-get plan :note))))))
+
+(ert-deftest lean4-toolchain-install-dependencies-declines-when-present ()
+  "Nothing to install is a user error rather than an empty run."
+  (lean4-toolchain-test--on 'gnu/linux '("git" "curl")
+    (should-error (lean4-install-dependencies) :type 'user-error)))
+
+(ert-deftest lean4-toolchain-install-dependencies-can-copy-instead ()
+  "Choosing to copy fills the kill ring and runs nothing."
+  (lean4-toolchain-test--on 'gnu/linux '("apt-get" "pkexec")
+    (let (compiled (kill-ring nil) (kill-ring-yank-pointer nil))
+      (cl-letf (((symbol-function 'read-multiple-choice)
+                 (lambda (&rest _) '(?c "copy the command")))
+                ((symbol-function 'compile)
+                 (lambda (command &rest _) (setq compiled command)))
+                ((symbol-function 'message) #'ignore))
+        (lean4-install-dependencies))
+      (should-not compiled)
+      (should (equal (current-kill 0)
+                     "sudo apt update && sudo apt install git curl")))))
+
+(ert-deftest lean4-toolchain-install-dependencies-runs-what-it-shows ()
+  "Choosing to run runs the pkexec command."
+  (lean4-toolchain-test--on 'gnu/linux '("apt-get" "pkexec")
+    (let (compiled)
+      (cl-letf (((symbol-function 'read-multiple-choice)
+                 (lambda (&rest _) '(?r "run it")))
+                ((symbol-function 'compile)
+                 (lambda (command &rest _) (setq compiled command)))
+                ((symbol-function 'message) #'ignore))
+        (lean4-install-dependencies))
+      (should (string-search "pkexec" compiled)))))
+
+(ert-deftest lean4-toolchain-install-dependencies-can-do-nothing ()
+  "Declining runs nothing and copies nothing."
+  (lean4-toolchain-test--on 'gnu/linux '("apt-get" "pkexec")
+    (let (compiled (kill-ring nil) (kill-ring-yank-pointer nil))
+      (cl-letf (((symbol-function 'read-multiple-choice)
+                 (lambda (&rest _) '(?q "do nothing")))
+                ((symbol-function 'compile)
+                 (lambda (command &rest _) (setq compiled command)))
+                ((symbol-function 'message) #'ignore))
+        (lean4-install-dependencies))
+      (should-not compiled)
+      ;; `current-kill' signals on an empty ring rather than returning nil.
+      (should-not kill-ring))))
+
 (provide 'lean4-toolchain-test)
 ;;; lean4-toolchain-test.el ends here

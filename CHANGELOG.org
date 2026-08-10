@@ -226,7 +226,15 @@ xref, project roots through =project.el=.
   ~lean4-uninstall-elan~ runs =elan self uninstall=, asking twice since it
   takes every installed Lean version with it.  ~lean4-install-toolchain~
   downloads a version ahead of needing it.
-- A test suite: 297 unit tests, and 37 end-to-end tests that run against
+- ~lean4-install-dependencies~ installs Git and curl, which elan and Lake
+  need and which VS Code checks for too.  It offers either to run the
+  command or to copy it, as VS Code offers =Proceed= and =Copy Script to
+  Clipboard=, and shows it either way: =pkexec apt-get= or =pkexec dnf= on
+  Linux, Apple's Command Line Tools on macOS, winget on Windows.  Where the
+  package manager is not recognised it says what to install and stops; on
+  Windows without winget it points at git-scm.com rather than downloading a
+  pinned installer as VS Code does.
+- A test suite: 310 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed

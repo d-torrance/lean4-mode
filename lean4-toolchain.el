@@ -511,6 +511,132 @@ again and fetching every version afresh."
         (message "Elan removed")
       (user-error "Could not remove elan: %s" (string-trim output)))))
 
+;;;; What Lean's setup needs
+
+;; Elan fetches toolchains over the network and Lake clones dependencies with
+;; Git, so both have to exist before either works.  VS Code offers to install
+;; them, differently on every system, and offers in the same breath to hand the
+;; command over instead of running it.  Both are offered here for the same
+;; reason: installing system packages wants privilege, and being shown the
+;; command beats being told about it afterwards.
+
+(defconst lean4-dependency-programs '("git" "curl")
+  "The programs Lean\\='s setup needs besides elan.
+Git for Lake\\='s dependencies, curl for what elan downloads.  VS Code
+checks for the same two.")
+
+(defun lean4-missing-dependencies ()
+  "Return the members of `lean4-dependency-programs' that are not installed."
+  (seq-remove #'executable-find lean4-dependency-programs))
+
+(defconst lean4-dependency--macos-script
+  (concat
+   "set -e\n"
+   "touch \"/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress\"\n"
+   "aclt_label=\"$(/usr/sbin/softwareupdate -l |"
+   " grep -B 1 -E 'Command Line Tools' |"
+   " awk -F'*' '/^ *\\*/ {print $2}' |"
+   " sed -e 's/^ *Label: //' -e 's/^ *//' |"
+   " sort -V | tail -n1 | tr -d '\\n')\"\n"
+   "/usr/sbin/softwareupdate -i \"$aclt_label\"")
+  "How macOS installs Git: Apple\\='s Command Line Tools bring it.
+VS Code\\='s script, which asks `softwareupdate' what the current label for
+them is rather than assuming one.")
+
+(defun lean4-dependency-installation (&optional missing)
+  "Return how to install MISSING here, defaulting to what is missing.
+
+A plist.  `:script' is the command to run, or nil where nothing is known
+for this system; `:manual' is the command to run in a terminal instead,
+which on Linux is the ordinary `sudo' one; `:note' says anything else the
+reader needs; `:shell' is the shell the script wants."
+  (let* ((missing (or missing (lean4-missing-dependencies)))
+         (packages (string-join missing " ")))
+    (cond
+     ((memq system-type '(windows-nt ms-dos))
+      (if (executable-find "winget")
+          (list :script (concat "winget install -e --id Git.Git"
+                                " --source winget --silent"
+                                " --accept-package-agreements"
+                                " --accept-source-agreements"
+                                " --disable-interactivity")
+                :shell "powershell"
+                :manual "winget install -e --id Git.Git")
+        ;; VS Code downloads a pinned Git installer here.  A version pinned
+        ;; in this file would go stale between releases, and an editor
+        ;; fetching and silently running an installer is worth less than a
+        ;; sentence pointing at the one place that is always current.
+        (list :note "Install Git from https://git-scm.com/download/win")))
+     ((eq system-type 'darwin)
+      (list :script lean4-dependency--macos-script
+            :shell shell-file-name
+            :note (concat "Git comes with Apple's Command Line Tools;"
+                          " `xcode-select --install' installs them too")))
+     ((executable-find "apt-get")
+      (list :script (and (executable-find "pkexec")
+                         (concat "ulimit -Sn 1024; pkexec bash -c '"
+                                 "export DEBIAN_FRONTEND=noninteractive; "
+                                 "apt-get update -y && apt-get install -y "
+                                 packages "'"))
+            :shell shell-file-name
+            :manual (format "sudo apt update && sudo apt install %s" packages)))
+     ((executable-find "dnf")
+      (list :script (and (executable-find "pkexec")
+                         (format "pkexec dnf install -y %s" packages))
+            :shell shell-file-name
+            :manual (format "sudo dnf install %s" packages)))
+     (t (list :note (format "Install %s with this system's package manager"
+                            (string-join missing " and ")))))))
+
+;;;###autoload
+(defun lean4-install-dependencies ()
+  "Install the programs Lean\\='s setup needs: Git and curl.
+
+Git is what Lake clones dependencies with and curl is what elan downloads
+through, so neither elan nor Lake works without them.  VS Code checks for
+the same two.
+
+Offers to run the command or to put it in the kill ring, as VS Code offers
+to run it or copy it: this installs system packages, which wants
+privilege, so handing the command over to a terminal is a reasonable
+answer.  The command is shown either way.
+
+On Linux the command goes through `pkexec' where that exists, which is
+what asks for the password; the `sudo' form is what gets copied.  Where
+nothing is known for this system, this says what to install and leaves it
+at that.
+
+Emacs will not find a newly installed program until the environment it was
+started with is refreshed, which in practice means restarting Emacs."
+  (interactive)
+  (let ((missing (lean4-missing-dependencies)))
+    (unless missing
+      (user-error "%s are both installed already"
+                  (string-join lean4-dependency-programs " and ")))
+    (let* ((plan (lean4-dependency-installation missing))
+           (script (plist-get plan :script))
+           (manual (plist-get plan :manual))
+           (note (plist-get plan :note))
+           (copyable (or manual script)))
+      (when note (message "%s" note))
+      (unless copyable
+        (user-error "%s missing.  %s"
+                    (string-join missing " and ") (or note "")))
+      (pcase (car (read-multiple-choice
+                   (format "%s missing. " (string-join missing " and "))
+                   (append (when script '((?r "run it")))
+                           '((?c "copy the command"))
+                           '((?q "do nothing")))))
+        (?r (let ((shell-file-name (or (plist-get plan :shell) shell-file-name))
+                  (compilation-buffer-name-function
+                   (lambda (&rest _) "*lean4 dependencies*")))
+              (message "Running: %s" script)
+              (compile script)))
+        (?c (kill-new copyable)
+            (message "Copied: %s" copyable))
+        (_ (message "Nothing done; %s still missing"
+                    (string-join missing " and ")))))))
+
 ;;;; Uninstalling
 
 (defun lean4-toolchain--gc ()
