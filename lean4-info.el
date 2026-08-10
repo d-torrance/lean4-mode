@@ -1458,8 +1458,13 @@ section its own pause."
 (defun lean4-info--pin-controls (pin)
   "Return the controls for PIN\='s section.
 
-The way back to it, a refresh while it is paused, its own pause, and
-unpinning -- in the order the followed section puts the same ones."
+The way back to it, a refresh while it is paused, unpinning, and its own
+pause -- in the order the followed section puts the same ones.
+
+The order matters because the controls are set hard right: unpin sits
+where the followed section puts pin, and pause where it puts pause, so
+pinning changes the pin glyph in place instead of making the two of them
+trade columns under the reader\='s pointer."
   (concat
    (lean4-info--marker-goto-button (lean4-info-pin-marker pin))
    "  "
@@ -1471,6 +1476,12 @@ unpinning -- in the order the followed section puts the same ones."
                "  ")
      "")
    (lean4-info--button
+    (lean4-info-unpin-glyph)
+    "mouse-1: unpin this position"
+    (lambda () (interactive) (lean4-info-unpin pin))
+    t)
+   "  "
+   (lean4-info--button
     (if (lean4-info-pin-paused pin)
         (lean4-info-resume-glyph)
       (lean4-info-pause-glyph))
@@ -1478,13 +1489,7 @@ unpinning -- in the order the followed section puts the same ones."
         "mouse-1: unpause this pinned position"
       "mouse-1: pause this pinned position")
     (lambda () (interactive) (lean4-info-toggle-pin-pause pin))
-    (lean4-info-pin-paused pin))
-   "  "
-   (lean4-info--button
-    (lean4-info-unpin-glyph)
-    "mouse-1: unpin this position"
-    (lambda () (interactive) (lean4-info-unpin pin))
-    t)))
+    (lean4-info-pin-paused pin))))
 
 (defun lean4-info--controls ()
   "Return the controls for the section following point."

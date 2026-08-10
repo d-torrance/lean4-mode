@@ -931,6 +931,32 @@ not much to read a mode off."
       (should-not (string-search (lean4-info-unpin-glyph) followed))
       (set-marker (lean4-info-pin-marker pin) nil))))
 
+(ert-deftest lean4-info-pinning-does-not-move-the-controls ()
+  "Pinning changes the pin glyph in place; it does not shuffle the row.
+
+Regression test.  The controls are set hard right, and the pinned
+section listed its pause before its unpin where the followed one lists
+its pause after its pin -- so pinning made the two glyphs trade columns
+under the reader's pointer."
+  (with-temp-buffer
+    (rename-buffer "Order.lean" 'unique)
+    ;; Force the emoji, so the pin and unpin glyphs are one character each
+    ;; and offsets from the right edge are comparable.
+    (cl-letf (((symbol-function 'lean4-info--displayable-p) (lambda (&rest _) t)))
+      (let* ((lean4-info-paused nil)
+             (pin (lean4-info--pin-create :marker (copy-marker (point-min))))
+             (pinned (substring-no-properties (lean4-info--pin-controls pin)))
+             (followed (substring-no-properties (lean4-info--controls))))
+        ;; Pause ends both rows, so it keeps the rightmost column.
+        (dolist (row (list pinned followed))
+          (should (string-suffix-p (lean4-info-pause-glyph) row)))
+        ;; And the pin control sits the same distance in from it.
+        (should (= (- (length followed)
+                      (string-search (lean4-info-pin-glyph) followed))
+                   (- (length pinned)
+                      (string-search (lean4-info-unpin-glyph) pinned))))
+        (set-marker (lean4-info-pin-marker pin) nil)))))
+
 
 (ert-deftest lean4-info-controls-fall-back-to-ascii ()
   "The controls are configurable, for fonts without the glyphs.
