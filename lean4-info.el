@@ -487,27 +487,36 @@ has not sent -- those cost a request to open, so they start folded."
 (defun lean4-info--insert-trace (trace path)
   "Insert TRACE at PATH as a section of its own.
 
+A node with nothing under it gets no body at all.  `magit-section' draws
+its indicator for anything it could unfold -- including a body it has
+put aside to run later, which is what it does with one that starts
+folded -- so giving a childless node an empty body promised something to
+unfold and then unfolded nothing.
+
 Children already in hand are inserted whether or not the section is
-open, and `magit-section\=' hides them -- that is what makes the section
-foldable at all.  Children Lean has not sent get a placeholder instead,
-and are fetched when the reader opens the section: a `simp\=' trace on a
-real proof is enormous, and asking for one nobody opened is the cost
-this whole arrangement exists to avoid."
-  (let ((children (lean4-render-trace-children trace))
-        (cached (gethash path lean4-info--trace-children :absent)))
+open, and `magit-section' hides them.  Children Lean has not sent get a
+placeholder, and are fetched when the reader opens the section: a `simp'
+trace on a real proof is enormous, and asking for one nobody opened is
+the cost this whole arrangement exists to avoid."
+  (let* ((children (lean4-render-trace-children trace))
+         (cached (gethash path lean4-info--trace-children :absent))
+         (known (cond ((eq (car children) 'strict) (append (cdr children) nil))
+                      ((not (eq cached :absent)) (append cached nil)))))
     (magit-insert-section
         (lean4-info-section (list 'trace path)
                             (not (lean4-info--trace-open-by-default-p trace)))
       (magit-insert-heading
        (lean4-info--heading-text (lean4-render-trace-header trace)))
-      (magit-insert-section-body
-        (lean4-info--indented
-          (cond
-           ((eq (car children) 'strict)
-            (mapc #'lean4-info--insert-parts (append (cdr children) nil)))
-           ((not (eq cached :absent))
-            (mapc #'lean4-info--insert-parts (append cached nil)))
-           (t
+      (cond
+       (known
+        (magit-insert-section-body
+          (lean4-info--indented (mapc #'lean4-info--insert-parts known))))
+       ;; Nothing known and nothing to ask for: a leaf.
+       ((eq (car children) 'strict))
+       ((not (eq cached :absent)))
+       (t
+        (magit-insert-section-body
+          (lean4-info--indented
             ;; Remembered so that opening the section can ask for them.
             (puthash path (cdr children) lean4-info--trace-lazy)
             (lean4-info--insert

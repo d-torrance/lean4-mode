@@ -310,15 +310,24 @@ nothing."
         (let ((inhibit-read-only t))
           (erase-buffer)
           (magit-insert-section (lean4-info-section 'root)
+            ;; Collapsed, which is how most leaves arrive: that is the
+            ;; case that used to get an indicator, because a section
+            ;; starting folded has its body put aside as a washer, and a
+            ;; washer is something `magit-section' says it can unfold.
             (lean4-info--insert-trace
-             '(:children (:strict []) :cls "Leaf" :collapsed :json-false
+             '(:children (:strict []) :cls "Leaf" :collapsed t
                :msg (:text "a leaf"))
              '(0))
             (lean4-info--insert-trace
              '(:children (:lazy (:__rpcref "1")) :cls "Lazy" :collapsed t
                :msg (:text "has children"))
-             '(1))))
-        (pcase-let ((`(,leaf ,lazy) (oref magit-root-section children)))
+             '(1))
+            (lean4-info--insert-trace
+             '(:children (:strict [(:text "kid")]) :cls "Strict" :collapsed t
+               :msg (:text "has children too"))
+             '(2))))
+        (pcase-let ((`(,leaf ,lazy ,strict)
+                     (oref magit-root-section children)))
           ;; A leaf is its heading and nothing else, so `magit-section'
           ;; has nothing to hide and draws no indicator.
           (should (= (oref leaf content) (oref leaf end)))
@@ -328,7 +337,9 @@ nothing."
           ;; the reader opens the section -- which is what it counts as
           ;; foldable, and draws the indicator for.
           (should (oref lazy hidden))
-          (should (oref lazy washer))))
+          (should (oref lazy washer))
+          ;; And one whose children came with the message, folded shut.
+          (should (oref strict washer))))
     (kill-buffer lean4-info-buffer-name)))
 
 (ert-deftest lean4-info-sections-are-told-apart-across-a-rebuild ()
