@@ -215,7 +215,6 @@ to be added or removed from the hook variable.")
   (setq-local comment-use-syntax t)
   (setq-local font-lock-defaults lean4-font-lock-defaults)
   (setq-local indent-tabs-mode nil)
-  (setq-local lisp-indent-function 'common-lisp-indent-function)
   (setq-local indent-line-function #'lean4-indent-line-function)
   (require 'lean4-input)
   ;; `activate-input-method' rather than `set-input-method': the latter is
@@ -230,7 +229,11 @@ to be added or removed from the hook variable.")
   ;; Appended, so it is consulted only where the server offered nothing.
   (add-hook 'completion-at-point-functions
             #'lean4-keyword-completion-at-point 'append 'local)
-  (electric-indent-local-mode -1)
+  ;; Not `electric-indent-local-mode': switching off a minor mode the
+  ;; reader turned on is not a major mode's business.  This is the
+  ;; variable Emacs provides for a mode to say that reindenting on a
+  ;; newline does not suit its language.
+  (setq-local electric-indent-inhibit t)
   (pcase-dolist (`(,hook . ,fn) lean4-hooks-alist)
     (add-hook hook fn nil 'local))
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-semantic-tokens nil 'local)

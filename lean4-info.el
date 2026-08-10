@@ -197,8 +197,7 @@ Read-only and undo-less already, from `magit-section-mode'.
   (add-hook 'xref-backend-functions
             #'lean4-info-xref-backend nil 'local)
   (add-hook 'post-command-hook #'lean4-info-highlight-subterm nil 'local)
-  (add-hook 'post-command-hook #'lean4-info--fetch-open-traces nil 'local)
-  (eldoc-mode 1))
+  (add-hook 'post-command-hook #'lean4-info--fetch-open-traces nil 'local))
 
 (defun lean4-info--pin-at-point ()
   "Return the pin whose section point is in, or nil."

@@ -123,5 +123,14 @@ emptied every compilation buffer for the rest of the session."
     (should (eq default-input-method 'untouched))
     (should (eq compilation-mode-font-lock-keywords 'untouched))))
 
+(ert-deftest lean4-mode-inhibits-electric-indent-by-variable ()
+  "Reindenting on newline is declined through the variable meant for it.
+`electric-indent-local-mode' would switch off a minor mode the reader
+turned on, which is not a major mode\\='s business; `electric-indent-inhibit'
+says the same thing without touching the mode\\='s own state."
+  (lean4-mode-test--with-mode
+    (should electric-indent-inhibit)
+    (should-not (local-variable-p 'electric-indent-mode))))
+
 (provide 'lean4-mode-test)
 ;;; lean4-mode-test.el ends here

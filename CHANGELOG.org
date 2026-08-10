@@ -68,6 +68,10 @@ xref, project roots through =project.el=.
   Lean input method in every other buffer, and it emptied
   ~compilation-mode-font-lock-keywords~, so every later =M-x compile=
   buffer went unfontified.
+- Electric indentation is declined with ~electric-indent-inhibit~
+  instead of switching ~electric-indent-local-mode~ off, which took a
+  minor mode away from anyone who had turned it on.  The goal display
+  likewise no longer turns ElDoc on for the reader.
 
 * Version 1.1.2
 
