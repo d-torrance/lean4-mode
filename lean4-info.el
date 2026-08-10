@@ -240,35 +240,13 @@ The buffer is supposed to be the *Lean Goal* buffer."
    ;; current window of current buffer is selected (i.e., in focus)
    (eq (current-buffer) (window-buffer))))
 
-(defun lean4-info--range (diagnostic)
-  "Return the extent of raw LSP DIAGNOSTIC, preferring Lean's `fullRange'."
-  (or (plist-get diagnostic :fullRange) (plist-get diagnostic :range)))
-
-(defun lean4-info--start-line (diagnostic)
-  "Return the zero-based line raw LSP DIAGNOSTIC starts on."
-  (or (thread-first diagnostic lean4-info--range
-                    (plist-get :start) (plist-get :line))
-      0))
-
-(defun lean4-info--start-column (diagnostic)
-  "Return the zero-based column raw LSP DIAGNOSTIC starts at."
-  (or (thread-first diagnostic lean4-info--range
-                    (plist-get :start) (plist-get :character))
-      0))
-
-(defun lean4-info--end-line (diagnostic)
-  "Return the zero-based line raw LSP DIAGNOSTIC ends on."
-  (or (thread-first diagnostic lean4-info--range
-                    (plist-get :end) (plist-get :line))
-      0))
-
 (defun lean4-info--diagnostics-at-line (diagnostics line)
   "Return the raw LSP DIAGNOSTICS whose full range covers zero-based LINE.
 Covering it rather than starting on it: that is how a message about a
 multi-line declaration stays visible while point moves through it."
   (seq-filter (lambda (diagnostic)
-                (and (<= (lean4-info--start-line diagnostic) line)
-                     (<= line (lean4-info--end-line diagnostic))))
+                (and (<= (lean4-diagnostics-start-line diagnostic) line)
+                     (<= line (lean4-diagnostics-end-line diagnostic))))
               diagnostics))
 
 ;;;; Rendering
@@ -534,6 +512,19 @@ the cost this whole arrangement exists to avoid."
              (propertize "...\n" 'face 'shadow)))))))))
 
 
+(defun lean4-info--map-sections (function)
+  "Call FUNCTION on every section of the display, the root included.
+Does nothing where there is no section tree yet.
+
+`magit-map-sections\=' does this, but only from magit-section 4, and 3.3.0
+is what Debian and Ubuntu still ship; this can give way to it when that
+stops mattering."
+  (when (bound-and-true-p magit-root-section)
+    (letrec ((walk (lambda (section)
+                     (funcall function section)
+                     (mapc walk (oref section children)))))
+      (funcall walk magit-root-section))))
+
 (defun lean4-info--fetch-open-traces ()
   "Fetch the children of any trace the reader has opened.
 
@@ -541,21 +532,18 @@ the cost this whole arrangement exists to avoid."
 section and no hook that runs when one of them does, so notice it
 afterwards.  Walking a handful of sections costs nothing beside the
 request it decides whether to make."
-  (when (bound-and-true-p magit-root-section)
-    (letrec ((walk
-              (lambda (section)
-                (let ((value (oref section value)))
-                  (when (and (consp value) (eq (car value) 'trace)
-                             (not (oref section hidden)))
-                    (let* ((path (cadr value))
-                           (lazy (gethash path lean4-info--trace-lazy)))
-                      (when lazy
-                        ;; Once: the answer arrives asynchronously, and
-                        ;; asking again meanwhile would ask forever.
-                        (remhash path lean4-info--trace-lazy)
-                        (lean4-info--fetch-trace-children path lazy)))))
-                (mapc walk (oref section children)))))
-      (funcall walk magit-root-section))))
+  (lean4-info--map-sections
+   (lambda (section)
+     (let ((value (oref section value)))
+       (when (and (consp value) (eq (car value) 'trace)
+                  (not (oref section hidden)))
+         (let* ((path (cadr value))
+                (lazy (gethash path lean4-info--trace-lazy)))
+           (when lazy
+             ;; Once: the answer arrives asynchronously, and asking
+             ;; again meanwhile would ask forever.
+             (remhash path lean4-info--trace-lazy)
+             (lean4-info--fetch-trace-children path lazy))))))))
 
 (defun lean4-info--fetch-trace-children (path lazy)
   "Ask the server for the children LAZY stands for, and remember them at PATH."
@@ -704,16 +692,16 @@ as VS Code has them."
   (let ((sorted
          (sort (copy-sequence diagnostics)
                (lambda (a b)
-                 (let ((la (lean4-info--start-line a))
-                       (lb (lean4-info--start-line b)))
+                 (let ((la (lean4-diagnostics-start-line a))
+                       (lb (lean4-diagnostics-start-line b)))
                    (if (= la lb)
-                       (< (lean4-info--start-column a)
-                          (lean4-info--start-column b))
+                       (< (lean4-diagnostics-start-column a)
+                          (lean4-diagnostics-start-column b))
                      (< la lb)))))))
     (if (eq lean4-info-message-order 'point)
         (sort sorted (lambda (a b)
-                       (< (abs (- (lean4-info--start-line a) line))
-                          (abs (- (lean4-info--start-line b) line)))))
+                       (< (abs (- (lean4-diagnostics-start-line a) line))
+                          (abs (- (lean4-diagnostics-start-line b) line)))))
       sorted)))
 
 (defun lean4-info--messages-caption (label diagnostics &optional controls)
@@ -737,12 +725,9 @@ the badge with a second, coarser count of the same messages."
 none: the display looked as though nothing folded until something was
 folded, after which that one section gained an indicator and the rest
 still had none."
-  (when (and (fboundp 'magit-section-maybe-update-visibility-indicator)
-             (bound-and-true-p magit-root-section))
-    (letrec ((walk (lambda (section)
-                     (magit-section-maybe-update-visibility-indicator section)
-                     (mapc walk (oref section children)))))
-      (funcall walk magit-root-section))))
+  (when (fboundp 'magit-section-maybe-update-visibility-indicator)
+    (lean4-info--map-sections
+     #'magit-section-maybe-update-visibility-indicator)))
 
 (defun lean4-info--act-at (position)
   "Do whatever POSITION is on; return non-nil if there was anything.

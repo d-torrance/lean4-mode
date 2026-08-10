@@ -53,9 +53,40 @@
 (defconst lean4-diagnostics-tag-goals-accomplished 2
   "Lean's tag for a declaration whose goals are all discharged.")
 
+;;;; Reading a raw LSP diagnostic
+;;
+;; The plists Lean sends, whether they arrive over RPC or by notification.
+
+(defun lean4-diagnostics-range (diagnostic)
+  "Return the extent of raw LSP DIAGNOSTIC, preferring Lean's `fullRange'.
+Lean reports two extents per diagnostic: `range', which is what gets
+underlined, and `fullRange', which covers the whole construct the
+message is about.  Servers older than the extension send only `range'."
+  (or (plist-get diagnostic :fullRange) (plist-get diagnostic :range)))
+
+(defun lean4-diagnostics-start-line (diagnostic)
+  "Return the zero-based line raw LSP DIAGNOSTIC starts on."
+  (or (thread-first diagnostic lean4-diagnostics-range
+                    (plist-get :start) (plist-get :line))
+      0))
+
+(defun lean4-diagnostics-start-column (diagnostic)
+  "Return the zero-based column raw LSP DIAGNOSTIC starts at."
+  (or (thread-first diagnostic lean4-diagnostics-range
+                    (plist-get :start) (plist-get :character))
+      0))
+
+(defun lean4-diagnostics-end-line (diagnostic)
+  "Return the zero-based line raw LSP DIAGNOSTIC ends on."
+  (or (thread-first diagnostic lean4-diagnostics-range
+                    (plist-get :end) (plist-get :line))
+      0))
+
 ;;;; Reading a Flymake diagnostic
 ;;
 ;; What Eglot hands Flymake, and what Lean put in it before Eglot did.
+;; Each of these is its raw counterpart above, reached through the object
+;; Eglot stashed.
 
 (defun lean4-diagnostic-lsp-data (diagnostic)
   "Return the raw LSP object behind Flymake DIAGNOSTIC, or nil.
@@ -64,13 +95,8 @@ only way to reach Lean's extensions to it."
   (alist-get 'eglot-lsp-diag (flymake-diagnostic-data diagnostic)))
 
 (defun lean4-diagnostic-full-range (diagnostic)
-  "Return the `fullRange' of Flymake DIAGNOSTIC, falling back to `range'.
-Lean reports two extents per diagnostic: `range', which is what gets
-underlined, and `fullRange', which covers the whole construct the
-message is about.  Servers older than the extension send only `range'."
-  (let ((lsp (lean4-diagnostic-lsp-data diagnostic)))
-    (or (plist-get lsp :fullRange)
-        (plist-get lsp :range))))
+  "Return the `fullRange' of Flymake DIAGNOSTIC, falling back to `range'."
+  (lean4-diagnostics-range (lean4-diagnostic-lsp-data diagnostic)))
 
 (defun lean4-diagnostic-full-start-line (diagnostic)
   "Return the zero-based line DIAGNOSTIC's full range starts on."
