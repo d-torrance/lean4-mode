@@ -163,6 +163,7 @@ and which is what this mode did before."
     "--"
     ;; The goal display's controls, shared with `lean4-info-mode-menu'.
     ,@lean4-info-menu-items
+    ,lean4-info-display-menu
     "--"
     ["List of errors"       flymake-show-buffer-diagnostics   flymake-mode]
     ["Restart lean process" eglot-reconnect                   t]

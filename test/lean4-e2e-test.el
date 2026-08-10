@@ -41,6 +41,10 @@ so these tests place point at the start of the line's indentation.")
 (defconst lean4-e2e--error-line 9 "Line of the type error in the fixture.")
 (defconst lean4-e2e--trace-line 14
   "Line of the declaration producing a nested trace in the fixture.")
+(defconst lean4-e2e--filters-line 20
+  "Line of the `sorry' whose goal has a hypothesis of every kind.
+A type, a typeclass instance and an ordinary one, which is what the
+goal display\\='s filters tell apart.")
 
 (defconst lean4-e2e--timeout 180
   "Seconds to allow for the server to start and elaborate the fixture.
@@ -239,6 +243,48 @@ window showing the source."
             ;; The server's own wording, not Eglot's "Lean 4: " prefixed
             ;; version, which is useful in the echo area but noise here.
             (should-not (string-search "Lean 4: " (buffer-string)))))
+      (delete-other-windows))))
+
+(ert-deftest lean4-e2e-goal-filters-apply-to-goals-already-fetched ()
+  "A display setting takes effect on goals that have already arrived.
+
+The trees are kept as Lean sent them and rendered on the way into the
+buffer, so changing how much of a goal to show is a redisplay -- which
+fetches nothing -- rather than another round trip.  That is what lets a
+setting take effect on a pinned or paused section too.
+
+Uses a real goal because the point is the whole chain: Lean's own
+`isType' and `isInstance' flags, read off the wire, reaching the filter."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (delete-other-windows)
+    (set-window-buffer (selected-window) (current-buffer))
+    (lean4-ensure-info-buffer lean4-info-buffer-name)
+    (set-window-buffer (split-window) lean4-info-buffer-name)
+    (unwind-protect
+        (let ((lean4-info-hide-type-assumptions nil)
+              (lean4-info-hide-instance-assumptions nil))
+          (lean4-e2e--goto-line lean4-e2e--filters-line)
+          (back-to-indentation)
+          (lean4-info-buffer-refresh)
+          (lean4-e2e--wait-until
+           "the goal's hypotheses to reach the info buffer"
+           (lambda ()
+             (with-current-buffer lean4-info-buffer-name
+               (string-search "α : Type" (buffer-string)))))
+          (with-current-buffer lean4-info-buffer-name
+            (should (string-search "Inhabited α" (buffer-string)))
+            (should (string-search "h : α" (buffer-string))))
+          ;; No refresh from here on, only a redisplay.
+          (setq lean4-info-hide-type-assumptions t
+                lean4-info-hide-instance-assumptions t)
+          (lean4-info--redisplay-source)
+          (with-current-buffer lean4-info-buffer-name
+            (should-not (string-search "α : Type" (buffer-string)))
+            (should-not (string-search "Inhabited α" (buffer-string)))
+            ;; The ordinary hypothesis and the target are left alone.
+            (should (string-search "h : α" (buffer-string)))
+            (should (string-search "True" (buffer-string)))))
       (delete-other-windows))))
 
 ;;;; Interactive RPC

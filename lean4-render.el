@@ -79,6 +79,12 @@
   "Face for a subterm a tactic rewrote."
   :group 'lean4-render)
 
+(defface lean4-unemphasized-goal
+  '((t :inherit shadow :height 0.9))
+  "Face for the goals after the first, when the first is emphasized.
+VS Code draws these at seventy percent opacity and a smaller font size."
+  :group 'lean4-render)
+
 (defconst lean4-render--diff-faces
   '(("wasInserted" . lean4-goal-inserted)
     ("willInsert"  . lean4-goal-inserted)
@@ -270,51 +276,134 @@ strings, so that \"/1\" is not treated as containing \"/10\"."
                   'lean4-inaccessible-name
                 'lean4-hypothesis-name)))
 
-(defun lean4-render-hypothesis (hypothesis)
+;; The SETTINGS every function below takes is a plist saying how much of a
+;; goal to show.  Every key is false by default, so nil means what VS Code
+;; shows out of the box; `lean4-info--goal-settings' is what fills it in from
+;; the options the reader sets.
+;;
+;;   `:hide-type-assumptions'          leave out hypotheses that are types
+;;   `:hide-instance-assumptions'      leave out typeclass instances
+;;   `:hide-inaccessible-assumptions'  leave out names Lean has hidden
+;;   `:hide-let-values'                show a let-binder's type but not its value
+;;   `:hide-goal-names'                leave out the "case foo" label
+;;   `:target-first'                   the target above the hypotheses
+;;   `:emphasize-first-goal'           draw the goals after the first smaller
+
+(defun lean4-render--flag (object key)
+  "Return non-nil if OBJECT's KEY is JSON true.
+Lean sends these as optional booleans, and a JSON `false' does not reach
+Emacs as nil, so an explicit comparison is needed."
+  (eq (plist-get object key) t))
+
+(defun lean4-render--inaccessible-p (name)
+  "Return non-nil if NAME is one Lean has made inaccessible."
+  (string-search lean4-render--inaccessible-suffix name))
+
+(defun lean4-render--hypothesis-names (hypothesis settings)
+  "Return the names of HYPOTHESIS that SETTINGS leave visible."
+  (let ((names (append (plist-get hypothesis :names) nil)))
+    (if (plist-get settings :hide-inaccessible-assumptions)
+        (seq-remove #'lean4-render--inaccessible-p names)
+      names)))
+
+(defun lean4-render-visible-hypotheses (hypotheses settings)
+  "Return the members of HYPOTHESES that SETTINGS leave visible.
+
+A bundle whose names have all been filtered away goes too: it would
+otherwise render as a nameless \" : T\".  This is the order VS Code
+applies the filters in, and it matters -- an instance is dropped whole,
+whereas an inaccessible name is dropped from a bundle that may have
+other names in it."
+  (seq-filter
+   (lambda (hypothesis)
+     (and (not (and (plist-get settings :hide-instance-assumptions)
+                    (lean4-render--flag hypothesis :isInstance)))
+          (not (and (plist-get settings :hide-type-assumptions)
+                    (lean4-render--flag hypothesis :isType)))
+          (lean4-render--hypothesis-names hypothesis settings)))
+   (append hypotheses nil)))
+
+(defun lean4-render-hypothesis (hypothesis &optional settings)
   "Render HYPOTHESIS, an `InteractiveHypothesisBundle', as one line.
 Names sharing a type are reported together and are shown together, the
-way Lean itself prints them."
-  (let* ((names (append (plist-get hypothesis :names) nil))
+way Lean itself prints them.  SETTINGS is as described above."
+  (let* ((names (lean4-render--hypothesis-names hypothesis settings))
          (type (lean4-render-tagged-text (plist-get hypothesis :type)))
-         (value (plist-get hypothesis :val)))
+         (value (unless (plist-get settings :hide-let-values)
+                  (plist-get hypothesis :val))))
     (concat (mapconcat #'lean4-render--name names " ")
             " : " type
             (when value
               (concat " := " (lean4-render-tagged-text value)))
             "\n")))
 
-(defun lean4-render-goal (goal)
+(defun lean4-render-goal (goal &optional settings)
   "Render GOAL, an `InteractiveGoal', as a block of text.
+SETTINGS is as described above.
 
 Deliberately ignores GOAL's own `isInserted'/`isRemoved' flags: the
 server sets `isRemoved' on every goal it returns from an ordinary
 `getInteractiveGoals' request, so honouring them would strike out
 perfectly good goals.  Only per-subterm `diffStatus', which
 `lean4-render-tagged-text' applies, is a real diff signal."
-  (let ((case-label (plist-get goal :userName))
-        (prefix (or (plist-get goal :goalPrefix) "⊢ "))
-        (hypotheses (append (plist-get goal :hyps) nil))
-        (type (lean4-render-tagged-text (plist-get goal :type))))
+  (let* ((case-label (unless (plist-get settings :hide-goal-names)
+                       (plist-get goal :userName)))
+         (prefix (or (plist-get goal :goalPrefix) "⊢ "))
+         (hypotheses (lean4-render-visible-hypotheses
+                      (plist-get goal :hyps) settings))
+         (type (lean4-render-tagged-text (plist-get goal :type)))
+         (target (concat prefix type))
+         ;; VS Code reverses the hypotheses as well as moving the target
+         ;; above them, so that the two lines which were adjacent -- the
+         ;; last hypothesis and the target -- stay adjacent.
+         (hypotheses (if (plist-get settings :target-first)
+                         (reverse hypotheses)
+                       hypotheses))
+         (body (mapconcat (lambda (hypothesis)
+                            (lean4-render-hypothesis hypothesis settings))
+                          hypotheses "")))
     (concat
      (when case-label
        (concat (propertize (format "case %s" case-label)
                            'font-lock-face 'lean4-goal-case)
                "\n"))
-     (mapconcat #'lean4-render-hypothesis hypotheses "")
-     prefix type)))
+     (if (plist-get settings :target-first)
+         ;; Each hypothesis ends in a newline and the target does not, so
+         ;; swapping them means moving one newline as well -- and there is
+         ;; none to move when every hypothesis has been filtered away.
+         (if (string-empty-p body)
+             target
+           (concat target "\n" (string-remove-suffix "\n" body)))
+       (concat body target)))))
 
-(defun lean4-render-goals (goals)
+(defun lean4-render-goals (goals &optional settings)
   "Render GOALS, a sequence of `InteractiveGoal', separated by blank lines.
+SETTINGS is as described above.
+
 Returns nil when there are none, which the caller should report as the
 proof being finished rather than as an absence of information."
   (let ((goals (append goals nil)))
     (when goals
-      (mapconcat #'lean4-render-goal goals "\n\n"))))
+      (let ((rendered (seq-map-indexed
+                       (lambda (goal index)
+                         (let ((text (lean4-render-goal goal settings)))
+                           (when (and (> index 0)
+                                      (plist-get settings :emphasize-first-goal))
+                             ;; Appended rather than prepended, so the faces
+                             ;; the subterms already carry keep their colours
+                             ;; and only the size and dimming come from here.
+                             (font-lock-append-text-property
+                              0 (length text) 'font-lock-face
+                              'lean4-unemphasized-goal text))
+                           text))
+                       goals)))
+        (mapconcat #'identity rendered "\n\n")))))
 
-(defun lean4-render-term-goal (term-goal)
-  "Render TERM-GOAL, an `InteractiveTermGoal'."
+(defun lean4-render-term-goal (term-goal &optional settings)
+  "Render TERM-GOAL, an `InteractiveTermGoal'.
+SETTINGS is as described above."
   (when term-goal
-    (lean4-render-goal term-goal)))
+    (lean4-render-goal term-goal settings)))
 
 ;;;; Collecting references
 

@@ -13,3 +13,9 @@ def bad : Nat := "not a number"
 -- numbers asserted above stay valid.
 set_option trace.Meta.synthInstance true in
 example : Inhabited (Nat × Nat) := inferInstance
+
+-- Hypotheses of every kind the goal display's filters tell apart: a type,
+-- a typeclass instance, and an ordinary one.  Appended at the end so the
+-- line numbers asserted above stay valid.
+example {α : Type} [Inhabited α] (h : α) : True := by
+  sorry

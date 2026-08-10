@@ -192,6 +192,129 @@ it would strike out every goal in the buffer.  Only per-subterm
                      (:goalPrefix "⊢ " :hyps [] :type (:text "B"))])))
     (should (equal (substring-no-properties rendered) "⊢ A\n\n⊢ B"))))
 
+;;;; How much of a goal to show
+
+(defconst lean4-render-test--mixed-hyps
+  ;; One of each kind the filters distinguish.  `isInstance' and `isType'
+  ;; arrive as JSON booleans; `:json-false' is how a false one reaches Emacs.
+  '[(:names ["α"] :type (:text "Type") :isType t)
+    (:names ["inst"] :type (:text "Monoid α") :isInstance t)
+    (:names ["n"] :type (:text "Nat") :val (:text "42"))
+    (:names ["h" "h✝"] :type (:text "P") :isType :json-false)
+    (:names ["k✝"] :type (:text "Q"))]
+  "Hypotheses covering every distinction the display settings make.")
+
+(defun lean4-render-test--goal (&rest settings)
+  "Render a goal over `lean4-render-test--mixed-hyps' under SETTINGS."
+  (substring-no-properties
+   (lean4-render-goal `(:goalPrefix "⊢ " :hyps ,lean4-render-test--mixed-hyps
+                        :type (:text "True"))
+                      settings)))
+
+(ert-deftest lean4-render-shows-everything-by-default ()
+  "With no settings the whole goal is shown, as VS Code shows it."
+  (should (equal (lean4-render-test--goal)
+                 (concat "α : Type\n"
+                         "inst : Monoid α\n"
+                         "n : Nat := 42\n"
+                         "h h✝ : P\n"
+                         "k✝ : Q\n"
+                         "⊢ True"))))
+
+(ert-deftest lean4-render-hides-type-assumptions ()
+  "Hiding type assumptions drops the whole bundle."
+  (let ((rendered (lean4-render-test--goal :hide-type-assumptions t)))
+    (should-not (string-search "α : Type" rendered))
+    ;; A bundle whose `isType' is JSON false stays.
+    (should (string-search "h h✝ : P" rendered))
+    (should (string-search "inst : Monoid α" rendered))))
+
+(ert-deftest lean4-render-hides-instance-assumptions ()
+  "Hiding instances drops the whole bundle and nothing else."
+  (let ((rendered (lean4-render-test--goal :hide-instance-assumptions t)))
+    (should-not (string-search "inst" rendered))
+    (should (string-search "α : Type" rendered))))
+
+(ert-deftest lean4-render-hides-inaccessible-names ()
+  "Inaccessible names go, and a bundle left nameless goes with them."
+  (let ((rendered (lean4-render-test--goal :hide-inaccessible-assumptions t)))
+    ;; One name of two: the bundle stays, with the dagger gone.
+    (should (string-search "h : P" rendered))
+    (should-not (string-search "h✝" rendered))
+    ;; The only name: the bundle would render as " : Q", so it goes entirely.
+    (should-not (string-search "Q" rendered))))
+
+(ert-deftest lean4-render-hides-let-values ()
+  "A let-binder keeps its type and loses its value."
+  (let ((rendered (lean4-render-test--goal :hide-let-values t)))
+    (should (string-search "n : Nat\n" rendered))
+    (should-not (string-search "42" rendered))))
+
+(ert-deftest lean4-render-hides-goal-names ()
+  "The case label goes when goal names are hidden."
+  (let ((goal '(:userName "inl" :goalPrefix "⊢ " :hyps []
+                :type (:text "True"))))
+    (should (string-prefix-p "case inl"
+                             (substring-no-properties
+                              (lean4-render-goal goal))))
+    (should (equal (substring-no-properties
+                    (lean4-render-goal goal '(:hide-goal-names t)))
+                   "⊢ True"))))
+
+(ert-deftest lean4-render-target-can-come-first ()
+  "The target moves above the hypotheses, which reverse with it.
+Reversing keeps the target next to the hypothesis it was next to."
+  (should (equal (substring-no-properties
+                  (lean4-render-goal
+                   '(:goalPrefix "⊢ " :type (:text "True")
+                     :hyps [(:names ["a"] :type (:text "A"))
+                            (:names ["b"] :type (:text "B"))])
+                   '(:target-first t)))
+                 "⊢ True\nb : B\na : A")))
+
+(ert-deftest lean4-render-target-first-without-hypotheses ()
+  "A goal with nothing to reverse gains no stray blank line."
+  (should (equal (substring-no-properties
+                  (lean4-render-goal '(:goalPrefix "⊢ " :hyps []
+                                       :type (:text "True"))
+                                     '(:target-first t)))
+                 "⊢ True")))
+
+(ert-deftest lean4-render-emphasizes-only-the-first-goal ()
+  "Goals after the first are faced down; the first is left alone."
+  (let* ((goals '[(:goalPrefix "⊢ " :hyps [] :type (:text "A"))
+                  (:goalPrefix "⊢ " :hyps [] :type (:text "B"))])
+         (rendered (lean4-render-goals goals '(:emphasize-first-goal t)))
+         (second (string-search "B" rendered)))
+    (should-not (memq 'lean4-unemphasized-goal
+                      (ensure-list (get-text-property 0 'font-lock-face
+                                                      rendered))))
+    (should (memq 'lean4-unemphasized-goal
+                  (ensure-list (get-text-property second 'font-lock-face
+                                                  rendered))))))
+
+(ert-deftest lean4-render-emphasis-keeps-the-faces-underneath ()
+  "The face is added beneath those a subterm already carries.
+Prepending it would override the diff and name colours."
+  (let* ((goals `[(:goalPrefix "⊢ " :hyps [] :type (:text "A"))
+                  (:goalPrefix "⊢ " :hyps [(:names ["h✝"] :type (:text "P"))]
+                   :type (:text "B"))])
+         (rendered (lean4-render-goals goals '(:emphasize-first-goal t)))
+         (faces (ensure-list
+                 (get-text-property (string-search "h✝" rendered)
+                                    'font-lock-face rendered))))
+    (should (memq 'lean4-inaccessible-name faces))
+    (should (memq 'lean4-unemphasized-goal faces))
+    ;; The name's own face keeps priority, being first.
+    (should (< (seq-position faces 'lean4-inaccessible-name)
+               (seq-position faces 'lean4-unemphasized-goal)))))
+
+(ert-deftest lean4-render-visible-hypotheses-accepts-a-vector ()
+  "Lean sends an array; the filter returns a list either way."
+  (should (equal (lean4-render-visible-hypotheses
+                  '[(:names ["a"] :type (:text "A"))] nil)
+                 '((:names ["a"] :type (:text "A"))))))
+
 ;;;; Messages and traces
 
 (defconst lean4-render-test--trace

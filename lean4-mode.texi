@@ -66,6 +66,7 @@ Usage
 
 * Keys in a Lean buffer::
 * Keys in the goal display::
+* How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
 * Mathlib's build cache::
@@ -241,6 +242,7 @@ buffer.  To put it in a side window on the right:
 @menu
 * Keys in a Lean buffer::
 * Keys in the goal display::
+* How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
 * Mathlib's build cache::
@@ -375,6 +377,86 @@ Traces fold like everything else, being sections themselves: @samp{TAB} or
 the mouse, with the same indicator.  Lean does not send the children of
 a trace node until something asks -- a @samp{simp} trace on a real proof is
 enormous -- so opening one fetches them, once.
+
+@node How much of a goal to show
+@section How much of a goal to show
+
+A goal in Mathlib can carry more hypotheses than fit on a screen, most of
+them typeclass instances nobody is reasoning about.  Eight settings decide
+how much of one is shown, the same eight VS Code gathers behind the cog in
+its InfoView.  They are in the @samp{Lean} menu and the goal display's own,
+under @samp{How much of a goal to show}, as checkboxes; each is also a command
+and an option.
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@headitem Setting
+@tab Default
+@tab Command
+@item @code{lean4-info-show-goal-names}
+@tab @samp{t}
+@tab @code{lean4-info-toggle-goal-names}
+@item @code{lean4-info-emphasize-first-goal}
+@tab @samp{nil}
+@tab @code{lean4-info-toggle-emphasize-first-goal}
+@item @code{lean4-info-target-first}
+@tab @samp{nil}
+@tab @code{lean4-info-toggle-target-first}
+@item @code{lean4-info-hide-type-assumptions}
+@tab @samp{nil}
+@tab @code{lean4-info-toggle-type-assumptions}
+@item @code{lean4-info-hide-instance-assumptions}
+@tab @samp{nil}
+@tab @code{lean4-info-toggle-instance-assumptions}
+@item @code{lean4-info-hide-inaccessible-assumptions}
+@tab @samp{nil}
+@tab @code{lean4-info-toggle-inaccessible-assumptions}
+@item @code{lean4-info-hide-let-values}
+@tab @samp{nil}
+@tab @code{lean4-info-toggle-let-values}
+@item @code{lean4-info-expected-type-visibility}
+@tab @samp{expanded}
+@tab @code{lean4-info-cycle-expected-type}
+@end multitable
+
+Every default is VS Code's, so out of the box the whole goal is shown.
+The commands change a setting for the session; customizing it makes the
+change stick.
+
+@itemize
+@item
+Goal names are the @samp{case inl} labels a structured proof produces.
+@item
+Emphasizing the first goal draws the others smaller and dimmer -- the
+main goal is the one being worked on, the rest are context.
+@item
+Showing the target first puts @samp{⊢} above the hypotheses, and reverses
+them, so that the target stays next to the hypothesis it was next to.
+@item
+Type assumptions are hypotheses that are themselves types, such as the
+implicit @samp{α : Type} of a general lemma.  Instance assumptions are
+typeclass instances, @samp{[Inhabited α]} and its kind.  Hiding either drops
+the hypothesis entirely.
+@item
+Inaccessible assumptions are the ones Lean prints with a dagger, @samp{h✝},
+which cannot be referred to by name.  They are dimmed rather than
+hidden by default.  Where a dagger name shares a line with a usable
+one, hiding takes away just the name.
+@item
+Hiding let-values shows a @samp{let} binder's type but not its value, which
+on a large value is the difference between reading the goal and
+scrolling past it.
+@item
+The expected type can be shown, shown folded, or left out.  The middle
+two are defaults rather than rules: the section still folds and unfolds
+with @samp{TAB}, and a fold made by hand survives until the setting changes.
+@end itemize
+
+Goals are kept as Lean sent them and rendered on the way into the
+buffer, so changing one of these costs a redraw rather than another
+request.  That is what lets a change reach a pinned or paused section,
+where re-fetching would be precisely the wrong thing.  Goals from a
+server too old for the interactive RPC arrive as text and cannot be
+filtered; the settings simply have nothing to act on.
 
 @node Errors and warnings
 @section Errors and warnings

@@ -58,6 +58,7 @@ Usage
 
 * Keys in a Lean buffer::
 * Keys in the goal display::
+* How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
 * Mathlib's build cache::
@@ -240,6 +241,7 @@ buffer.  To put it in a side window on the right:
 
 * Keys in a Lean buffer::
 * Keys in the goal display::
+* How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
 * Mathlib's build cache::
@@ -266,7 +268,7 @@ Key                      Description                                            
 ‘TAB’                    Indent, cycling through the alternatives when pressed again   ‘lean4-tab-indent’
 
 
-File: lean4-mode.info,  Node: Keys in the goal display,  Next: Errors and warnings,  Prev: Keys in a Lean buffer,  Up: Usage
+File: lean4-mode.info,  Node: Keys in the goal display,  Next: How much of a goal to show,  Prev: Keys in a Lean buffer,  Up: Usage
 
 2.2 Keys in the goal display
 ============================
@@ -335,9 +337,66 @@ a trace node until something asks - a ‘simp’ trace on a real proof is
 enormous - so opening one fetches them, once.
 
 
-File: lean4-mode.info,  Node: Errors and warnings,  Next: Building dependencies,  Prev: Keys in the goal display,  Up: Usage
+File: lean4-mode.info,  Node: How much of a goal to show,  Next: Errors and warnings,  Prev: Keys in the goal display,  Up: Usage
 
-2.3 Errors and warnings
+2.3 How much of a goal to show
+==============================
+
+A goal in Mathlib can carry more hypotheses than fit on a screen, most
+of them typeclass instances nobody is reasoning about.  Eight settings
+decide how much of one is shown, the same eight VS Code gathers behind
+the cog in its InfoView.  They are in the ‘Lean’ menu and the goal
+display's own, under ‘How much of a goal to show’, as checkboxes; each
+is also a command and an option.
+
+Setting                                      Default      Command
+---------------------------------------------------------------------------------------------------------
+‘lean4-info-show-goal-names’                 ‘t’          ‘lean4-info-toggle-goal-names’
+‘lean4-info-emphasize-first-goal’            ‘nil’        ‘lean4-info-toggle-emphasize-first-goal’
+‘lean4-info-target-first’                    ‘nil’        ‘lean4-info-toggle-target-first’
+‘lean4-info-hide-type-assumptions’           ‘nil’        ‘lean4-info-toggle-type-assumptions’
+‘lean4-info-hide-instance-assumptions’       ‘nil’        ‘lean4-info-toggle-instance-assumptions’
+‘lean4-info-hide-inaccessible-assumptions’   ‘nil’        ‘lean4-info-toggle-inaccessible-assumptions’
+‘lean4-info-hide-let-values’                 ‘nil’        ‘lean4-info-toggle-let-values’
+‘lean4-info-expected-type-visibility’        ‘expanded’   ‘lean4-info-cycle-expected-type’
+
+   Every default is VS Code's, so out of the box the whole goal is
+shown.  The commands change a setting for the session; customizing it
+makes the change stick.
+
+   • Goal names are the ‘case inl’ labels a structured proof produces.
+   • Emphasizing the first goal draws the others smaller and dimmer -
+     the main goal is the one being worked on, the rest are context.
+   • Showing the target first puts ‘⊢’ above the hypotheses, and
+     reverses them, so that the target stays next to the hypothesis it
+     was next to.
+   • Type assumptions are hypotheses that are themselves types, such as
+     the implicit ‘α : Type’ of a general lemma.  Instance assumptions
+     are typeclass instances, ‘[Inhabited α]’ and its kind.  Hiding
+     either drops the hypothesis entirely.
+   • Inaccessible assumptions are the ones Lean prints with a dagger,
+     ‘h✝’, which cannot be referred to by name.  They are dimmed rather
+     than hidden by default.  Where a dagger name shares a line with a
+     usable one, hiding takes away just the name.
+   • Hiding let-values shows a ‘let’ binder's type but not its value,
+     which on a large value is the difference between reading the goal
+     and scrolling past it.
+   • The expected type can be shown, shown folded, or left out.  The
+     middle two are defaults rather than rules: the section still folds
+     and unfolds with ‘TAB’, and a fold made by hand survives until the
+     setting changes.
+
+   Goals are kept as Lean sent them and rendered on the way into the
+buffer, so changing one of these costs a redraw rather than another
+request.  That is what lets a change reach a pinned or paused section,
+where re-fetching would be precisely the wrong thing.  Goals from a
+server too old for the interactive RPC arrive as text and cannot be
+filtered; the settings simply have nothing to act on.
+
+
+File: lean4-mode.info,  Node: Errors and warnings,  Next: Building dependencies,  Prev: How much of a goal to show,  Up: Usage
+
+2.4 Errors and warnings
 =======================
 
 Diagnostics are reported through Flymake, which Eglot drives.  ‘C-c ! n’
@@ -402,7 +461,7 @@ is following point and it would only lead where point already is.
 
 File: lean4-mode.info,  Node: Building dependencies,  Next: Mathlib's build cache,  Prev: Errors and warnings,  Up: Usage
 
-2.4 Building dependencies
+2.5 Building dependencies
 =========================
 
 Visiting a file does not build what it imports.  The server decides that
@@ -428,7 +487,7 @@ outright.
 
 File: lean4-mode.info,  Node: Mathlib's build cache,  Next: Completion,  Prev: Building dependencies,  Up: Usage
 
-2.5 Mathlib's build cache
+2.6 Mathlib's build cache
 =========================
 
 Mathlib is far too large to build locally, and does not need to be: its
@@ -455,7 +514,7 @@ whatever Lake reports, as with any other build.
 
 File: lean4-mode.info,  Node: Completion,  Prev: Mathlib's build cache,  Up: Usage
 
-2.6 Completion
+2.7 Completion
 ==============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -673,30 +732,31 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation1871
-Node: Requirements2096
-Node: From source3176
-Node: With a source-based package manager3664
-Node: Native vc (Emacs 30 or later)4175
-Node: Doom-Emacs4620
-Node: Straight4939
-Node: Upgrading from version 15296
-Node: Usage6593
-Node: Keys in a Lean buffer7929
-Node: Keys in the goal display9599
-Node: Errors and warnings13963
-Node: Building dependencies17714
-Node: Mathlib's build cache18987
-Node: Completion20339
-Node: Configuration21459
-Node: Frequently used options21898
-Node: The goal display's controls23561
-Node: Older Lean versions24882
-Node: Semantic highlighting25864
-Node: Optional packages27183
-Node: Troubleshooting27676
-Node: Common Pitfalls28326
-Node: Acknowledgements28927
+Node: Installation1902
+Node: Requirements2127
+Node: From source3207
+Node: With a source-based package manager3695
+Node: Native vc (Emacs 30 or later)4206
+Node: Doom-Emacs4651
+Node: Straight4970
+Node: Upgrading from version 15327
+Node: Usage6624
+Node: Keys in a Lean buffer7991
+Node: Keys in the goal display9661
+Node: How much of a goal to show14032
+Node: Errors and warnings17541
+Node: Building dependencies21294
+Node: Mathlib's build cache22567
+Node: Completion23919
+Node: Configuration25039
+Node: Frequently used options25478
+Node: The goal display's controls27141
+Node: Older Lean versions28462
+Node: Semantic highlighting29444
+Node: Optional packages30763
+Node: Troubleshooting31256
+Node: Common Pitfalls31906
+Node: Acknowledgements32507
 
 End Tag Table
 

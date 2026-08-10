@@ -153,7 +153,18 @@ xref, project roots through =project.el=.
   Lean file in the package.  The counterparts of VS Code's three "Fetch
   Mathlib Build Cache" commands.  The Lean menu gains a =Project=
   submenu holding these and =lake build=.
-- A test suite: 200 unit tests, and 35 end-to-end tests that run against
+- Eight settings deciding how much of a goal to show, the same eight
+  VS Code gathers behind the cog in its InfoView: goal names, emphasis on
+  the first goal, the target above the hypotheses, and hiding type
+  assumptions, instance assumptions, inaccessible assumptions or
+  let-values, along with whether the expected type is shown, folded or
+  left out.  Each is an option, a command and a checkbox in both menus,
+  under =How much of a goal to show=; every default is VS Code's, so the
+  whole goal is shown until asked otherwise.  Goals are now kept as Lean
+  sent them and rendered on the way into the buffer, so a change costs a
+  redraw rather than another request -- and so reaches a pinned or paused
+  section, where re-fetching would be the wrong thing.
+- A test suite: 224 unit tests, and 36 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed

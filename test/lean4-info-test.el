@@ -1434,5 +1434,160 @@ at the reader for as long as it is on screen."
           (advice-remove 'erase-buffer 'lean4-info-test-count)))
     (kill-buffer lean4-info-buffer-name)))
 
+;;;; How much of a goal to show
+
+(ert-deftest lean4-info-goal-settings-invert-show-goal-names ()
+  "The renderer is told what to leave out, so this option arrives inverted."
+  (let ((lean4-info-show-goal-names t))
+    (should-not (plist-get (lean4-info--goal-settings) :hide-goal-names)))
+  (let ((lean4-info-show-goal-names nil))
+    (should (plist-get (lean4-info--goal-settings) :hide-goal-names))))
+
+(ert-deftest lean4-info-goal-settings-default-to-vs-codes ()
+  "Out of the box every filter is off, as in VS Code."
+  (let ((settings (lean4-info--goal-settings)))
+    (dolist (key '(:hide-goal-names :emphasize-first-goal :target-first
+                   :hide-type-assumptions :hide-instance-assumptions
+                   :hide-inaccessible-assumptions :hide-let-values))
+      (should-not (plist-get settings key)))))
+
+(ert-deftest lean4-info-goals-text-renders-a-tree ()
+  "Interactive goals are held as trees and rendered on the way in."
+  (should (equal (substring-no-properties
+                  (lean4-info--goals-text
+                   '((:goalPrefix "⊢ " :hyps [] :type (:text "True")))))
+                 "⊢ True")))
+
+(ert-deftest lean4-info-goals-text-passes-plain-text-through ()
+  "Goals that arrived as text cannot be filtered, and are not touched.
+A server too old for the interactive RPC sends them already rendered."
+  (should (equal (lean4-info--goals-text "⊢ already text") "⊢ already text"))
+  (should (equal (lean4-info--term-goal-text "⊢ so is this") "⊢ so is this")))
+
+(ert-deftest lean4-info-goals-text-honours-the-settings ()
+  "A filter set here reaches the renderer."
+  (let ((goals '((:goalPrefix "⊢ " :type (:text "True")
+                  :hyps [(:names ["inst"] :type (:text "Monoid α")
+                          :isInstance t)]))))
+    (let ((lean4-info-hide-instance-assumptions nil))
+      (should (string-search "inst" (lean4-info--goals-text goals))))
+    (let ((lean4-info-hide-instance-assumptions t))
+      (should-not (string-search "inst" (lean4-info--goals-text goals))))))
+
+(ert-deftest lean4-info-render-key-notices-a-changed-setting ()
+  "A toggle has to force a rebuild, or nothing on screen would change."
+  (let (before after)
+    (let ((lean4-info-hide-let-values nil))
+      (setq before (lean4-info--render-key nil nil nil nil nil nil)))
+    (let ((lean4-info-hide-let-values t))
+      (setq after (lean4-info--render-key nil nil nil nil nil nil)))
+    (should-not (equal before after))))
+
+(ert-deftest lean4-info-render-key-notices-expected-type-visibility ()
+  "Folding or hiding the expected type is a rebuild too."
+  (let (expanded collapsed hidden)
+    (let ((lean4-info-expected-type-visibility 'expanded))
+      (setq expanded (lean4-info--render-key nil nil nil nil nil nil)))
+    (let ((lean4-info-expected-type-visibility 'collapsed))
+      (setq collapsed (lean4-info--render-key nil nil nil nil nil nil)))
+    (let ((lean4-info-expected-type-visibility 'hidden))
+      (setq hidden (lean4-info--render-key nil nil nil nil nil nil)))
+    (should-not (equal expanded collapsed))
+    (should-not (equal collapsed hidden))))
+
+(ert-deftest lean4-info-expected-type-can-be-hidden ()
+  "With the expected type hidden its section is absent altogether."
+  (let ((lean4-info-expected-type-visibility 'hidden))
+    (with-temp-buffer
+      (lean4-info-mode)
+      (let ((inhibit-read-only t))
+        (magit-insert-section (lean4-info-test-root)
+          (lean4-info--insert-position nil "⊢ Expected" nil (current-buffer))))
+      (should-not (string-search "Expected type:" (buffer-string)))))
+  (let ((lean4-info-expected-type-visibility 'expanded))
+    (with-temp-buffer
+      (lean4-info-mode)
+      (let ((inhibit-read-only t))
+        (magit-insert-section (lean4-info-test-root)
+          (lean4-info--insert-position nil "⊢ Expected" nil (current-buffer))))
+      (should (string-search "Expected type:" (buffer-string))))))
+
+(ert-deftest lean4-info-toggles-report-and-redisplay ()
+  "Each toggle flips its option and asks for a redraw."
+  (let ((redisplays 0))
+    (cl-letf (((symbol-function 'lean4-info--redisplay-source)
+               (lambda () (cl-incf redisplays)))
+              ((symbol-function 'message) #'ignore))
+      (let ((lean4-info-hide-let-values nil))
+        (lean4-info-toggle-let-values)
+        (should lean4-info-hide-let-values))
+      (let ((lean4-info-show-goal-names t))
+        (lean4-info-toggle-goal-names)
+        (should-not lean4-info-show-goal-names))
+      (let ((lean4-info-target-first nil))
+        (lean4-info-toggle-target-first)
+        (should lean4-info-target-first))
+      (should (= redisplays 3)))))
+
+(ert-deftest lean4-info-expected-type-visibility-applies-once ()
+  "The setting wins over a remembered fold, but only when it changes.
+
+`magit-section' ignores the HIDE argument on a rebuild in order to keep
+folds where the reader put them, so a change has to come through the
+visibility hook -- and has to stop coming, or every redisplay would undo
+a fold made by hand."
+  ;; `value' is an initarg in magit-section 3.3.0 but not in 4.x, so it is set
+  ;; afterwards, which works in both.
+  (let ((section (magit-section :type 'lean4-info-section))
+        (other (magit-section :type 'lean4-info-section)))
+    (oset section value 'term-goal)
+    (oset other value 'goals)
+    ;; Nothing pending: the section is left to `magit-section'.
+    (let ((lean4-info--expected-type-pending nil)
+          (lean4-info-expected-type-visibility 'collapsed))
+      (should-not (lean4-info--expected-type-visibility section)))
+    ;; A change is applied to the expected type, once.
+    (let ((lean4-info--expected-type-pending t)
+          (lean4-info-expected-type-visibility 'collapsed))
+      (should (eq (lean4-info--expected-type-visibility section) 'hide))
+      (should-not (lean4-info--expected-type-visibility section)))
+    (let ((lean4-info--expected-type-pending t)
+          (lean4-info-expected-type-visibility 'expanded))
+      (should (eq (lean4-info--expected-type-visibility section) 'show)))
+    ;; And to no other section, whose fold is none of its business.
+    (let ((lean4-info--expected-type-pending t)
+          (lean4-info-expected-type-visibility 'collapsed))
+      (should-not (lean4-info--expected-type-visibility other)))))
+
+(ert-deftest lean4-info-expected-type-cycle-marks-it-pending ()
+  "Cycling the setting arranges for it to be applied."
+  (cl-letf (((symbol-function 'lean4-info--redisplay-source) #'ignore)
+            ((symbol-function 'message) #'ignore))
+    (let ((lean4-info-expected-type-visibility 'expanded)
+          (lean4-info--expected-type-pending nil))
+      (lean4-info-cycle-expected-type)
+      (should lean4-info--expected-type-pending))))
+
+(ert-deftest lean4-info-mode-installs-the-visibility-hook ()
+  "The hook is local to the display and ahead of the cached visibility."
+  (with-temp-buffer
+    (lean4-info-mode)
+    (should (memq #'lean4-info--expected-type-visibility
+                  magit-section-set-visibility-hook))
+    (should (eq (car magit-section-set-visibility-hook)
+                #'lean4-info--expected-type-visibility))))
+
+(ert-deftest lean4-info-expected-type-cycles-through-three ()
+  "The cycle returns to where it started after three presses."
+  (cl-letf (((symbol-function 'lean4-info--redisplay-source) #'ignore)
+            ((symbol-function 'message) #'ignore))
+    (let ((lean4-info-expected-type-visibility 'expanded))
+      (lean4-info-cycle-expected-type)
+      (should (eq lean4-info-expected-type-visibility 'collapsed))
+      (lean4-info-cycle-expected-type)
+      (should (eq lean4-info-expected-type-visibility 'hidden))
+      (lean4-info-cycle-expected-type)
+      (should (eq lean4-info-expected-type-visibility 'expanded)))))
+
 (provide 'lean4-info-test)
 ;;; lean4-info-test.el ends here

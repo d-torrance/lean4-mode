@@ -64,10 +64,16 @@
 (defconst lean4-info-buffer-name "*Lean Goal*")
 
 (defvar-local lean4-goals nil
-  "Goals at point: a rendered string, `accomplished', or nil for none.")
+  "Goals at point: `accomplished', or nil for none, or the goals themselves.
+
+Interactive goals are held as Lean sent them, a list of `InteractiveGoal',
+and rendered on the way into the buffer; plain-text ones are held as the
+rendered string, there being nothing else to hold.  See
+`lean4-info--goals-text'.")
 
 (defvar-local lean4-term-goal nil
-  "Expected type at point, as a rendered string, or nil.")
+  "Expected type at point: an `InteractiveTermGoal', a string, or nil.
+Held as `lean4-goals' is; see there.")
 
 (defvar-local lean4-info--handle nil
   "RPC handle the goals on display were fetched through.")
@@ -81,8 +87,8 @@
 (cl-defstruct (lean4-info-pin (:constructor lean4-info--pin-create))
   "A position the goal display goes on showing, whatever point does."
   marker                                ; where, in which Lean buffer
-  goals                                 ; rendered, `accomplished', or nil
-  term-goal                             ; rendered expected type, or nil
+  goals                                 ; as `lean4-goals', which see
+  term-goal                             ; as `lean4-term-goal', which see
   handle                                ; the RPC handle it was fetched through
   refs                                  ; server-side references it owns
   paused                                ; held as it is, if non-nil
@@ -198,6 +204,11 @@ Read-only and undo-less already, from `magit-section-mode'.
             #'lean4-info-xref-backend nil 'local)
   (add-hook 'post-command-hook #'lean4-info-highlight-subterm nil 'local)
   (add-hook 'post-command-hook #'lean4-info--fetch-open-traces nil 'local)
+  ;; Ahead of `magit-section-cached-visibility', which the global value
+  ;; holds: a change to the setting has to win over what the section was
+  ;; last time.  The hook stops at the first answer.
+  (add-hook 'magit-section-set-visibility-hook
+            #'lean4-info--expected-type-visibility nil 'local)
   ;; Following point is watched for globally rather than in the Lean
   ;; buffer, because point there can be moved by a command run anywhere;
   ;; see `lean4-info--follow-point'.  Installed here and taken off with
@@ -270,6 +281,239 @@ multi-line declaration stays visible while point moves through it."
                 (and (<= (lean4-diagnostics-start-line diagnostic) line)
                      (<= line (lean4-diagnostics-end-line diagnostic))))
               diagnostics))
+
+;;;; How much of a goal to show
+
+;; VS Code gathers these behind a cog in the InfoView, and the goals it has
+;; already fetched are re-rendered when one changes.  This does the same: the
+;; goal trees are kept as they arrived and rendered on the way into the
+;; buffer, so a toggle costs a redisplay rather than a round trip -- which is
+;; also what lets one take effect on a pinned or paused section, where
+;; re-fetching would be exactly the wrong thing.
+;;
+;; Goals that arrived as plain text, from a server too old for the
+;; interactive RPC, cannot be filtered: they are already text.  Nothing here
+;; errors on them, it simply has nothing to act on.
+
+(defcustom lean4-info-show-goal-names t
+  "Whether to label a goal with its case name, as in \"case inl\".
+VS Code offers the same choice as Infoview: Show Goal Names."
+  :group 'lean4-info
+  :type 'boolean)
+
+(defcustom lean4-info-emphasize-first-goal nil
+  "Whether to draw the goals after the first less prominently.
+The main goal is the one being worked on; the rest are context.  VS Code
+offers the same choice as Infoview: Emphasize First Goal."
+  :group 'lean4-info
+  :type 'boolean)
+
+(defcustom lean4-info-target-first nil
+  "Whether to show a goal\\='s target above its hypotheses.
+The hypotheses are reversed as well, so that the target stays next to
+the hypothesis it was next to.  VS Code offers the same choice as
+Infoview: Display Target Before Assumptions."
+  :group 'lean4-info
+  :type 'boolean)
+
+(defcustom lean4-info-hide-type-assumptions nil
+  "Whether to leave out hypotheses that are types.
+On a goal about a structure these are the implicit type variables, which
+are rarely what is being reasoned about.  VS Code offers the same choice
+as Infoview: Hide Type Assumptions."
+  :group 'lean4-info
+  :type 'boolean)
+
+(defcustom lean4-info-hide-instance-assumptions nil
+  "Whether to leave out typeclass instances from the hypotheses.
+On a goal in Mathlib these can outnumber everything else.  VS Code
+offers the same choice as Infoview: Hide Instance Assumptions."
+  :group 'lean4-info
+  :type 'boolean)
+
+(defcustom lean4-info-hide-inaccessible-assumptions nil
+  "Whether to leave out hypotheses whose names Lean has made inaccessible.
+Those are the ones it prints with a dagger, which cannot be referred to
+by name anyway.  They are dimmed rather than hidden by default.  VS Code
+offers the same choice as Infoview: Hide Inaccessible Assumptions."
+  :group 'lean4-info
+  :type 'boolean)
+
+(defcustom lean4-info-hide-let-values nil
+  "Whether to show a let-bound hypothesis\\='s type but not its value.
+A large value can bury the rest of the goal.  VS Code offers the same
+choice as Infoview: Hide Let-Values."
+  :group 'lean4-info
+  :type 'boolean)
+
+(defvar lean4-info--expected-type-pending nil
+  "Non-nil when `lean4-info-expected-type-visibility' has yet to take effect.
+
+`magit-section' inherits a section\\='s visibility from the section it is
+replacing, ignoring the HIDE argument, which is what keeps folds where
+the reader put them across the rebuild that every goal change causes.  A
+setting has to override that -- but only when it changes, or a redisplay
+would undo a fold made by hand a moment earlier.
+
+So the setting is applied through `magit-section-set-visibility-hook',
+which is honoured on a rebuild, and only for the first rebuild after a
+change.  \"Collapsed by default\" is what VS Code calls this, and the
+default is all it is.")
+
+(defun lean4-info--expected-type-changed (&rest _)
+  "Arrange for the expected type\\='s visibility to be applied once."
+  (setq lean4-info--expected-type-pending t))
+
+(defcustom lean4-info-expected-type-visibility 'expanded
+  "How to show the expected type at point.
+
+`expanded' shows the section open, `collapsed' shows it folded, and
+`hidden' leaves it out.  The first two are defaults rather than
+enforced: the section can still be folded and unfolded by hand.  VS Code
+offers the same three as Infoview: Expected Type Visibility."
+  :group 'lean4-info
+  :type '(choice (const :tag "Shown" expanded)
+                 (const :tag "Shown, folded" collapsed)
+                 (const :tag "Not shown" hidden))
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (lean4-info--expected-type-changed)))
+
+(defun lean4-info--expected-type-visibility (section)
+  "Say how to show SECTION, if it is the expected type and has just changed.
+For `magit-section-set-visibility-hook', which wants `show', `hide' or
+nil.  Answers once per change; see
+`lean4-info--expected-type-pending'."
+  (and lean4-info--expected-type-pending
+       (eq (oref section value) 'term-goal)
+       (progn
+         (setq lean4-info--expected-type-pending nil)
+         (if (eq lean4-info-expected-type-visibility 'collapsed)
+             'hide
+           'show))))
+
+(defun lean4-info--goal-settings ()
+  "Return how much of a goal to show, as `lean4-render' wants it.
+Every key is stated the way `lean4-render' reads it, which is as what to
+leave out -- so `lean4-info-show-goal-names' arrives inverted."
+  (list :hide-goal-names (not lean4-info-show-goal-names)
+        :emphasize-first-goal lean4-info-emphasize-first-goal
+        :target-first lean4-info-target-first
+        :hide-type-assumptions lean4-info-hide-type-assumptions
+        :hide-instance-assumptions lean4-info-hide-instance-assumptions
+        :hide-inaccessible-assumptions lean4-info-hide-inaccessible-assumptions
+        :hide-let-values lean4-info-hide-let-values))
+
+(defun lean4-info--goals-text (goals)
+  "Return GOALS as text, rendering them now if they are still a tree."
+  (if (stringp goals)
+      goals
+    (lean4-render-goals goals (lean4-info--goal-settings))))
+
+(defun lean4-info--term-goal-text (term-goal)
+  "Return TERM-GOAL as text, rendering it now if it is still a tree."
+  (if (stringp term-goal)
+      term-goal
+    (lean4-render-term-goal term-goal (lean4-info--goal-settings))))
+
+(defun lean4-info--report-setting (description)
+  "Redraw the goal display and say DESCRIPTION of what it now shows."
+  (lean4-info--redisplay-source)
+  (message "Goal display: %s" description))
+
+;;;###autoload
+(defun lean4-info-toggle-goal-names ()
+  "Show or hide the case name labelling each goal.
+Sets `lean4-info-show-goal-names' for this session."
+  (interactive)
+  (setq lean4-info-show-goal-names (not lean4-info-show-goal-names))
+  (lean4-info--report-setting
+   (if lean4-info-show-goal-names "goal names shown" "goal names hidden")))
+
+;;;###autoload
+(defun lean4-info-toggle-emphasize-first-goal ()
+  "Draw the goals after the first less prominently, or alike.
+Sets `lean4-info-emphasize-first-goal' for this session."
+  (interactive)
+  (setq lean4-info-emphasize-first-goal (not lean4-info-emphasize-first-goal))
+  (lean4-info--report-setting
+   (if lean4-info-emphasize-first-goal
+       "first goal emphasized"
+     "all goals drawn alike")))
+
+;;;###autoload
+(defun lean4-info-toggle-target-first ()
+  "Show each goal\\='s target above its hypotheses, or below them.
+Sets `lean4-info-target-first' for this session."
+  (interactive)
+  (setq lean4-info-target-first (not lean4-info-target-first))
+  (lean4-info--report-setting
+   (if lean4-info-target-first
+       "target before assumptions"
+     "assumptions before target")))
+
+;;;###autoload
+(defun lean4-info-toggle-type-assumptions ()
+  "Show or hide the hypotheses that are types.
+Sets `lean4-info-hide-type-assumptions' for this session."
+  (interactive)
+  (setq lean4-info-hide-type-assumptions (not lean4-info-hide-type-assumptions))
+  (lean4-info--report-setting
+   (if lean4-info-hide-type-assumptions
+       "type assumptions hidden"
+     "type assumptions shown")))
+
+;;;###autoload
+(defun lean4-info-toggle-instance-assumptions ()
+  "Show or hide the hypotheses that are typeclass instances.
+Sets `lean4-info-hide-instance-assumptions' for this session."
+  (interactive)
+  (setq lean4-info-hide-instance-assumptions
+        (not lean4-info-hide-instance-assumptions))
+  (lean4-info--report-setting
+   (if lean4-info-hide-instance-assumptions
+       "instance assumptions hidden"
+     "instance assumptions shown")))
+
+;;;###autoload
+(defun lean4-info-toggle-inaccessible-assumptions ()
+  "Show or hide the hypotheses whose names Lean has made inaccessible.
+Sets `lean4-info-hide-inaccessible-assumptions' for this session."
+  (interactive)
+  (setq lean4-info-hide-inaccessible-assumptions
+        (not lean4-info-hide-inaccessible-assumptions))
+  (lean4-info--report-setting
+   (if lean4-info-hide-inaccessible-assumptions
+       "inaccessible assumptions hidden"
+     "inaccessible assumptions shown")))
+
+;;;###autoload
+(defun lean4-info-toggle-let-values ()
+  "Show or hide the value of each let-bound hypothesis.
+Sets `lean4-info-hide-let-values' for this session."
+  (interactive)
+  (setq lean4-info-hide-let-values (not lean4-info-hide-let-values))
+  (lean4-info--report-setting
+   (if lean4-info-hide-let-values "let-values hidden" "let-values shown")))
+
+;;;###autoload
+(defun lean4-info-cycle-expected-type ()
+  "Cycle the expected type between shown, shown folded, and not shown.
+Sets `lean4-info-expected-type-visibility' for this session.  A cycle
+rather than a toggle because there are three states to reach; VS Code
+reaches them from a menu of three."
+  (interactive)
+  (setq lean4-info-expected-type-visibility
+        (pcase lean4-info-expected-type-visibility
+          ('expanded 'collapsed)
+          ('collapsed 'hidden)
+          (_ 'expanded)))
+  (lean4-info--expected-type-changed)
+  (lean4-info--report-setting
+   (pcase lean4-info-expected-type-visibility
+     ('expanded "expected type shown")
+     ('collapsed "expected type folded")
+     (_ "expected type hidden"))))
 
 ;;;; Rendering
 
@@ -475,12 +719,15 @@ BUFFER is the Lean buffer the messages belong to."
       (lean4-info--section-body
         (if (eq goals 'accomplished)
             (lean4-info--insert "goals accomplished\n\n")
-          (lean4-info--insert goals "\n\n")))))
-  (when term-goal
-    (magit-insert-section (lean4-info-section 'term-goal)
+          (lean4-info--insert (lean4-info--goals-text goals) "\n\n")))))
+  (when (and term-goal
+             (not (eq lean4-info-expected-type-visibility 'hidden)))
+    (magit-insert-section (lean4-info-section 'term-goal
+                                              (eq lean4-info-expected-type-visibility
+                                                  'collapsed))
       (magit-insert-heading (lean4-info--heading-text "Expected type:"))
       (lean4-info--section-body
-        (lean4-info--insert term-goal "\n"))))
+        (lean4-info--insert (lean4-info--term-goal-text term-goal) "\n"))))
   (lean4-info--mk-message-section
    'messages (lean4-info--messages-caption "Messages" here) here buffer))
 
@@ -869,6 +1116,11 @@ anything the reader would see changing."
         lean4-info-paused
         lean4-info-message-order
         lean4-info-all-messages-paused
+        ;; The goals are held as trees and rendered on the way in, so how
+        ;; much of one to show has to be part of what a rebuild compares:
+        ;; without this a toggle would change nothing on screen.
+        (lean4-info--goal-settings)
+        lean4-info-expected-type-visibility
         ;; Grows when a trace's children arrive, which is a rebuild's
         ;; cue to show them.  Folding is not in here at all: that is
         ;; `magit-section's, and it hides in place without a rebuild.
@@ -1144,7 +1396,7 @@ subterm for its type and no jumping from one to its definition."
 Three outcomes have to stay distinct, because they mean different
 things to the reader: nil when point is not inside a proof at all and
 the section should be absent; `accomplished' when Lean returned a proof
-state with nothing left to prove; and the text RENDER makes of GOALS
+state with nothing left to prove; and whatever RENDER makes of GOALS
 otherwise."
   (cond ((null result) nil)
         ((seq-empty-p goals) 'accomplished)
@@ -1179,15 +1431,19 @@ it is still elaborating, and there is nothing useful to report."
                     (lambda (goal)
                       (lean4-render-collect-refs (plist-get goal :type)))
                     (plist-get result :goals) #'list))
+     ;; Kept as they arrived rather than rendered here, so that changing how
+     ;; much of a goal to show is a redisplay rather than another round trip.
+     ;; Rendering is pure -- it reads the tree and asks the server nothing --
+     ;; so doing it once per redisplay costs only the string work.
      (funcall show-goals
               (lean4-info--goals-value result (plist-get result :goals)
-                                       #'lean4-render-goals)))
+                                       (lambda (goals) (append goals nil)))))
    #'ignore)
   (lean4-rpc-get-interactive-term-goal
    handle
    (lambda (result)
      (funcall keep (lean4-render-collect-refs (plist-get result :type)))
-     (funcall show-term (lean4-render-term-goal result)))
+     (funcall show-term result))
    #'ignore))
 
 (defun lean4-info--refresh-interactive (generation)
@@ -2006,10 +2262,41 @@ Shared by `lean4-mode-menu' and `lean4-info-mode-menu': the commands
 work from either buffer, so it would only confuse matters for the two
 menus to offer different subsets of them.")
 
+(defconst lean4-info-display-menu
+  ;; Checkboxes rather than the swapping labels the controls above use:
+  ;; these are seven independent settings shown together, and a column of
+  ;; ticks reads far quicker than seven sentences each naming its opposite.
+  '("How much of a goal to show"
+    ["Goal names" lean4-info-toggle-goal-names
+     :style toggle :selected lean4-info-show-goal-names]
+    ["Emphasize first goal" lean4-info-toggle-emphasize-first-goal
+     :style toggle :selected lean4-info-emphasize-first-goal]
+    ["Target before assumptions" lean4-info-toggle-target-first
+     :style toggle :selected lean4-info-target-first]
+    "--"
+    ["Type assumptions" lean4-info-toggle-type-assumptions
+     :style toggle :selected (not lean4-info-hide-type-assumptions)]
+    ["Instance assumptions" lean4-info-toggle-instance-assumptions
+     :style toggle :selected (not lean4-info-hide-instance-assumptions)]
+    ["Inaccessible assumptions" lean4-info-toggle-inaccessible-assumptions
+     :style toggle :selected (not lean4-info-hide-inaccessible-assumptions)]
+    ["Let-values" lean4-info-toggle-let-values
+     :style toggle :selected (not lean4-info-hide-let-values)]
+    "--"
+    ["Expected type" lean4-info-cycle-expected-type
+     :label (pcase lean4-info-expected-type-visibility
+              ('expanded "Expected type: shown")
+              ('collapsed "Expected type: folded")
+              (_ "Expected type: hidden"))])
+  "Submenu for the settings deciding how much of a goal is shown.
+Shared by `lean4-mode-menu' and `lean4-info-mode-menu', as
+`lean4-info-menu-items' is.")
+
 (easy-menu-define lean4-info-mode-menu lean4-info-mode-map
   "Menu for the *Lean Goal* buffer."
   `("Lean Goal"
     ,@lean4-info-menu-items
+    ,lean4-info-display-menu
     "--"
     ["Go to type definition" lean4-info-goto-type-definition t]
     ["Close goal display" lean4-toggle-info t]
