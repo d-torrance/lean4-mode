@@ -284,9 +284,18 @@ point and it would only lead where point already is.
 
 Completion is offered through ~completion-at-point-functions~, so any
 completion interface works: the default =*Completions*= buffer,
-=company=, =corfu= or anything else.  Two sources are active in a Lean
-buffer -- Eglot's, and one for the Unicode abbreviations, so that typing
-=\\al= offers =\\alpha= and inserting it produces α.
+=company=, =corfu= or anything else.  Three sources are active in a Lean
+buffer.  Eglot's is one.  Another is for the Unicode abbreviations, so
+that typing =\al= offers =\alpha= and inserting it produces α.  The
+third is for Lean's keywords, because the server's own completion is
+contextual and offers nothing towards a bare word at the top level:
+=exam= gets no help towards =example= from Lean, and VS Code fills the
+same gap with editor-level word suggestions.
+
+None of the three is exclusive, Eglot's included -- its entry is
+rewrapped to say so.  Left as Eglot leaves it, a prefix the server had
+nothing for ended completion there instead of falling through to
+whatever else you have configured.
 
 Typing an abbreviation in full still works without completion: the Lean
 input method replaces it as soon as it is unambiguous.
