@@ -240,6 +240,38 @@ position and the one for the file."
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
+(ert-deftest lean4-info-sections-are-told-apart-across-a-rebuild ()
+  "Folding one section does not fold its siblings when the display rebuilds.
+
+Regression test.  `magit-section' carries visibility across a rebuild by
+matching each new section against the old one with the same ident, and
+an ident is the section's type and value.  Every message section shared
+one value, so folding a message and then doing anything that rebuilds --
+pinning, pausing, moving point -- folded every message in the display."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (with-current-buffer lean4-info-buffer-name
+        (cl-flet ((build ()
+                    (let ((inhibit-read-only t))
+                      (erase-buffer)
+                      (magit-insert-section (lean4-info-section 'root)
+                        (dolist (place '("F.lean:1:0" "F.lean:2:0"
+                                         "F.lean:3:0"))
+                          (magit-insert-section
+                              (lean4-info-section (list 'message place))
+                            (magit-insert-heading place)
+                            (magit-insert-section-body
+                              (insert "body\n")))))))
+                  (hidden ()
+                    (mapcar (lambda (s) (and (oref s hidden) t))
+                            (oref magit-root-section children))))
+          (build)
+          (magit-section-hide (nth 1 (oref magit-root-section children)))
+          (should (equal (hidden) '(nil t nil)))
+          (build)
+          (should (equal (hidden) '(nil t nil)))))
+    (kill-buffer lean4-info-buffer-name)))
+
 (ert-deftest lean4-info-each-message-is-a-section-of-its-own ()
   "A message folds by itself, so one long trace can be put away.
 
@@ -252,7 +284,10 @@ there was nothing to fold and no chevron to say there might be."
            '(:range (:start (:line 0 :character 0)) :message "boom") source)
           (with-current-buffer lean4-info-buffer-name
             (let ((message (car (last (oref magit-root-section children)))))
-              (should (eq (oref message value) 'message))
+              ;; Keyed by where it is, so that `magit-section' can tell
+              ;; one message from another when the display is rebuilt.
+              (should (eq (car (oref message value)) 'message))
+              (should (equal (cadr (oref message value)) "Named.lean:1:0"))
               ;; Content is what makes a section foldable, and what the
               ;; indicator is drawn from.
               (should (oref message content)))

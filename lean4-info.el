@@ -95,7 +95,11 @@
   term-goal                             ; rendered expected type, or nil
   handle                                ; the RPC handle it was fetched through
   refs                                  ; server-side references it owns
-  paused)                               ; held as it is, if non-nil
+  paused                                ; held as it is, if non-nil
+  id)                                   ; tells its section from the others
+
+(defvar lean4-info--pin-counter 0
+  "Source of the number that tells one pin\='s section from another.")
 
 (defvar lean4-info--pins nil
   "Pinned positions, in the order they were pinned.
@@ -125,9 +129,7 @@ is what VS Code does.")
 
 (defun lean4-info--pin-release (pin)
   "Give back what PIN holds: its server-side references and its marker."
-  (when-let* ((handle (lean4-info-pin-handle pin))
-              (refs (lean4-info-pin-refs pin)))
-    (lean4-rpc-release (lean4-rpc-handle-session handle) refs))
+  (lean4-info--pin-give-back-refs pin)
   (set-marker (lean4-info-pin-marker pin) nil))
 
 (defvar lean4-info--rendered nil
@@ -484,7 +486,7 @@ position alone read as a bare pair of numbers."
          (column (or (plist-get start :character) 0))
          (message (plist-get diagnostic :message))
          (place (format "%s:%d:%d" (buffer-name buffer) line column)))
-    (magit-insert-section (lean4-info-section 'message)
+    (magit-insert-section (lean4-info-section (list 'message place))
       (magit-insert-heading
         ;; The place is on the whole heading, not just the label: RET goes
         ;; there from anywhere on the line.  The label itself is plain
@@ -678,17 +680,6 @@ still had none."
                      (mapc walk (oref section children)))))
       (funcall walk magit-root-section))))
 
-(defun lean4-info--foldable-p (section)
-  "Return non-nil if SECTION has a body that can actually be folded.
-
-A heading is given no indicator unless folding it would do something.
-`magit-section' has a predicate for this from version 4; before that,
-a section with an empty body is one whose content and end coincide."
-  (if (fboundp 'magit-section-content-p)
-      (magit-section-content-p section)
-    (let ((content (oref section content)))
-      (and content (not (= content (oref section end)))))))
-
 (defun lean4-info-mouse-1 (event)
   "Do whatever EVENT was clicked on.
 
@@ -773,7 +764,8 @@ anything the reader would see changing."
 (defun lean4-info--insert-pinned (pin sorted buffer)
   "Insert PIN's section, its messages taken from SORTED in BUFFER."
   (lean4-info--marking-pin pin
-    (magit-insert-section (lean4-info-section 'pinned)
+    (magit-insert-section (lean4-info-section
+                           (list 'pinned (lean4-info-pin-id pin)))
       (magit-insert-heading
        (lean4-info--heading-text
         (lean4-info--heading
@@ -999,50 +991,62 @@ Returns RENDERED so this can wrap a render call."
   (setq lean4-info--refs (append refs lean4-info--refs))
   rendered)
 
+(defun lean4-info--fetch-goals (handle keep show-goals show-term)
+  "Ask HANDLE for the goals and the expected type at its position.
+
+KEEP is called with the server-side references each answer owns, so that
+whoever asked can give them back when the next set replaces them.
+SHOW-GOALS and SHOW-TERM are called with what to display.
+
+Errors are ignored: the server routinely rejects a request for a region
+it is still elaborating, and there is nothing useful to report."
+  (lean4-rpc-get-interactive-goals
+   handle
+   (lambda (result)
+     (funcall keep (seq-mapcat
+                    (lambda (goal)
+                      (lean4-render-collect-refs (plist-get goal :type)))
+                    (plist-get result :goals) #'list))
+     (funcall show-goals
+              (lean4-info--goals-value result (plist-get result :goals)
+                                       #'lean4-render-goals)))
+   #'ignore)
+  (lean4-rpc-get-interactive-term-goal
+   handle
+   (lambda (result)
+     (funcall keep (lean4-render-collect-refs (plist-get result :type)))
+     (funcall show-term (lean4-render-term-goal result)))
+   #'ignore))
+
 (defun lean4-info--refresh-interactive (generation)
   "Fetch and render interactive goals; drop replies older than GENERATION."
   (let ((handle (lean4-rpc-open))
         (buffer (current-buffer)))
     (lean4-info--release-refs)
     (setq lean4-info--handle handle)
-    (cl-flet ((receive (setter collect)
-                (lambda (result)
+    (cl-flet ((receive (act)
+                ;; A reply for a position point has already left is not
+                ;; worth showing, and would overwrite a newer one.
+                (lambda (value)
                   (when (buffer-live-p buffer)
                     (with-current-buffer buffer
                       (when (eq generation lean4-info--generation)
-                        (lean4-info--adopt nil (funcall collect result))
-                        (funcall setter result)
+                        (funcall act value)
                         (lean4-info-buffer-redisplay)))))))
-      (lean4-rpc-get-interactive-goals
+      (lean4-info--fetch-goals
        handle
-       (receive (lambda (result)
-                  (setq lean4-goals (lean4-info--goals-value
-                                     result (plist-get result :goals)
-                                     #'lean4-render-goals)))
-                (lambda (result)
-                  (seq-mapcat
-                   (lambda (goal)
-                     (lean4-render-collect-refs (plist-get goal :type)))
-                   (plist-get result :goals) #'list))))
-      (lean4-rpc-get-interactive-term-goal
-       handle
-       (receive (lambda (result)
-                  (setq lean4-term-goal (lean4-render-term-goal result)))
-                (lambda (result)
-                  (lean4-render-collect-refs (plist-get result :type)))))
+       (receive (lambda (refs) (lean4-info--adopt nil refs)))
+       (receive (lambda (goals) (setq lean4-goals goals)))
+       (receive (lambda (term) (setq lean4-term-goal term))))
       ;; Interactive diagnostics carry the fields Lean never pushes:
       ;; `isSilent' and `leanTags', and so the report that a proof is
       ;; complete.  Fetched here rather than from a notification handler
       ;; because this is the one place already holding an RPC handle.
       (lean4-rpc-get-interactive-diagnostics
        handle
-       (lambda (diagnostics)
-         (when (buffer-live-p buffer)
-           (with-current-buffer buffer
-             (when (eq generation lean4-info--generation)
-               (setq lean4-info--diagnostics (append diagnostics nil))
-               (lean4-diagnostics-update-markers diagnostics)
-               (lean4-info-buffer-redisplay)))))
+       (receive (lambda (diagnostics)
+                  (setq lean4-info--diagnostics (append diagnostics nil))
+                  (lean4-diagnostics-update-markers diagnostics)))
        #'ignore))))
 
 (defun lean4-info--refresh-plain (server generation)
@@ -1116,47 +1120,29 @@ many pins there are."
               ;; A pin with no goals still shows its messages.
               (error nil))))))))
 
+(defun lean4-info--pin-give-back-refs (pin)
+  "Give back the server-side references PIN is holding."
+  (when-let* ((handle (lean4-info-pin-handle pin))
+              (refs (lean4-info-pin-refs pin)))
+    (lean4-rpc-release (lean4-rpc-handle-session handle) refs))
+  (setf (lean4-info-pin-refs pin) nil))
+
 (defun lean4-info--refresh-pin-interactive (pin)
   "Fetch PIN\='s goals over RPC, releasing what the last set held."
-  (let ((handle (lean4-rpc-open))
-        (old-handle (lean4-info-pin-handle pin))
-        (old-refs (lean4-info-pin-refs pin)))
-    (when (and old-handle old-refs)
-      (lean4-rpc-release (lean4-rpc-handle-session old-handle) old-refs))
-    (setf (lean4-info-pin-handle pin) handle
-          (lean4-info-pin-refs pin) nil)
-    (cl-flet ((own (refs)
-                (setf (lean4-info-pin-refs pin)
-                      (append refs (lean4-info-pin-refs pin)))))
-      (lean4-rpc-get-interactive-goals
-       handle
-       (lambda (result)
-         (own (seq-mapcat
-               (lambda (goal)
-                 (lean4-render-collect-refs (plist-get goal :type)))
-               (plist-get result :goals) #'list))
-         (setf (lean4-info-pin-goals pin)
-               (lean4-info--goals-value result (plist-get result :goals)
-                                        #'lean4-render-goals))
-         (lean4-info--redisplay-source))
-       #'ignore)
-      (lean4-rpc-get-interactive-term-goal
-       handle
-       (lambda (result)
-         (own (lean4-render-collect-refs (plist-get result :type)))
-         (setf (lean4-info-pin-term-goal pin)
-               (lean4-render-term-goal result))
-         (lean4-info--redisplay-source))
-       #'ignore))))
-
-;;;; Pinning and pausing
-;;
-;; Two different needs that look alike.  Pausing stops the display updating
-;; at all, so a goal can be read while point wanders; pinning ties it to one
-;; location but keeps it updating, which is what you want while editing the
-;; tactic above the goal you are watching.  Both announce themselves in the
-;; header line, because a goal buffer that has quietly stopped following
-;; point is indistinguishable from a broken one.
+  (let ((handle (lean4-rpc-open)))
+    (lean4-info--pin-give-back-refs pin)
+    (setf (lean4-info-pin-handle pin) handle)
+    (lean4-info--fetch-goals
+     handle
+     (lambda (refs)
+       (setf (lean4-info-pin-refs pin)
+             (append refs (lean4-info-pin-refs pin))))
+     (lambda (goals)
+       (setf (lean4-info-pin-goals pin) goals)
+       (lean4-info--redisplay-source))
+     (lambda (term)
+       (setf (lean4-info-pin-term-goal pin) term)
+       (lean4-info--redisplay-source)))))
 
 (defface lean4-info-button
   '((t :inherit mode-line-buffer-id))
@@ -1545,7 +1531,8 @@ instead.  VS Code leaves its control inert there, which says less."
     (setq lean4-info--pins
           (append lean4-info--pins
                   (list (lean4-info--pin-create
-                         :marker (copy-marker (point))))))
+                         :marker (copy-marker (point))
+                         :id (cl-incf lean4-info--pin-counter)))))
     ;; What was just pinned is where point is, so the display would show
     ;; it twice until point moved.
     (setq lean4-info--pinned-at (cons (current-buffer) (point)))
