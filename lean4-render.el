@@ -164,20 +164,9 @@ from a newer Lean than we know about degrades rather than errors."
   "Face for the class name of a trace node, such as `Meta.synthInstance'."
   :group 'lean4-render)
 
-(defface lean4-trace-toggle
-  '((t :inherit font-lock-keyword-face))
-  "Face for the marker that folds and unfolds a trace node."
-  :group 'lean4-render)
-
 ;; Deliberately not the chevrons `magit-section' uses for its own headings
 ;; -- on a terminal `magit-section-visibility-indicator' is ("▸" . "▾"), and
 ;; a trace that folds is a different thing from a section that folds.
-(defconst lean4-render-expanded-marker "[-]"
-  "Marker shown against a trace node whose children are displayed.")
-
-(defconst lean4-render-collapsed-marker "[+]"
-  "Marker shown against a trace node whose children are hidden.")
-
 (defun lean4-render-trace-children (trace)
   "Return the children of TRACE as (KIND . VALUE).
 KIND is `strict' when the children came with the message and `lazy' when
@@ -188,72 +177,39 @@ they have to be fetched; VALUE is the child array or the reference."
           ((plist-member children :lazy)
            (cons 'lazy (plist-get children :lazy))))))
 
-(defun lean4-render--trace (trace path expanded)
-  "Render TRACE, a trace node at PATH, honouring the EXPANDED table.
+(defun lean4-render-trace-header (trace)
+  "Return the line that stands for TRACE: its class, then its own message.
 
-EXPANDED maps a path to the children to show beneath it, or to nil to
-show none.  A node absent from the table falls back to the server's own
-`collapsed' flag, which is how a fresh message opens the way Lean
-intended."
-  (let* ((indent (or (plist-get trace :indent) 0))
-         (class (plist-get trace :cls))
-         (children (lean4-render-trace-children trace))
-         (resolved (gethash path expanded :absent))
-         (open (if (eq resolved :absent)
-                   (and (not (eq (plist-get trace :collapsed) t))
-                        (eq (car children) 'strict))
-                 (and resolved t)))
-         (shown (cond ((not open) nil)
-                      ((eq resolved :absent) (cdr children))
-                      (t resolved)))
-         (header (concat
-                  (make-string (* 2 indent) ?\s)
-                  (propertize (if open
-                                  lean4-render-expanded-marker
-                                lean4-render-collapsed-marker)
-                              'font-lock-face 'lean4-trace-toggle)
-                  " "
-                  (when class
-                    (concat (propertize (format "[%s]" class)
-                                        'font-lock-face 'lean4-trace-class)
-                            " "))
-                  (lean4-render-message (plist-get trace :msg)
-                                        (cons 0 path) expanded))))
-    ;; Everything the caller needs in order to unfold this node lives on
-    ;; its header line, so a command bound to point can find it.
-    (add-text-properties 0 (length header)
-                         (list 'lean4-trace-path path
-                               'lean4-trace-children children
-                               'lean4-trace-open open)
-                         header)
-    (concat header "\n"
-            (when shown
-              (mapconcat
-               (lambda (child)
-                 (lean4-render-message child (cons 1 path) expanded))
-               (append shown nil)
-               "")))))
+Only the line.  What hangs under it is inserted by whoever is building
+the display, as a section of its own, so that a trace folds the way
+everything else in that display folds."
+  (let ((class (plist-get trace :cls)))
+    (concat (when class
+              (concat (propertize (format "[%s]" class)
+                                  'font-lock-face 'lean4-trace-class)
+                      " "))
+            (lean4-render-message (plist-get trace :msg)))))
 
-(defun lean4-render-message (message &optional path expanded)
-  "Render MESSAGE, a `TaggedText MsgEmbed', as a propertized string.
 
-PATH identifies this node's position in the enclosing message and is
-what trace folding is keyed on; EXPANDED is the table of unfolded trace
-nodes, as described in `lean4-render--trace'."
-  (let ((path (or path '()))
-        (expanded (or expanded (make-hash-table :test #'equal))))
+(defun lean4-render-message-parts (message &optional path)
+  "Return MESSAGE, a `TaggedText MsgEmbed\=', as a list of parts.
+
+A part is either a propertized string or (trace NODE PATH), which the
+caller inserts however it likes -- as a section of its own, in the goal
+display, so that a trace folds the way everything around it folds.
+PATH identifies the node within the enclosing message, and tells one
+trace from another when the display is rebuilt."
+  (let ((path (or path '())))
     (cond
-     ((null message) "")
-     ((stringp message) message)
-     ((plist-member message :text) (or (plist-get message :text) ""))
+     ((null message) nil)
+     ((stringp message) (list message))
+     ((plist-member message :text) (list (or (plist-get message :text) "")))
      ((plist-member message :append)
       (let ((index -1))
-        (mapconcat
-         (lambda (child)
-           (setq index (1+ index))
-           (lean4-render-message child (cons index path) expanded))
-         (append (plist-get message :append) nil)
-         "")))
+        (mapcan (lambda (child)
+                  (setq index (1+ index))
+                  (lean4-render-message-parts child (cons index path)))
+                (append (plist-get message :append) nil))))
      ((plist-member message :tag)
       (let* ((tag (plist-get message :tag))
              (embed (elt tag 0))
@@ -262,15 +218,28 @@ nodes, as described in `lean4-render--trace'."
          ;; A term: hand it to the goal renderer, so its subterms carry the
          ;; same properties they would inside a goal.
          ((plist-member embed :expr)
-          (lean4-render-tagged-text (plist-get embed :expr)))
+          (list (lean4-render-tagged-text (plist-get embed :expr))))
          ((plist-member embed :goal)
-          (lean4-render-goal (plist-get embed :goal)))
+          (list (lean4-render-goal (plist-get embed :goal))))
          ((plist-member embed :trace)
-          (lean4-render--trace (plist-get embed :trace) path expanded))
-         ;; A widget, or something from a newer Lean: show whatever text
-         ;; came with it rather than nothing.
-         (t (lean4-render-message inner (cons 0 path) expanded)))))
-     (t ""))))
+          (list (list 'trace (plist-get embed :trace) path)))
+         (t (lean4-render-message-parts inner (cons 0 path))))))
+     (t nil))))
+
+(defun lean4-render-message (message &optional path)
+  "Render MESSAGE, a `TaggedText MsgEmbed\=', as a propertized string.
+
+Traces come out as their header line alone, since a string has nowhere
+to put what hangs under one; `lean4-render-message-parts\=' is the form to
+use where that matters.  PATH identifies MESSAGE within an enclosing
+message."
+  (mapconcat (lambda (part)
+               (if (stringp part)
+                   part
+                 (lean4-render-trace-header (nth 1 part))))
+             (lean4-render-message-parts message path)
+             ""))
+
 
 ;;;; Subterm paths
 

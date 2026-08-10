@@ -143,16 +143,19 @@ diagnostics repeatedly without anything the reader would see changing.")
 Nil until the first RPC refresh, and while running without RPC, in
 which case the display falls back to what Flymake holds.")
 
-(defvar lean4-info--trace-generation 0
-  "Bumped whenever a trace is folded or unfolded.
-`lean4-info--rendered' cannot compare the expansion table itself: `equal'
-compares hash tables by identity, so unfolding a trace looked like
-nothing had changed and the display was never rebuilt.")
+(defvar lean4-info--trace-lazy (make-hash-table :test #'equal)
+  "What to ask for to get a trace node\='s children, keyed by its path.
+Filled as a node is inserted with its children still unfetched, and read
+when the reader opens it.")
 
-(defvar lean4-info--trace-expansion (make-hash-table :test #'equal)
-  "Trace nodes the reader has unfolded, keyed by path.
-The value is the children to show, so a node whose children had to be
-fetched stays open across the redisplay every cursor movement triggers.
+(defvar lean4-info--trace-children (make-hash-table :test #'equal)
+  "Children fetched for a trace node, keyed by its path.
+
+A cache, not a record of what is unfolded: `magit-section' knows which
+sections are open and carries that across a rebuild.  Lean does not send
+the children of a trace until something asks -- a `simp' trace on a real
+proof is enormous -- so what has been asked for is kept here rather than
+asked for again on every redisplay.
 
 Global rather than buffer-local: unfolding happens in the info buffer
 but redisplay reads from the Lean buffer, and there is only ever one
@@ -168,7 +171,7 @@ and will hold the memory until told otherwise.")
   ;; `M-.' comes free from the xref backend; RET goes to whatever is at
   ;; point, which on a term is the same thing.
   "RET" #'lean4-info-return
-  "TAB" #'lean4-info-toggle-fold
+  "TAB" #'magit-section-toggle
   "C-c C-t" #'lean4-info-goto-type-definition
   "C-c C-SPC" #'lean4-info-toggle-pause
   "C-c C-s" #'lean4-info-toggle-pin
@@ -195,14 +198,7 @@ what both of them ask."
     (user-error "Nothing at point to go to")))
 
 
-(defun lean4-info-toggle-fold ()
-  "Fold or unfold whatever is at point.
-A trace node if there is one, otherwise the enclosing section, so that
-TAB does the expected thing everywhere in the buffer."
-  (interactive)
-  (if (get-text-property (point) 'lean4-trace-children)
-      (lean4-info-toggle-trace)
-    (call-interactively #'magit-section-toggle)))
+
 
 (defun lean4-ensure-info-buffer (buffer)
   "Create BUFFER if it does not exist.
@@ -222,6 +218,8 @@ Also choose settings used for the *Lean Goal* buffer."
                 #'lean4-info-xref-backend nil 'local)
       (add-hook 'post-command-hook
                 #'lean4-info-highlight-subterm nil 'local)
+      (add-hook 'post-command-hook
+                #'lean4-info--fetch-open-traces nil 'local)
 
       (eldoc-mode 1)
       (setq buffer-read-only t))))
@@ -350,6 +348,15 @@ LINE counted from one and COLUMN from zero."
   `(let ((lean4-info--level (1+ lean4-info--level)))
      ,@body))
 
+(defun lean4-info--indent-string-after-newlines (string prefix)
+  "Return STRING with PREFIX before each line but the first."
+  (if (string-empty-p prefix)
+      string
+    (let ((first (or (string-search "\n" string) (length string))))
+      (concat (substring string 0 (min (1+ first) (length string)))
+              (lean4-info--indent-string
+               (substring string (min (1+ first) (length string))) prefix)))))
+
 (defun lean4-info--indent-string (string prefix)
   "Return STRING with PREFIX before each of its lines.
 
@@ -368,9 +375,16 @@ goal text is propertized character by character, and that is what
       (apply #'concat (nreverse parts)))))
 
 (defun lean4-info--insert (&rest strings)
-  "Insert STRINGS, indented to the level being inserted at."
-  (insert (lean4-info--indent-string (apply #'concat strings)
-                                     (lean4-info--prefix))))
+  "Insert STRINGS, indenting each line to the level being inserted at.
+
+Only where a line actually begins.  A message arrives in parts -- text,
+a term, a trace -- and each is inserted in turn, so indenting the start
+of every one of them would set text in halfway along its own line."
+  (let ((text (apply #'concat strings)))
+    (insert (if (bolp)
+                (lean4-info--indent-string text (lean4-info--prefix))
+              (lean4-info--indent-string-after-newlines
+               text (lean4-info--prefix))))))
 
 (defun lean4-info--heading-text (string)
   "Return STRING as a heading at the level being inserted at."
@@ -449,13 +463,93 @@ position alone read as a bare pair of numbers."
           (lean4-info--goto-button buffer line column))
           'lean4-info-position (list buffer line column))))
       (magit-insert-section-body
-        (lean4-info--insert
-         ;; Plain diagnostics carry a string; interactive ones carry a
-         ;; tree, whose terms and traces render live.
-         (if (stringp message)
-             message
-           (lean4-render-message message nil lean4-info--trace-expansion))
-         "\n")))))
+        ;; Plain diagnostics carry a string; interactive ones carry a
+        ;; tree, whose terms render live and whose traces are sections.
+        (if (stringp message)
+            (lean4-info--insert message "\n")
+          (lean4-info--insert-parts message)
+          (lean4-info--insert "\n"))))))
+
+(defun lean4-info--insert-parts (message)
+  "Insert MESSAGE, giving each trace in it a section of its own."
+  (dolist (part (lean4-render-message-parts message))
+    (if (stringp part)
+        (lean4-info--insert part)
+      (lean4-info--insert-trace (nth 1 part) (nth 2 part)))))
+
+(defun lean4-info--trace-open-by-default-p (trace)
+  "Return non-nil if TRACE should start unfolded.
+Lean says so per node, and says nothing about the ones whose children it
+has not sent -- those cost a request to open, so they start folded."
+  (and (not (eq (plist-get trace :collapsed) t))
+       (eq (car (lean4-render-trace-children trace)) 'strict)))
+
+(defun lean4-info--insert-trace (trace path)
+  "Insert TRACE at PATH as a section of its own.
+
+Children already in hand are inserted whether or not the section is
+open, and `magit-section\=' hides them -- that is what makes the section
+foldable at all.  Children Lean has not sent get a placeholder instead,
+and are fetched when the reader opens the section: a `simp\=' trace on a
+real proof is enormous, and asking for one nobody opened is the cost
+this whole arrangement exists to avoid."
+  (let ((children (lean4-render-trace-children trace))
+        (cached (gethash path lean4-info--trace-children :absent)))
+    (magit-insert-section
+        (lean4-info-section (list 'trace path)
+                            (not (lean4-info--trace-open-by-default-p trace)))
+      (magit-insert-heading
+       (lean4-info--heading-text (lean4-render-trace-header trace)))
+      (magit-insert-section-body
+        (lean4-info--indented
+          (cond
+           ((eq (car children) 'strict)
+            (mapc #'lean4-info--insert-parts (append (cdr children) nil)))
+           ((not (eq cached :absent))
+            (mapc #'lean4-info--insert-parts (append cached nil)))
+           (t
+            ;; Remembered so that opening the section can ask for them.
+            (puthash path (cdr children) lean4-info--trace-lazy)
+            (lean4-info--insert
+             (propertize "...\n" 'face 'shadow)))))))))
+
+
+(defun lean4-info--fetch-open-traces ()
+  "Fetch the children of any trace the reader has opened.
+
+`magit-section\=' has commands and mouse bindings of its own for opening a
+section and no hook that runs when one of them does, so notice it
+afterwards.  Walking a handful of sections costs nothing beside the
+request it decides whether to make."
+  (when (bound-and-true-p magit-root-section)
+    (letrec ((walk
+              (lambda (section)
+                (let ((value (oref section value)))
+                  (when (and (consp value) (eq (car value) 'trace)
+                             (not (oref section hidden)))
+                    (let* ((path (cadr value))
+                           (lazy (gethash path lean4-info--trace-lazy)))
+                      (when lazy
+                        ;; Once: the answer arrives asynchronously, and
+                        ;; asking again meanwhile would ask forever.
+                        (remhash path lean4-info--trace-lazy)
+                        (lean4-info--fetch-trace-children path lazy)))))
+                (mapc walk (oref section children)))))
+      (funcall walk magit-root-section))))
+
+(defun lean4-info--fetch-trace-children (path lazy)
+  "Ask the server for the children LAZY stands for, and remember them at PATH."
+  (when-let* ((handle (lean4-info--live-handle))
+              (buffer (current-buffer)))
+    (lean4-rpc-lazy-trace-children
+     handle lazy
+     (lambda (result)
+       (when (buffer-live-p buffer)
+         (with-current-buffer buffer
+           (puthash path result lean4-info--trace-children)
+           (lean4-info--redisplay-source))))
+     (lambda (error)
+       (message "Could not expand trace: %S" error)))))
 
 (defun lean4-info--mk-message-section (value caption messages buffer)
   "Add a section with id VALUE, caption CAPTION and contents MESSAGES.
@@ -726,7 +820,10 @@ anything the reader would see changing."
         lean4-info-paused
         lean4-info-message-order
         lean4-info-all-messages-paused
-        lean4-info--trace-generation
+        ;; Grows when a trace's children arrive, which is a rebuild's
+        ;; cue to show them.  Folding is not in here at all: that is
+        ;; `magit-section's, and it hides in place without a rebuild.
+        (hash-table-count lean4-info--trace-children)
         (lean4-info--following-point-p)
         (mapcar (lambda (pin)
                   (list (marker-position (lean4-info-pin-marker pin))
@@ -1614,45 +1711,6 @@ Intended for `eldoc-documentation-functions'."
     t))
 
 ;;;; Traces
-
-(defun lean4-info-toggle-trace ()
-  "Fold or unfold the trace node at point.
-
-Children that were not sent with the message are fetched on demand, the
-way VS Code fetches them: a `simp' trace on a real proof can be enormous
-and Lean does not send it until something asks."
-  (interactive)
-  (let ((children (get-text-property (point) 'lean4-trace-children))
-        (path (get-text-property (point) 'lean4-trace-path))
-        (open (get-text-property (point) 'lean4-trace-open)))
-    ;; Presence is tested on the children, not the path: a trace at the root
-    ;; of a message has the empty path, which is nil.
-    (unless children
-      (user-error "No trace at point"))
-    (cond
-     (open
-      (remhash path lean4-info--trace-expansion)
-      (cl-incf lean4-info--trace-generation)
-      (lean4-info--redisplay-source))
-     ((eq (car children) 'strict)
-      (puthash path (cdr children) lean4-info--trace-expansion)
-      (cl-incf lean4-info--trace-generation)
-      (lean4-info--redisplay-source))
-     (t
-      (let ((handle (lean4-info--live-handle))
-            (buffer (current-buffer)))
-        (unless handle
-          (user-error "No Lean server to expand this trace"))
-        (lean4-rpc-lazy-trace-children
-         handle (cdr children)
-         (lambda (result)
-           (when (buffer-live-p buffer)
-             (with-current-buffer buffer
-               (puthash path result lean4-info--trace-expansion)
-               (cl-incf lean4-info--trace-generation)
-               (lean4-info--redisplay-source))))
-         (lambda (error)
-           (message "Could not expand trace: %S" error))))))))
 
 (defun lean4-info--redisplay-source ()
   "Re-render the info buffer from the Lean buffer that populated it.

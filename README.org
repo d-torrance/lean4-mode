@@ -209,9 +209,10 @@ ElDoc, so they appear wherever ElDoc is configured to put them: the
 echo area by default, or a child frame with a package such as
 =eldoc-box=.
 
-Traces fold.  Lean does not send the children of a trace node until
-something asks for them -- a =simp= trace on a real proof is enormous --
-so unfolding one fetches it.
+Traces fold like everything else, being sections themselves: =TAB= or
+the mouse, with the same indicator.  Lean does not send the children of
+a trace node until something asks -- a =simp= trace on a real proof is
+enormous -- so opening one fetches them, once.
 
 ** Errors and warnings
 

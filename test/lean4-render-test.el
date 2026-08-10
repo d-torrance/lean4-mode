@@ -230,53 +230,44 @@ Lean grows new `MsgEmbed' variants; showing nothing would be worse."
                   '(:tag [(:someFutureEmbed 1) (:text "fallback")]))
                  "fallback")))
 
-(ert-deftest lean4-render-trace-starts-collapsed ()
-  "A trace the server marked collapsed renders as a header alone."
+(ert-deftest lean4-render-trace-comes-out-as-a-part ()
+  "A trace is handed back whole, for the caller to insert as it likes.
+
+The goal display makes it a section of its own so that it folds the way
+everything around it folds, which a string has nowhere to express."
+  (let ((parts (lean4-render-message-parts lean4-render-test--trace)))
+    (should (= (length parts) 1))
+    (pcase-let ((`(trace ,node ,path) (car parts)))
+      (should (equal (lean4-render-trace-children node)
+                     '(lazy . (:__rpcref "8"))))
+      ;; A path is present, so one trace can be told from another.
+      (should (listp path)))))
+
+(ert-deftest lean4-render-trace-header-is-class-then-message ()
+  "The header line names the trace class and says what the node says."
+  (let ((header (lean4-render-trace-header
+                 (nth 1 (car (lean4-render-message-parts
+                              lean4-render-test--trace))))))
+    (should (string-search "[Meta.synthInstance]" header))
+    (should (string-search "Inhabited (Nat × Nat)" header))))
+
+(ert-deftest lean4-render-trace-paths-tell-siblings-apart ()
+  "Two traces in one message get different paths.
+That is what keeps `magit-section' from confusing their sections when
+the display is rebuilt."
+  (let* ((message `(:append [,lean4-render-test--trace
+                             ,lean4-render-test--trace]))
+         (parts (lean4-render-message-parts message))
+         (paths (mapcar (lambda (part) (nth 2 part)) parts)))
+    (should (= (length parts) 2))
+    (should-not (equal (nth 0 paths) (nth 1 paths)))))
+
+(ert-deftest lean4-render-message-flattens-a-trace-to-its-header ()
+  "Rendered as a string, a trace is its header and nothing under it.
+A string has nowhere to put children that fold."
   (let ((rendered (lean4-render-message lean4-render-test--trace)))
-    (should (string-search lean4-render-collapsed-marker rendered))
     (should (string-search "[Meta.synthInstance]" rendered))
-    (should (string-search "Inhabited (Nat × Nat)" rendered))))
-
-(ert-deftest lean4-render-trace-header-carries-what-unfolding-needs ()
-  "The header records its path and how to obtain its children."
-  (let* ((rendered (lean4-render-message lean4-render-test--trace))
-         ;; The marker is indented past the leading whitespace.
-         (index (string-search lean4-render-collapsed-marker rendered)))
-    (should (equal (get-text-property index 'lean4-trace-children rendered)
-                   '(lazy . (:__rpcref "8"))))
-    (should-not (get-text-property index 'lean4-trace-open rendered))
-    ;; A path is present, so an expansion table can be keyed on it.
-    (should (listp (get-text-property index 'lean4-trace-path rendered)))))
-
-(ert-deftest lean4-render-trace-expands-from-the-table ()
-  "Children supplied in the expansion table are shown under the header."
-  (let ((expanded (make-hash-table :test #'equal)))
-    ;; The trace sits at the root of this message, so its path is ().
-    (puthash '() (vector '(:text "a child")) expanded)
-    (let ((rendered (lean4-render-message lean4-render-test--trace
-                                          nil expanded)))
-      (should (string-search lean4-render-expanded-marker rendered))
-      (should (string-search "a child" rendered)))))
-
-(ert-deftest lean4-render-trace-strict-children-open-by-default ()
-  "A node whose children arrived inline, and which is not marked
-collapsed, is shown open: that is how Lean asked for it to appear."
-  (let ((rendered (lean4-render-message
-                   '(:tag [(:trace (:children (:strict [(:text "inline")])
-                                    :cls "Test" :collapsed :json-false
-                                    :indent 0 :msg (:text "head")))
-                           (:text "")]))))
-    (should (string-search lean4-render-expanded-marker rendered))
-    (should (string-search "inline" rendered))))
-
-(ert-deftest lean4-render-trace-indents-by-depth ()
-  "Nesting depth is rendered as indentation."
-  (let ((rendered (lean4-render-message
-                   '(:tag [(:trace (:children (:lazy (:__rpcref "1"))
-                                    :cls "Test" :collapsed t
-                                    :indent 2 :msg (:text "deep")))
-                           (:text "")]))))
-    (should (string-prefix-p "    " rendered))))
+    (should-not (string-search "\n" rendered))))
 
 ;;;; Reference collection
 

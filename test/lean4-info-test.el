@@ -88,6 +88,21 @@ on the wrong side of both rules."
     (should-not (text-property-not-all (point-min) (point-max)
                                        'display nil))))
 
+(ert-deftest lean4-info-indents-only-where-a-line-begins ()
+  "A message arrives in parts, and only the parts that start a line indent.
+
+Regression test.  A message is text, terms and traces inserted in turn;
+indenting the start of every part set text in halfway along its own
+line, and left the indentation stranded there."
+  (with-temp-buffer
+    (lean4-info--indented
+      (lean4-info--insert "Type mismatch\n")
+      ;; A term, mid-line, then the rest of the sentence.
+      (lean4-info--insert "  \"not a number\"")
+      (lean4-info--insert "\nhas type\n"))
+    (should (equal (buffer-string)
+                   "  Type mismatch\n    \"not a number\"\n  has type\n"))))
+
 (ert-deftest lean4-info-indentation-keeps-the-text-properties ()
   "Indenting a goal does not cost it what it carries.
 
