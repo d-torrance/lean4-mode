@@ -67,7 +67,6 @@
 
 ;; Declare symbols defined in external dependencies.  This silences
 ;; byte-compiler warnings:
-(defvar compilation-mode-font-lock-keywords)
 (defvar markdown-code-lang-modes)
 (declare-function flymake-proc-init-create-temp-buffer-copy "flymake-proc")
 (declare-function quail-show-key "quail")
@@ -218,9 +217,12 @@ to be added or removed from the hook variable.")
   (setq-local indent-tabs-mode nil)
   (setq-local lisp-indent-function 'common-lisp-indent-function)
   (setq-local indent-line-function #'lean4-indent-line-function)
-  (set 'compilation-mode-font-lock-keywords '())
   (require 'lean4-input)
-  (set-input-method "Lean")
+  ;; `activate-input-method' rather than `set-input-method': the latter is
+  ;; the interactive command, and it also assigns `default-input-method',
+  ;; which is global.  Opening one Lean file would otherwise leave `C-\'
+  ;; toggling the Lean input method in every other buffer.
+  (activate-input-method "Lean")
   ;; Offered alongside whatever Eglot contributes; the user's own
   ;; completion frontend decides how to present them.
   (add-hook 'completion-at-point-functions

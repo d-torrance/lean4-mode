@@ -63,6 +63,11 @@ xref, project roots through =project.el=.
   file, which on Mathlib is tens of thousands of them.
 - Menu entries pointed at a customize group that did not exist, and the
   README documented commands and a buffer name that did not either.
+- Opening a Lean file no longer changes anything outside its own buffer.
+  It set the global ~default-input-method~, so =C-\= then toggled the
+  Lean input method in every other buffer, and it emptied
+  ~compilation-mode-font-lock-keywords~, so every later =M-x compile=
+  buffer went unfontified.
 
 * Version 1.1.2
 

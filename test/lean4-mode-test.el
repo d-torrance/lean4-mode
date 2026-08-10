@@ -14,6 +14,8 @@
 ;;; Code:
 
 (require 'ert)
+;; For `compilation-mode-font-lock-keywords', which the mode used to clear.
+(require 'compile)
 (require 'lean4-mode)
 
 (defun lean4-mode-test--menu-items (menu)
@@ -95,6 +97,31 @@ menu read \"Pin\" whether or not the display was already pinned."
           (should on)
           (should-not (equal off on))
           (should (string-search engaged (downcase on))))))))
+
+(defmacro lean4-mode-test--with-mode (&rest body)
+  "Evaluate BODY in a `lean4-mode' buffer, with nothing else started."
+  (declare (indent 0) (debug (body)))
+  `(with-temp-buffer
+     (let ((lean4-mode-hook nil)
+           (lean4-info-auto-open nil))
+       (lean4-mode))
+     ,@body))
+
+(ert-deftest lean4-mode-leaves-globals-alone ()
+  "The mode command changes nothing outside its own buffer.
+
+Regression test.  `set-input-method' assigns the global
+`default-input-method' as well as the buffer\\='s own, so opening one Lean
+file left \\`C-\\' toggling the Lean input method in every other buffer;
+and `compilation-mode-font-lock-keywords' was cleared outright, which
+emptied every compilation buffer for the rest of the session."
+  (let ((default-input-method 'untouched)
+        (compilation-mode-font-lock-keywords 'untouched))
+    (lean4-mode-test--with-mode
+      ;; Buffer-locally it is on, which is the whole point of doing it.
+      (should (equal current-input-method "Lean")))
+    (should (eq default-input-method 'untouched))
+    (should (eq compilation-mode-font-lock-keywords 'untouched))))
 
 (provide 'lean4-mode-test)
 ;;; lean4-mode-test.el ends here
