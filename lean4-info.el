@@ -89,7 +89,7 @@
   id)                                   ; tells its section from the others
 
 (defvar lean4-info--pin-counter 0
-  "Source of the number that tells one pin\='s section from another.")
+  "Source of the number that tells one pin\\='s section from another.")
 
 (defvar lean4-info--pins nil
   "Pinned positions, in the order they were pinned.
@@ -134,7 +134,7 @@ Nil until the first RPC refresh, and while running without RPC, in
 which case the display falls back to what Flymake holds.")
 
 (defvar lean4-info--trace-lazy (make-hash-table :test #'equal)
-  "What to ask for to get a trace node\='s children, keyed by its path.
+  "What to ask for to get a trace node\\='s children, keyed by its path.
 Filled as a node is inserted with its children still unfetched, and read
 when the reader opens it.")
 
@@ -159,7 +159,7 @@ and will hold the memory until told otherwise.")
 (defvar-keymap lean4-info-mode-map
   :doc "Keymap for the *Lean Goal* buffer.
 `magit-section-mode-map' is its parent, so folding, movement and TAB are
-whatever the reader\='s Magit does."
+whatever the reader\\='s Magit does."
   ;; The definition of a subterm is `M-.', which comes free from the xref
   ;; backend and is where a reader of Emacs looks for it.
   "RET" #'lean4-info-return
@@ -176,10 +176,10 @@ whatever the reader\='s Magit does."
 A mode of its own rather than settings applied to the buffer by hand:
 \\[describe-mode] then lists what the display answers to, `lean4-info-mode-hook'
 gives the reader somewhere to add to it, and `display-buffer-alist' can
-match on the mode rather than on the buffer\='s name.
+match on the mode rather than on the buffer\\='s name.
 
 Hover and jumping are offered through the standard hooks, so the
-reader\='s own ElDoc and xref frontends present them.
+reader\\='s own ElDoc and xref frontends present them.
 
 Read-only and undo-less already, from `magit-section-mode'."
   :syntax-table lean4-syntax-table
@@ -350,7 +350,7 @@ LINE counted from one and COLUMN from zero."
   (make-string (* lean4-info--indent lean4-info--level) ?\s))
 
 (defmacro lean4-info--section-body (&rest body)
-  "Insert BODY as a section\='s body, remembering how far in it sits.
+  "Insert BODY as a section\\='s body, remembering how far in it sits.
 
 `magit-section' puts the body of a section that starts folded aside and
 runs it when the reader opens the section.  How far in we were is a
@@ -549,7 +549,7 @@ the cost this whole arrangement exists to avoid."
   "Call FUNCTION on every section of the display, the root included.
 Does nothing where there is no section tree yet.
 
-`magit-map-sections\=' does this, but only from magit-section 4, and 3.3.0
+`magit-map-sections' does this, but only from magit-section 4, and 3.3.0
 is what Debian and Ubuntu still ship; this can give way to it when that
 stops mattering."
   (when (bound-and-true-p magit-root-section)
@@ -561,7 +561,7 @@ stops mattering."
 (defun lean4-info--fetch-open-traces ()
   "Fetch the children of any trace the reader has opened.
 
-`magit-section\=' has commands and mouse bindings of its own for opening a
+`magit-section' has commands and mouse bindings of its own for opening a
 section and no hook that runs when one of them does, so notice it
 afterwards.  Walking a handful of sections costs nothing beside the
 request it decides whether to make."
@@ -608,7 +608,7 @@ in BUFFER it belongs to.  Nothing is inserted when MESSAGES is empty."
   "Run BODY, which rebuilds the current buffer, without moving the view.
 
 Rebuilding erases the buffer and inserts it again, which leaves point
-and every window\='s start at the end of the new text.  The buffer is
+and every window\\='s start at the end of the new text.  The buffer is
 rebuilt whenever the goal changes, so without this a reader part-way
 down a long goal would be thrown to the bottom, and clicking a control
 -- which rebuilds to redraw the control itself -- would scroll the
@@ -632,7 +632,7 @@ display away from whatever prompted the click."
     (2 ("⚠" "△" "!") "W" warning)
     (3 ("ⓘ" "ℹ" "i") "I" shadow)
     (4 ("ⓗ" "☞" "?") "H" shadow))
-  "How each LSP severity is counted in a message section\='s heading.
+  "How each LSP severity is counted in a message section\\='s heading.
 Each entry is (SEVERITY CANDIDATES FALLBACK FACE).  The candidates are
 tried in turn against the frame, as the pin and pause controls are: a
 badge that renders as a row of boxes is worse than a letter.")
@@ -640,8 +640,8 @@ badge that renders as a row of boxes is worse than a letter.")
 (defun lean4-info--severity-badge (diagnostics)
   "Return a count of DIAGNOSTICS by severity, or nil if there are none.
 
-Reads as VS Code\='s does -- \"1 ⊗ 5 ⓘ\" for one error and five notes --
-so the shape of a file\='s output can be taken in without unfolding the
+Reads as VS Code\\='s does -- \"1 ⊗ 5 ⓘ\" for one error and five notes --
+so the shape of a file\\='s output can be taken in without unfolding the
 section.  Severities nobody has are left out rather than shown as zero."
   (let (parts)
     (pcase-dolist (`(,severity ,candidates ,fallback ,face)
@@ -743,7 +743,7 @@ CONTROLS, if given, is a list of controls set hard right on the same line.
 
 No trailing colon, unlike the other captions: the `magit-section'
 package replaces
-one with a count of the section\='s children, which here would follow
+one with a count of the section\\='s children, which here would follow
 the badge with a second, coarser count of the same messages."
   (let ((caption (if-let* ((badge (lean4-info--severity-badge diagnostics)))
                      (format "%s (%s)" label badge)
@@ -784,7 +784,7 @@ Putting a keymap on the text directly does not survive: `magit-section'
 overwrites the property on a heading line whenever the section is
 folded.
 
-What it holds is `button.el\='s own contract, which that overwriting
+What it holds is `button.el\\='s own contract, which that overwriting
 takes with it: `button-map' rides on the `keymap' property of a button,
 so the controls arrive here having lost it.  `mouse-2' presses one
 again, and `mouse-1' reaches `mouse-2' through
@@ -794,7 +794,7 @@ display is the controls and nothing else.  So `mouse-1' is
 `mouse-set-point' everywhere else, and folding by mouse is whatever
 `magit-section' offers -- a double click and a click on the fringe or
 the margin from version 4, and nothing at all in 3.3.0 -- so that this
-display folds exactly the way the reader\='s Magit does."
+display folds exactly the way the reader\\='s Magit does."
   "<mouse-2>" #'push-button
   "<follow-link>" 'mouse-face)
 
@@ -1204,7 +1204,7 @@ Does nothing while PIN is paused, which is what pausing one is for,
 unless the refresh was asked for outright.
 
 Only the goals and the expected type: the messages a pin shows are
-picked out of the file\='s diagnostics, which are fetched once however
+picked out of the file\\='s diagnostics, which are fetched once however
 many pins there are."
   (let* ((marker (lean4-info-pin-marker pin))
          (buffer (marker-buffer marker)))
@@ -1228,7 +1228,7 @@ many pins there are."
   (setf (lean4-info-pin-refs pin) nil))
 
 (defun lean4-info--refresh-pin-interactive (pin)
-  "Fetch PIN\='s goals over RPC, releasing what the last set held."
+  "Fetch PIN\\='s goals over RPC, releasing what the last set held."
   (let ((handle (lean4-rpc-open)))
     (lean4-info--pin-give-back-refs pin)
     (setf (lean4-info-pin-handle pin) handle)
@@ -1323,7 +1323,7 @@ is.  Nil means pick whichever candidate the frame can display."
 
 U+1F4CD is the same pin seen head-on rather than from the side: pushed
 in rather than held ready.  VS Code turns its pin from upright to lying
-flat to say the same thing, but that is a codicon font.  Unicode\='s one
+flat to say the same thing, but that is a codicon font.  Unicode\\='s one
 upright/slanted pin pair needs U+1F588, which too many fonts render as a
 box for the difference to rest on.
 
@@ -1454,7 +1454,7 @@ the display has moved on to since."
       "")))
 
 (defun lean4-info-toggle-pin-pause (pin)
-  "Hold PIN\='s goals as they are, or let them follow the file again.
+  "Hold PIN\\='s goals as they are, or let them follow the file again.
 
 Each pin pauses on its own.  Pinning a position and freezing it are
 different things -- a pinned goal goes on following its declaration
@@ -1473,7 +1473,7 @@ section its own pause."
     (lean4-info--refresh-pin pin)))
 
 (defun lean4-info--pin-controls (pin)
-  "Return the controls for PIN\='s section.
+  "Return the controls for PIN\\='s section.
 
 The way back to it, a refresh while it is paused, unpinning, and its own
 pause -- in the order the followed section puts the same ones.
@@ -1481,7 +1481,7 @@ pause -- in the order the followed section puts the same ones.
 The order matters because the controls are set hard right, a column
 each: unpin sits where the followed section puts pin, and pause where it
 puts pause, so pinning changes the pin glyph in place instead of making
-the two of them trade columns under the reader\='s pointer.  The go-to
+the two of them trade columns under the reader\\='s pointer.  The go-to
 control the followed section has no use for goes on the left, past
 everything the two rows have in common, where it pushes nothing along."
   (list
@@ -1568,7 +1568,7 @@ same row; see `lean4-info--align-right' for how the columns are struck."
 While paused it keeps showing whatever it last showed, so a goal can be
 read while point moves elsewhere.  Each pinned section pauses on its
 own, so inside one this means that one; anywhere else it means the
-section following point.  The names follow Lean\='s own: VS Code calls
+section following point.  The names follow Lean\\='s own: VS Code calls
 these commands pause and unpause."
   (interactive)
   (if-let* ((pin (lean4-info--pin-at-point)))
@@ -1590,7 +1590,7 @@ these commands pause and unpause."
 Inside a pinned section this means that section; anywhere else it means
 the one following point.  Pausing is for reading something while working
 elsewhere, which does not always mean wanting it stale for good.  This
-is VS Code\='s \"refresh paused state\"."
+is VS Code\\='s \"refresh paused state\"."
   (interactive)
   (if-let* ((pin (lean4-info--pin-at-point)))
       (lean4-info-refresh-pin pin)

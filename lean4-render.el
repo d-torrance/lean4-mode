@@ -192,7 +192,7 @@ everything else in that display folds."
 
 
 (defun lean4-render-message-parts (message &optional path)
-  "Return MESSAGE, a `TaggedText MsgEmbed\=', as a list of parts.
+  "Return MESSAGE, a `TaggedText MsgEmbed', as a list of parts.
 
 A part is either a propertized string or (trace NODE PATH), which the
 caller inserts however it likes -- as a section of its own, in the goal
@@ -227,10 +227,10 @@ trace from another when the display is rebuilt."
      (t nil))))
 
 (defun lean4-render-message (message &optional path)
-  "Render MESSAGE, a `TaggedText MsgEmbed\=', as a propertized string.
+  "Render MESSAGE, a `TaggedText MsgEmbed', as a propertized string.
 
 Traces come out as their header line alone, since a string has nowhere
-to put what hangs under one; `lean4-render-message-parts\=' is the form to
+to put what hangs under one; `lean4-render-message-parts' is the form to
 use where that matters.  PATH identifies MESSAGE within an enclosing
 message."
   (mapconcat (lambda (part)
