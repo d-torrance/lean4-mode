@@ -910,17 +910,26 @@ three
       (should pin)
       (should pause)
       ;; The binding is a wrapper that re-runs the command in the Lean
-      ;; buffer, so check what it was built to invoke, and that what is
-      ;; bound is something `mouse-1' can actually run.
+      ;; buffer, so check what it was built to invoke.
       (should (eq (get-text-property pin 'lean4-info-command heading)
                   'lean4-info-toggle-pin))
       (should (eq (get-text-property pause 'lean4-info-command heading)
                   'lean4-info-toggle-pause))
-      (should (commandp (keymap-lookup
-                         (get-text-property pin 'keymap heading) "<mouse-1>")))
-      (should (commandp (keymap-lookup
-                         (get-text-property pause 'keymap heading)
-                         "<mouse-1>"))))))
+      ;; Each is a real button, so `button-at' and `forward-button' find
+      ;; it once it is on display.  What `mouse-1' is bound to belongs to
+      ;; the section rather than to these characters, and is checked
+      ;; where a section exists -- see
+      ;; `lean4-info-sections-carry-the-display-keymap'.
+      (erase-buffer)
+      (insert heading)
+      (dolist (offset (list pin pause))
+        (let ((button (button-at (+ (point-min) offset))))
+          (should button)
+          (should (eq (button-type button) 'lean4-info-control))))
+      ;; And they are reachable in order from the start of the line.
+      (goto-char (point-min))
+      (forward-button 1)
+      (should (= (point) (+ (point-min) pin))))))
 
 (ert-deftest lean4-info-pin-control-shows-which-way-it-will-go ()
   "The pin control differs pinned from unpinned, as pause and resume do.

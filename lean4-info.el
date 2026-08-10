@@ -42,6 +42,7 @@
 
 ;;; Code:
 
+(require 'button)
 (require 'cl-lib)
 (require 'flymake)
 (require 'seq)
@@ -741,9 +742,9 @@ still had none."
 The one place that says what a spot in the display means, so that RET
 and `mouse-1' cannot come to disagree about it."
   (cond
-   ((get-text-property position 'lean4-info-command)
-    (lean4-info--run-control
-     (get-text-property position 'lean4-info-command))
+   ;; A control: whatever its button says to do.
+   ((button-at position)
+    (button-activate (button-at position))
     t)
    ((get-text-property position 'lean4-info-position)
     (lean4-info--error-button-action
@@ -1382,18 +1383,31 @@ move made and then silently undone."
           (with-current-buffer source (call-interactively command)))
       (call-interactively command))))
 
+(define-button-type 'lean4-info-control
+  'face 'lean4-info-button
+  'mouse-face 'highlight
+  'action #'lean4-info--press-control)
+
+(defun lean4-info--press-control (button)
+  "Run the command BUTTON stands for."
+  (lean4-info--run-control (button-get button 'lean4-info-command)))
+
 (defun lean4-info--button (label help command &optional active)
   "Return LABEL as a clickable control running COMMAND, described by HELP.
-ACTIVE marks the control as engaged, which shows in its face."
-  (propertize label
-              'face (if active 'lean4-info-button-active 'lean4-info-button)
-              'mouse-face 'highlight
-              'help-echo help
-              ;; What the control does.  `lean4-info-mouse-1' reads this
-              ;; at the click position: the binding belongs to the section
-              ;; rather than to these few characters, because that is the
-              ;; only kind `magit-section' leaves alone.
-              'lean4-info-command command))
+ACTIVE marks the control as engaged, which shows in its face.
+
+A real button, so `button-at' and `forward-button' find it and the
+display costs nothing to reach from outside.  What it runs is kept in a
+property of its own rather than in `action': `lean4-info--act-at' reads
+that at the click position, the binding belonging to the section rather
+than to these few characters because that is the only kind
+`magit-section' leaves alone."
+  (make-text-button
+   (copy-sequence label) nil
+   'type 'lean4-info-control
+   'face (if active 'lean4-info-button-active 'lean4-info-button)
+   'help-echo help
+   'lean4-info-command command))
 
 (defun lean4-info--goto-button (buffer line column &optional label)
   "Return a control sending point to LINE and COLUMN of BUFFER.
