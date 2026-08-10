@@ -234,9 +234,7 @@ what the inner ones left."
       (magit-insert-section (magit-section 'root)
         (magit-insert-heading "root")
         (lean4-info--insert-message diagnostic buffer))
-      ;; As the real build does, and for the same reason: `magit-section'
-      ;; replaces the keymap on a heading line, controls included.
-      (lean4-info--restore-control-keymaps))
+      )
     (buffer-string)))
 
 (ert-deftest lean4-info-controls-run-in-the-lean-buffer ()
@@ -384,36 +382,14 @@ there was nothing to fold and no chevron to say there might be."
                         source))
                  (index (string-search (lean4-info-goto-glyph) text)))
             (should index)
-            (funcall (keymap-lookup (get-text-property index 'keymap text)
-                                    "<mouse-1>"))
+            (lean4-info--run-control
+             (get-text-property index 'lean4-info-command text))
             (with-current-buffer source
               (should (= (line-number-at-pos) 2))
               (should (= (current-column) 5)))))
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
-(ert-deftest lean4-info-controls-in-a-heading-stay-clickable ()
-  "A control on a heading line keeps its binding.
-
-Regression test.  `magit-section-maybe-add-heading-map' puts its own
-keymap over the whole of a heading line, which replaced the one each
-control carries: the control could be seen, described and hovered, but
-clicking it did nothing.  The other properties survive, which is what
-makes the repair possible."
-  (let ((source (get-buffer-create "Named.lean")))
-    (unwind-protect
-        (let* ((text (lean4-info-test--insert-message
-                      '(:range (:start (:line 0 :character 0))) source))
-               (index (string-search (lean4-info-goto-glyph) text))
-               (map (get-text-property index 'keymap text)))
-          (should map)
-          (should (commandp (keymap-lookup map "<mouse-1>")))
-          ;; Composed over magit's rather than replacing it, so folding a
-          ;; section by mouse still works.
-          (should (eq (keymap-lookup map "<double-mouse-1>")
-                      'magit-mouse-toggle-section)))
-      (kill-buffer source)
-      (kill-buffer lean4-info-buffer-name))))
 
 (ert-deftest lean4-info-goto-control-moves-point-in-its-window ()
   "Clicking the control really does leave point where it points.
@@ -444,8 +420,8 @@ the Lean window already selected, the same code appeared to work."
             (let* ((text (buffer-string))
                    (index (string-search (lean4-info-goto-glyph) text)))
               (should index)
-              (funcall (keymap-lookup (get-text-property index 'keymap text)
-                                      "<mouse-1>"))))
+              (lean4-info--run-control
+               (get-text-property index 'lean4-info-command text))))
           (let ((window (get-buffer-window source)))
             (should window)
             ;; The window's point, not merely the buffer's: that is what
@@ -459,32 +435,37 @@ the Lean window already selected, the same code appeared to work."
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
-(ert-deftest lean4-info-clicking-a-heading-folds-it ()
-  "A single click anywhere on a heading folds the section it heads."
+(ert-deftest lean4-info-sections-carry-the-display-keymap ()
+  "Every section answers to `mouse-1', heading and body alike.
+
+`magit-section' puts its own keymap over a section, and over a heading
+line again whenever the section is folded, so a keymap on the text does
+not survive.  Its `keymap' slot does, which is why every section here is
+a `lean4-info-section'."
   (lean4-ensure-info-buffer lean4-info-buffer-name)
   (unwind-protect
       (with-current-buffer lean4-info-buffer-name
         (let ((inhibit-read-only t))
           (erase-buffer)
-          (magit-insert-section (magit-section 'root)
-            (magit-insert-section (magit-section 'goals)
+          (magit-insert-section (lean4-info-section 'root)
+            (magit-insert-section (lean4-info-section 'goals)
               (magit-insert-heading "Goals:")
               (magit-insert-section-body (insert "body\n")))))
-        (lean4-info--add-heading-clicks)
         (let ((section (car (oref magit-root-section children))))
-          (should-not (oref section hidden))
-          (goto-char (oref section start))
-          ;; Everywhere on the heading, not merely at its start: the
-          ;; chevron is drawn in the line's `line-prefix', where a click
-          ;; resolves to the line's first character.
-          (dolist (pos (list (oref section start)
-                             (+ 3 (oref section start))))
-            (should (eq (keymap-lookup (get-text-property pos 'keymap)
+          (dolist (position (list (oref section start)
+                                  (1- (oref section end))))
+            (should (eq (keymap-lookup (get-text-property position 'keymap)
                                        "<mouse-1>")
-                        'lean4-info-mouse-toggle-section)))
-          (magit-section-toggle section)
-          (should (oref section hidden))))
+                        'lean4-info-mouse-1)))
+          ;; And again after folding, which is when `magit-section' would
+          ;; have overwritten a keymap put on the text.
+          (magit-section-hide section)
+          (should (eq (keymap-lookup
+                       (get-text-property (oref section start) 'keymap)
+                       "<mouse-1>")
+                      'lean4-info-mouse-1))))
     (kill-buffer lean4-info-buffer-name)))
+
 
 (ert-deftest lean4-info-no-chevron-on-a-section-that-cannot-fold ()
   "A heading with an empty body gets no indicator.
@@ -505,45 +486,6 @@ Folding it would do nothing, so saying it can be folded is a lie."
                        (list (car (lean4-info-chevron-pair))))))
     (kill-buffer lean4-info-buffer-name)))
 
-(ert-deftest lean4-info-controls-survive-a-fold ()
-  "Folding leaves the heading and its controls still clickable.
-
-Regression test.  `magit-section' re-applies its own keymap over a
-heading line whenever the section is folded, which took away both the
-click that folds it and any control sitting on that line."
-  (let ((source (get-buffer-create "Named.lean")))
-    (unwind-protect
-        (progn
-          (lean4-info-test--insert-message
-           '(:range (:start (:line 0 :character 0)) :message "boom") source)
-          (with-current-buffer lean4-info-buffer-name
-            (lean4-info--paint-chevrons)
-            (lean4-info--add-heading-clicks)
-            (lean4-info--restore-control-keymaps)
-            (setq lean4-info--folds (lean4-info--fold-state))
-            (let ((section (car (last (oref magit-root-section children)))))
-              (magit-section-hide section)
-              (lean4-info--repaint-chevrons)
-              ;; The heading still folds, and the control on it still
-              ;; does its own thing rather than folding.
-              (should (eq (keymap-lookup
-                           (get-text-property (oref section start) 'keymap)
-                           "<mouse-1>")
-                          'lean4-info-mouse-toggle-section))
-              (let ((index (string-search (lean4-info-goto-glyph)
-                                          (buffer-string))))
-                (should index)
-                (should (commandp
-                         (keymap-lookup
-                          (get-text-property index 'keymap (buffer-string))
-                          "<mouse-1>")))
-                (should-not
-                 (eq (keymap-lookup
-                      (get-text-property index 'keymap (buffer-string))
-                      "<mouse-1>")
-                     'lean4-info-mouse-toggle-section))))))
-      (kill-buffer source)
-      (kill-buffer lean4-info-buffer-name))))
 
 (ert-deftest lean4-info-return-goes-to-the-thing-at-point ()
   "RET goes to a message's position, and falls through elsewhere.
