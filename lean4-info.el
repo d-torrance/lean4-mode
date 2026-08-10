@@ -278,22 +278,53 @@ settings: nothing here reads a mode, and the goal display's own mode is
          'fixedcase 'literal)))
     (buffer-string)))
 
-(defun lean4-info--align-right (left right)
-  "Return LEFT and RIGHT on one line, with RIGHT against the window edge.
+(defconst lean4-info--control-columns 4
+  "Columns each control in a heading is given.
+Room for a two-column emoji and a gap after it.")
 
-A stretch space does the aligning, so it holds however the window is
-resized.  The width is measured in columns rather than characters
-because the glyphs need not be single-width, and two columns of margin
-are left rather than one: the right edge is where the fringe or a scroll
-bar begins, and an emoji can be drawn wider than `string-width' accounts
-for, so a control flush against it bleeds off the side."
-  (if (string-empty-p right)
-      left
-    (concat left
-            (propertize " " 'display
-                        `(space :align-to
-                                (- right ,(+ (string-width right) 2))))
-            right)))
+(defconst lean4-info--control-margin 1
+  "Columns left clear between the last control and the window edge.
+The edge is where the fringe or a scroll bar begins, and an emoji can be
+drawn wider than `string-width' accounts for, so a control flush against
+it bleeds off the side.")
+
+(defun lean4-info--control-space (slots)
+  "Return a stretch space reaching the column SLOTS controls in from the edge.
+SLOTS counts this control\\='s own column, so the rightmost control is
+one and the one before it two."
+  (propertize " " 'display
+              `(space :align-to
+                      (- right ,(+ lean4-info--control-margin
+                                   (* lean4-info--control-columns slots))))))
+
+(defun lean4-info--align-right (left controls)
+  "Return LEFT and CONTROLS on one line, with CONTROLS against the window edge.
+
+CONTROLS is a list of controls, in the order they are to be read; nil
+and the empty string stand for one that is not shown this time round.
+Each gets a column of its own, counted in from the right edge, and a
+stretch space before it puts it there.  So the row holds however the
+window is resized and -- what matters more -- a control lands in the
+same column whatever stands to its left.
+
+That last is the point of counting from the right rather than measuring
+the text.  Measuring holds only while every glyph is drawn as wide as
+`string-width' says it is, and emoji routinely are not: pinning a
+position adds the go-to control on the left of the row, and the pin and
+pause glyphs to its right crept sideways by however much the arrow
+overran.  Nothing here depends on how wide a glyph comes out.
+
+A control that is not shown is dropped rather than left holding its
+column, so the row closes up and everything left of the gap moves along
+one -- which is what VS Code does with the same row."
+  (let ((controls (seq-remove #'string-empty-p (delq nil controls))))
+    (if (null controls)
+        left
+      (apply #'concat left
+             (cl-mapcar (lambda (control slot)
+                          (concat (lean4-info--control-space slot) control))
+                        controls
+                        (number-sequence (length controls) 1 -1))))))
 
 (defun lean4-info--goto-position (line column)
   "Put point on LINE at COLUMN in the current buffer.
@@ -456,7 +487,7 @@ position alone read as a bare pair of numbers."
          (propertize
          (lean4-info--align-right
           (propertize place 'face 'lean4-info-location)
-          (lean4-info--goto-button buffer line column))
+          (list (lean4-info--goto-button buffer line column)))
           'lean4-info-position (list buffer line column))))
       (lean4-info--section-body
         ;; Plain diagnostics carry a string; interactive ones carry a
@@ -713,7 +744,7 @@ as VS Code has them."
 
 (defun lean4-info--messages-caption (label diagnostics &optional controls)
   "Return LABEL as a caption, counting DIAGNOSTICS by severity after it.
-CONTROLS, if given, are set hard right on the same line.
+CONTROLS, if given, is a list of controls set hard right on the same line.
 
 No trailing colon, unlike the other captions: the `magit-section'
 package replaces
@@ -876,7 +907,7 @@ BUFFER is the Lean buffer the messages in HERE belong to."
 
 (defun lean4-info--all-messages-controls ()
   "Return the controls for the file's message list."
-  (concat
+  (list
    (lean4-info--button
     (lean4-info-sort-glyph)
     (if (eq lean4-info-message-order 'point)
@@ -886,7 +917,6 @@ BUFFER is the Lean buffer the messages in HERE belong to."
     ;; Marked engaged when the order is not the default one, there being
     ;; no glyph to say which is in force.
     (eq lean4-info-message-order 'location))
-   "  "
    (lean4-info--button
     (if lean4-info-all-messages-paused
         (lean4-info-resume-glyph)
@@ -1462,26 +1492,24 @@ section its own pause."
 The way back to it, a refresh while it is paused, unpinning, and its own
 pause -- in the order the followed section puts the same ones.
 
-The order matters because the controls are set hard right: unpin sits
-where the followed section puts pin, and pause where it puts pause, so
-pinning changes the pin glyph in place instead of making the two of them
-trade columns under the reader\='s pointer."
-  (concat
+The order matters because the controls are set hard right, a column
+each: unpin sits where the followed section puts pin, and pause where it
+puts pause, so pinning changes the pin glyph in place instead of making
+the two of them trade columns under the reader\='s pointer.  The go-to
+control the followed section has no use for goes on the left, past
+everything the two rows have in common, where it pushes nothing along."
+  (list
    (lean4-info--marker-goto-button (lean4-info-pin-marker pin))
-   "  "
-   (if (lean4-info-pin-paused pin)
-       (concat (lean4-info--button
-                (lean4-info-refresh-glyph)
-                "mouse-1: bring this paused position up to date"
-                (lambda () (interactive) (lean4-info-refresh-pin pin)))
-               "  ")
-     "")
+   (when (lean4-info-pin-paused pin)
+     (lean4-info--button
+      (lean4-info-refresh-glyph)
+      "mouse-1: bring this paused position up to date"
+      (lambda () (interactive) (lean4-info-refresh-pin pin))))
    (lean4-info--button
     (lean4-info-unpin-glyph)
     "mouse-1: unpin this position"
     (lambda () (interactive) (lean4-info-unpin pin))
     t)
-   "  "
    (lean4-info--button
     (if (lean4-info-pin-paused pin)
         (lean4-info-resume-glyph)
@@ -1494,21 +1522,20 @@ trade columns under the reader\='s pointer."
 
 (defun lean4-info--controls ()
   "Return the controls for the section following point."
-  (concat
+  (list
    ;; Only while paused: nothing else leaves the display out of date, so
-   ;; anywhere else this would be a control with nothing to do.
-   (if lean4-info-paused
-       (concat (lean4-info--button
-                (lean4-info-refresh-glyph)
-                "mouse-1: bring the paused display up to date"
-                #'lean4-info-refresh-paused)
-               "  ")
-     "")
+   ;; anywhere else this would be a control with nothing to do.  It goes
+   ;; on the left, where appearing and going again leaves the two
+   ;; controls that are always there in their columns.
+   (when lean4-info-paused
+     (lean4-info--button
+      (lean4-info-refresh-glyph)
+      "mouse-1: bring the paused display up to date"
+      #'lean4-info-refresh-paused))
    (lean4-info--button
     (lean4-info-pin-glyph)
     "mouse-1: pin this position, keeping it on display"
     #'lean4-info-toggle-pin)
-   "  "
    (lean4-info--button
     (if lean4-info-paused
         (lean4-info-resume-glyph)
@@ -1536,10 +1563,8 @@ trade columns under the reader\='s pointer."
 (defun lean4-info--heading (location controls &optional state)
   "Return a section heading for LOCATION, with CONTROLS and STATE.
 
-The controls sit hard right, as they do in VS Code.  A stretch space
-does the aligning, so it holds however the window is resized, and the
-width is measured in columns rather than characters because the glyphs
-need not be single-width."
+CONTROLS is a list, set hard right a column each as VS Code sets the
+same row; see `lean4-info--align-right' for how the columns are struck."
   (let ((location (propertize location 'face 'lean4-info-location))
         (state (if state
                    (propertize (concat "  " state) 'face 'warning)

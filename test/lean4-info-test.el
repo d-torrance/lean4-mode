@@ -647,7 +647,7 @@ order they start in."
 (ert-deftest lean4-info-caption-can-carry-controls ()
   "The file's message heading has room for its own controls."
   (let ((caption (lean4-info--messages-caption
-                  "All messages" '((:severity 1)) "XY")))
+                  "All messages" '((:severity 1)) '("XY"))))
     (should (string-prefix-p "All messages (" (substring-no-properties caption)))
     (should (string-suffix-p "XY" (substring-no-properties caption)))))
 
@@ -968,30 +968,96 @@ not much to read a mode off."
       (should-not (string-search (lean4-info-unpin-glyph) followed))
       (set-marker (lean4-info-pin-marker pin) nil))))
 
+(defun lean4-info-test--control-column (row glyph)
+  "Return the column ROW puts GLYPH in, counted in from the window's edge.
+
+Each control is preceded by a stretch space that names the column the
+control begins in, so the space before the glyph says where the glyph
+lands -- whatever anything else in the row is drawn as wide as."
+  (let ((at (string-search glyph row)))
+    (should at)
+    (should (> at 0))
+    (pcase (get-text-property (1- at) 'display row)
+      (`(space :align-to (- right ,column)) column))))
+
 (ert-deftest lean4-info-pinning-does-not-move-the-controls ()
   "Pinning changes the pin glyph in place; it does not shuffle the row.
 
-Regression test.  The controls are set hard right, and the pinned
-section listed its pause before its unpin where the followed one lists
-its pause after its pin -- so pinning made the two glyphs trade columns
-under the reader's pointer."
+Regression test, twice over.  The controls are set hard right, so what
+stands to the right of one decides the column it lands in.  The pinned
+section once listed its pause before its unpin where the followed one
+lists its pause after its pin, and the two traded places outright.  Then
+the row was measured by the width of its own text, which holds only
+while every glyph is drawn as wide as `string-width' says: the go-to
+control the pinned section adds on the left nudged the pin and pause
+glyphs out from under the reader's pointer."
   (with-temp-buffer
     (rename-buffer "Order.lean" 'unique)
-    ;; Force the emoji, so the pin and unpin glyphs are one character each
-    ;; and offsets from the right edge are comparable.
+    ;; Force the emoji: the terminal fallbacks are several characters
+    ;; wide, and the point of the exercise is the ones that are not.
     (cl-letf (((symbol-function 'lean4-info--displayable-p) (lambda (&rest _) t)))
       (let* ((lean4-info-paused nil)
              (pin (lean4-info--pin-create :marker (copy-marker (point-min))))
-             (pinned (substring-no-properties (lean4-info--pin-controls pin)))
-             (followed (substring-no-properties (lean4-info--controls))))
-        ;; Pause ends both rows, so it keeps the rightmost column.
-        (dolist (row (list pinned followed))
-          (should (string-suffix-p (lean4-info-pause-glyph) row)))
-        ;; And the pin control sits the same distance in from it.
-        (should (= (- (length followed)
-                      (string-search (lean4-info-pin-glyph) followed))
-                   (- (length pinned)
-                      (string-search (lean4-info-unpin-glyph) pinned))))
+             (pinned (lean4-info--heading "x" (lean4-info--pin-controls pin)
+                                          "pinned"))
+             (followed (lean4-info--heading "x" (lean4-info--controls))))
+        ;; Pause keeps the rightmost column in both rows, and unpin takes
+        ;; the column pin was in.
+        (should (equal (lean4-info-test--control-column
+                        followed (lean4-info-pause-glyph))
+                       (lean4-info-test--control-column
+                        pinned (lean4-info-pause-glyph))))
+        (should (equal (lean4-info-test--control-column
+                        followed (lean4-info-pin-glyph))
+                       (lean4-info-test--control-column
+                        pinned (lean4-info-unpin-glyph))))
+        (set-marker (lean4-info-pin-marker pin) nil)))))
+
+(ert-deftest lean4-info-pausing-does-not-move-the-controls ()
+  "The refresh control appears without pushing the others along.
+
+It is there only while the section is paused, and the controls to its
+right keep their columns because the columns are struck from the right
+edge inwards.  The go-to control on its left does move along, as VS
+Code's does: an absent control is not left holding a column open."
+  (with-temp-buffer
+    (rename-buffer "Paused.lean" 'unique)
+    (cl-letf (((symbol-function 'lean4-info--displayable-p) (lambda (&rest _) t)))
+      (let* ((pin (lean4-info--pin-create :marker (copy-marker (point-min))))
+             (running (let ((lean4-info-paused nil))
+                        (lean4-info--heading "x" (lean4-info--controls))))
+             (paused (let ((lean4-info-paused t))
+                       (lean4-info--heading "x" (lean4-info--controls)
+                                            "paused")))
+             (pinned (lean4-info--heading "x" (lean4-info--pin-controls pin)
+                                          "pinned"))
+             (held (progn (setf (lean4-info-pin-paused pin) t)
+                          (lean4-info--heading "x"
+                                               (lean4-info--pin-controls pin)
+                                               "pinned and paused"))))
+        (should (string-search (lean4-info-refresh-glyph) paused))
+        (should-not (string-search (lean4-info-refresh-glyph) running))
+        (dolist (rows (list (list running paused) (list pinned held)))
+          (pcase-let ((`(,before ,after) rows))
+            ;; Pause and resume swap glyphs, so ask each row for its own.
+            (should (equal (lean4-info-test--control-column
+                            before (lean4-info-pause-glyph))
+                           (lean4-info-test--control-column
+                            after (lean4-info-resume-glyph))))))
+        (should (equal (lean4-info-test--control-column
+                        running (lean4-info-pin-glyph))
+                       (lean4-info-test--control-column
+                        paused (lean4-info-pin-glyph))))
+        (should (equal (lean4-info-test--control-column
+                        pinned (lean4-info-unpin-glyph))
+                       (lean4-info-test--control-column
+                        held (lean4-info-unpin-glyph))))
+        ;; And the go-to control takes the column the refresh control
+        ;; vacates, rather than the row keeping a gap where it was.
+        (should (equal (lean4-info-test--control-column
+                        pinned (lean4-info-goto-glyph))
+                       (lean4-info-test--control-column
+                        held (lean4-info-refresh-glyph))))
         (set-marker (lean4-info-pin-marker pin) nil)))))
 
 
