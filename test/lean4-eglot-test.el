@@ -189,5 +189,34 @@ fringe progress, and the info-buffer refresh -- with no error anywhere."
             (should-not ran))
         (kill-buffer buffer-a)))))
 
+;; Declared, not defined: an Eglot old enough to lack it must still leave
+;; `boundp' answering no, and `let' binds it dynamically only if it is
+;; known to be special.
+(defvar eglot-semantic-token-types)
+
+(ert-deftest lean4-eglot-semantic-tokens-ask-for-leans-own-type ()
+  "`leanSorryLike' is registered, and answers to the name Eglot looks up.
+
+Eglot paints only the types listed in `eglot-semantic-token-types', with
+the face called eglot-semantic-TYPE, and defines those faces for the
+types it knows -- which Lean's own is not, so the alias is what gives
+the token a face at all."
+  (let ((eglot-semantic-token-types '("keyword"))
+        (enabled nil))
+    (cl-letf (((symbol-function 'eglot-semantic-tokens-mode)
+               (lambda (&rest _) (setq enabled t))))
+      (lean4--setup-semantic-tokens))
+    (should enabled)
+    (should (member "leanSorryLike" eglot-semantic-token-types)))
+  (should (eq (get 'eglot-semantic-leanSorryLike 'face-alias)
+              'lean4-semantic-leanSorryLike))
+  (should (facep 'eglot-semantic-leanSorryLike)))
+
+(ert-deftest lean4-eglot-semantic-tokens-are-skipped-by-an-older-eglot ()
+  "An Eglot without semantic tokens is left alone rather than patched."
+  (cl-letf (((symbol-function 'eglot-semantic-tokens-mode) nil))
+    (should-not (fboundp 'eglot-semantic-tokens-mode))
+    (should-not (lean4--setup-semantic-tokens))))
+
 (provide 'lean4-eglot-test)
 ;;; lean4-eglot-test.el ends here
