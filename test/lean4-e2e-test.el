@@ -378,7 +378,13 @@ see `lean4-e2e-info-buffer-shows-the-goal'."
      ;; wait immediately, and its handle would point at a dead connection.
      (with-current-buffer lean4-info-buffer-name
        (let ((inhibit-read-only t)) (erase-buffer))
-       (setq lean4-info--handle nil
+       ;; `magit-section' remembers what is folded, by ident, both in the
+       ;; old tree and in a cache of its own that outlives the buffer --
+       ;; which is what makes a fold survive a rebuild, and what would
+       ;; hand the next test a section another test had opened.
+       (setq magit-section-visibility-cache nil
+             magit-root-section nil
+             lean4-info--handle nil
              lean4-info--source-buffer nil))
      (set-window-buffer (split-window) lean4-info-buffer-name)
      (unwind-protect (progn ,@body)
@@ -764,6 +770,51 @@ a real `Meta.synthInstance' trace rather than a synthetic one."
                 (should (> (- (oref trace end) (oref trace content)) 1)))))
         (clrhash lean4-info--trace-children)
         (clrhash lean4-info--trace-lazy)))))
+
+(ert-deftest lean4-e2e-nested-trace-children-are-indented-under-it ()
+  "A trace's children sit to the right of the node they hang under.
+
+Regression test.  `magit-section' puts the body of a section that starts
+folded aside and runs it when the reader opens it, and how far in we
+were is a dynamic binding that has unwound by then -- so children opened
+that way came out at the outermost level, to the left of their own
+parent."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (unwind-protect
+          (progn
+            (lean4-e2e--goto-line lean4-e2e--trace-line)
+            (back-to-indentation)
+            (lean4-info-buffer-refresh)
+            (lean4-e2e--wait-until
+             "the trace to reach the info buffer"
+             (lambda ()
+               (with-current-buffer lean4-info-buffer-name
+                 (string-search "Meta.synthInstance" (buffer-string)))))
+            (with-current-buffer lean4-info-buffer-name
+              (magit-section-show (lean4-e2e--trace-section))
+              (lean4-info--fetch-open-traces))
+            (lean4-e2e--wait-until
+             "its children to arrive"
+             (lambda () (> (hash-table-count lean4-info--trace-children) 0)))
+            (with-current-buffer lean4-info-buffer-name
+              (let* ((trace (lean4-e2e--trace-section))
+                     (parent (lean4-e2e--indentation-at (oref trace start)))
+                     (child (lean4-e2e--indentation-at
+                             (save-excursion
+                               (goto-char (oref trace content))
+                               (point)))))
+                (should (> child parent)))))
+        (clrhash lean4-info--trace-children)
+        (clrhash lean4-info--trace-lazy)))))
+
+(defun lean4-e2e--indentation-at (position)
+  "Return how far in the line at POSITION is set."
+  (save-excursion
+    (goto-char position)
+    (back-to-indentation)
+    (current-column)))
 
 (defun lean4-e2e--trace-section ()
   "Return the first trace section in the info buffer, or nil."

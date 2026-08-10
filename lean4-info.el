@@ -342,6 +342,21 @@ LINE counted from one and COLUMN from zero."
   "Return the indentation for the section being inserted."
   (make-string (* lean4-info--indent lean4-info--level) ?\s))
 
+(defmacro lean4-info--section-body (&rest body)
+  "Insert BODY as a section\='s body, remembering how far in it sits.
+
+`magit-section' puts the body of a section that starts folded aside and
+runs it when the reader opens the section.  How far in we were is a
+dynamic binding, and it has long unwound by then, so a body run that way
+came out at the outermost level -- nested trace children sat to the left
+of the node they hang under.  Captured here, and bound again when the
+body finally runs."
+  (declare (indent 0) (debug t))
+  `(let ((level lean4-info--level))
+     (magit-insert-section-body
+       (let ((lean4-info--level level))
+         ,@body))))
+
 (defmacro lean4-info--indented (&rest body)
   "Insert whatever BODY inserts one level further in."
   (declare (indent 0) (debug t))
@@ -425,14 +440,14 @@ BUFFER is the Lean buffer the messages belong to."
   (when goals
     (magit-insert-section (lean4-info-section 'goals)
       (magit-insert-heading (lean4-info--heading-text "Goals:"))
-      (magit-insert-section-body
+      (lean4-info--section-body
         (if (eq goals 'accomplished)
             (lean4-info--insert "goals accomplished\n\n")
           (lean4-info--insert goals "\n\n")))))
   (when term-goal
     (magit-insert-section (lean4-info-section 'term-goal)
       (magit-insert-heading (lean4-info--heading-text "Expected type:"))
-      (magit-insert-section-body
+      (lean4-info--section-body
         (lean4-info--insert term-goal "\n"))))
   (lean4-info--mk-message-section
    'messages (lean4-info--messages-caption "Messages" here) here buffer))
@@ -462,7 +477,7 @@ position alone read as a bare pair of numbers."
           (propertize place 'face 'lean4-info-location)
           (lean4-info--goto-button buffer line column))
           'lean4-info-position (list buffer line column))))
-      (magit-insert-section-body
+      (lean4-info--section-body
         ;; Plain diagnostics carry a string; interactive ones carry a
         ;; tree, whose terms render live and whose traces are sections.
         (if (stringp message)
@@ -509,13 +524,13 @@ the cost this whole arrangement exists to avoid."
        (lean4-info--heading-text (lean4-render-trace-header trace)))
       (cond
        (known
-        (magit-insert-section-body
+        (lean4-info--section-body
           (lean4-info--indented (mapc #'lean4-info--insert-parts known))))
        ;; Nothing known and nothing to ask for: a leaf.
        ((eq (car children) 'strict))
        ((not (eq cached :absent)))
        (t
-        (magit-insert-section-body
+        (lean4-info--section-body
           (lean4-info--indented
             ;; Remembered so that opening the section can ask for them.
             (puthash path (cdr children) lean4-info--trace-lazy)
@@ -567,7 +582,7 @@ in BUFFER it belongs to.  Nothing is inserted when MESSAGES is empty."
   (when messages
     (magit-insert-section (magit-section value)
       (magit-insert-heading (lean4-info--heading-text caption))
-      (magit-insert-section-body
+      (lean4-info--section-body
         (lean4-info--indented
           (dolist (diagnostic messages)
             (lean4-info--insert-message diagnostic buffer)))))))
