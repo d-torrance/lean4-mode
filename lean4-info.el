@@ -262,18 +262,14 @@ The buffer is supposed to be the *Lean Goal* buffer."
                     (plist-get :end) (plist-get :line))
       0))
 
-(defun lean4-info--split-diagnostics (diagnostics line)
-  "Partition raw LSP DIAGNOSTICS relative to zero-based LINE.
-Returns a list (ABOVE HERE BELOW).  A diagnostic is \"here\" when LINE
-falls within its full range, which is how a message about a multi-line
-declaration stays visible while point moves through it."
-  (let (above here below)
-    (dolist (diagnostic diagnostics)
-      (cond
-       ((< (lean4-info--end-line diagnostic) line) (push diagnostic above))
-       ((<= (lean4-info--start-line diagnostic) line) (push diagnostic here))
-       (t (push diagnostic below))))
-    (list (nreverse above) (nreverse here) (nreverse below))))
+(defun lean4-info--diagnostics-at-line (diagnostics line)
+  "Return the raw LSP DIAGNOSTICS whose full range covers zero-based LINE.
+Covering it rather than starting on it: that is how a message about a
+multi-line declaration stays visible while point moves through it."
+  (seq-filter (lambda (diagnostic)
+                (and (<= (lean4-info--start-line diagnostic) line)
+                     (<= line (lean4-info--end-line diagnostic))))
+              diagnostics))
 
 ;;;; Rendering
 
@@ -871,8 +867,8 @@ anything the reader would see changing."
         (lean4-info--insert-position
          (lean4-info-pin-goals pin)
          (lean4-info-pin-term-goal pin)
-         (cadr (lean4-info--split-diagnostics
-                sorted (lean4-info--marker-line pin)))
+         (lean4-info--diagnostics-at-line
+          sorted (lean4-info--marker-line pin))
          buffer)))))
 
 (defun lean4-info--insert-followed (location goals term-goal here buffer)
@@ -959,7 +955,7 @@ Lean buffer to be the selected one, which it is not in that case."
            (diagnostics (lean4-info--diagnostics))
            (all (lean4-info--file-messages diagnostics line))
            (sorted (lean4-info--sort-messages diagnostics line))
-           (here (cadr (lean4-info--split-diagnostics sorted line)))
+           (here (lean4-info--diagnostics-at-line sorted line))
            (key (lean4-info--render-key goals term-goal location
                                         diagnostics all)))
       ;; Nothing to see: rebuilding would only make the display blink.
@@ -1265,7 +1261,7 @@ many pins there are."
 
 (defun lean4-info--displayable-p (string)
   "Return non-nil if every character of STRING can be displayed here."
-  (seq-every-p #'char-displayable-p (string-to-list string)))
+  (seq-every-p #'char-displayable-p string))
 
 (defun lean4-info--glyph (configured candidates fallback)
   "Return CONFIGURED, or the first of CANDIDATES this frame can show.
@@ -1612,8 +1608,8 @@ instead.  VS Code leaves its control inert there, which says less."
   (interactive)
   (cond
    ;; Inside a pinned section of the display: that is the pin meant.
-   ((get-text-property (point) 'lean4-info-pin)
-    (lean4-info-unpin (get-text-property (point) 'lean4-info-pin))
+   ((lean4-info--pin-at-point)
+    (lean4-info-unpin (lean4-info--pin-at-point))
     (message "Unpinned"))
    ;; Elsewhere in the display: do what the Lean buffer would do, which
    ;; is what the control in the followed section does.
