@@ -532,5 +532,14 @@ VS Code calls this \"Server: Restart File\"."
   (let ((lean4--build-dependencies-once t))
     (eglot--signal-textDocument/didOpen)))
 
+;;;###autoload
+(defalias 'lean4-restart-file #'lean4-refresh-file-dependencies
+  "Rebuild this file's changed imports and reload it on the server.
+
+The name Lean itself uses: when its imports are stale the server reports
+\"Imports are out of date and must be rebuilt; use the \\=\"Restart
+File\\=\" command in your editor\", and this is that command.  VS Code
+keeps both names for it too, registered to the same action.")
+
 (provide 'lean4-eglot)
 ;;; lean4-eglot.el ends here

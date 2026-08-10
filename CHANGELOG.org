@@ -264,6 +264,12 @@ xref, project roots through =project.el=.
 - Electric indentation is declined with ~electric-indent-inhibit~
   instead of switching ~electric-indent-local-mode~ off, which took a
   minor mode away from anyone who had turned it on.
+- The command Lean's own message asks for is now findable.  When imports
+  are stale the server says to use the "Restart File" command; that is
+  =C-c C-d=, which had no menu entry and no name matching the message.  It
+  is now =Restart File= in the =Lean= menu, and ~lean4-restart-file~ is an
+  alias for ~lean4-refresh-file-dependencies~ so that =M-x= finds it
+  either way -- VS Code registers both names for it as well.
 - Opening a Lean file no longer builds the dependencies it imports.  Lean
   decides that from a ~dependencyBuildMode~ field on
   =textDocument/didOpen=, and reads its absence as "always" for the

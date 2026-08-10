@@ -169,6 +169,9 @@ and which is what this mode did before."
     ,lean4-info-display-menu
     "--"
     ["List of errors"       flymake-show-buffer-diagnostics   flymake-mode]
+    ;; Labelled as Lean's own message asks for it: the server says to use
+    ;; the "Restart File" command when a file's imports are stale.
+    ["Restart File"         lean4-refresh-file-dependencies    t]
     ["Restart lean process" eglot-reconnect                   t]
     "--"
     ("Project"

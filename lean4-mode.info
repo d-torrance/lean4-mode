@@ -88,6 +88,10 @@ Configuration
 * Semantic highlighting::
 * Optional packages::
 
+Troubleshooting
+
+* "Imports are out of date and must be rebuilt"::
+
 
 
 File: lean4-mode.info,  Node: Installation,  Next: Usage,  Prev: Top,  Up: Top
@@ -284,6 +288,7 @@ Key                      Description                                            
 ‘C-c C-SPC’              Pause or unpause the goal display                             ‘lean4-info-toggle-pause’
 ‘C-c C-k’                Echo the keystroke needed to input the symbol at point        ‘quail-show-key’
 ‘C-c C-d’                Rebuild changed imports and reload the file                   ‘lean4-refresh-file-dependencies’
+                         - the same command under the name Lean's messages use         ‘lean4-restart-file’
 ‘C-c C-r’                Restart the language server                                   ‘eglot-reconnect’
 ‘C-c C-x’ or ‘C-c C-l’   Execute Lean in stand-alone mode                              ‘lean4-std-exe’
 ‘C-c C-p C-l’            Build the package, fetching the cache first                   ‘lean4-lake-build’
@@ -1055,6 +1060,42 @@ reports.
 save first, or what Lean reports will be about the previous version.  A
 buffer visiting no file at all is written to a temporary one instead.
 
+* Menu:
+
+* "Imports are out of date and must be rebuilt"::
+
+
+File: lean4-mode.info,  Node: "Imports are out of date and must be rebuilt",  Up: Troubleshooting
+
+4.1 "Imports are out of date and must be rebuilt"
+=================================================
+
+Lean says this, and adds _use the "Restart File" command in your
+editor_.  That command is ‘C-c C-d’, which is
+‘lean4-refresh-file-dependencies’ and also ‘lean4-restart-file’ under
+the name Lean uses; it is ‘Restart File’ in the ‘Lean’ menu.  VS Code
+registers both names for it too.
+
+   Visiting a file does not build what it imports - see *note Building
+dependencies:: - so this is what Lean says when an import has been
+rebuilt, or edited, since the file was last opened.  On a project that
+depends on Mathlib, fetch the cache before rebuilding, or ‘C-c C-d’ will
+compile it locally:
+
+     C-c C-p C-c   then   C-c C-d
+
+   Lean words it two ways, and they mean different things.  _Must_ be
+rebuilt is an error in the file's header: nothing in the file elaborates
+until it is dealt with.  _Should_ be rebuilt arrives while the file is
+open, when a dependency has gone stale underneath it; the file still
+works, it is just no longer current.
+
+   The second comes at information severity, which
+‘lean4-flymake-minimum-severity’ keeps out of the editor by default, so
+look for it under ‘All messages’ in the goal display rather than as an
+underline.  Set that option to ‘note’ to have it flagged in the buffer
+too.
+
 
 File: lean4-mode.info,  Node: Common Pitfalls,  Next: Acknowledgements,  Prev: Troubleshooting,  Up: Top
 
@@ -1096,41 +1137,42 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2197
-Node: Requirements2422
-Node: From source3502
-Node: With a source-based package manager3990
-Node: Native vc (Emacs 30 or later)4501
-Node: Doom-Emacs4946
-Node: Straight5265
-Node: Upgrading from version 15622
-Node: Usage6919
-Node: Keys in a Lean buffer8544
-Node: Keys in the goal display10214
-Node: The tactic state14734
-Node: Copying what is on display15526
-Node: How much of a goal to show16553
-Node: Errors and warnings20064
-Node: Building dependencies24159
-Node: Building25419
-Node: Mathlib's build cache26614
-Node: Choosing which Lean to use27969
-Node: Elan itself30304
-Node: Git and curl31520
-Node: Searching Mathlib with Loogle33267
-Node: The module hierarchy35282
-Node: It needs a built project37325
-Node: Other Lake operations37975
-Node: Completion39400
-Node: Configuration40522
-Node: Frequently used options40961
-Node: The goal display's controls42624
-Node: Older Lean versions43945
-Node: Semantic highlighting44927
-Node: Optional packages46246
-Node: Troubleshooting46739
-Node: Common Pitfalls48166
-Node: Acknowledgements48767
+Node: Installation2265
+Node: Requirements2490
+Node: From source3570
+Node: With a source-based package manager4058
+Node: Native vc (Emacs 30 or later)4569
+Node: Doom-Emacs5014
+Node: Straight5333
+Node: Upgrading from version 15690
+Node: Usage6987
+Node: Keys in a Lean buffer8612
+Node: Keys in the goal display10394
+Node: The tactic state14914
+Node: Copying what is on display15706
+Node: How much of a goal to show16733
+Node: Errors and warnings20244
+Node: Building dependencies24339
+Node: Building25599
+Node: Mathlib's build cache26794
+Node: Choosing which Lean to use28149
+Node: Elan itself30484
+Node: Git and curl31700
+Node: Searching Mathlib with Loogle33447
+Node: The module hierarchy35462
+Node: It needs a built project37505
+Node: Other Lake operations38155
+Node: Completion39580
+Node: Configuration40702
+Node: Frequently used options41141
+Node: The goal display's controls42804
+Node: Older Lean versions44125
+Node: Semantic highlighting45107
+Node: Optional packages46426
+Node: Troubleshooting46919
+Node: "Imports are out of date and must be rebuilt"48406
+Node: Common Pitfalls49859
+Node: Acknowledgements50460
 
 End Tag Table
 

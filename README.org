@@ -150,6 +150,7 @@ buffer.  To put it in a side window on the right:
 | =C-c C-SPC=            | Pause or unpause the goal display                        | ~lean4-info-toggle-pause~         |
 | =C-c C-k=              | Echo the keystroke needed to input the symbol at point    | ~quail-show-key~                  |
 | =C-c C-d=              | Rebuild changed imports and reload the file              | ~lean4-refresh-file-dependencies~ |
+|                        | -- the same command under the name Lean's messages use    | ~lean4-restart-file~              |
 | =C-c C-r=              | Restart the language server                              | ~eglot-reconnect~                 |
 | =C-c C-x= or =C-c C-l= | Execute Lean in stand-alone mode                         | ~lean4-std-exe~                   |
 | =C-c C-p C-l=          | Build the package, fetching the cache first              | ~lean4-lake-build~                |
@@ -806,6 +807,33 @@ reports.
 Note that it is the file on disk that is compiled, not the buffer: save
 first, or what Lean reports will be about the previous version.  A buffer
 visiting no file at all is written to a temporary one instead.
+
+** "Imports are out of date and must be rebuilt"
+
+Lean says this, and adds /use the "Restart File" command in your editor/.
+That command is =C-c C-d=, which is ~lean4-refresh-file-dependencies~ and
+also ~lean4-restart-file~ under the name Lean uses; it is =Restart File=
+in the =Lean= menu.  VS Code registers both names for it too.
+
+Visiting a file does not build what it imports -- see [[*Building
+dependencies]] -- so this is what Lean says when an import has been
+rebuilt, or edited, since the file was last opened.  On a project that
+depends on Mathlib, fetch the cache before rebuilding, or =C-c C-d= will
+compile it locally:
+
+: C-c C-p C-c   then   C-c C-d
+
+Lean words it two ways, and they mean different things.  /Must/ be
+rebuilt is an error in the file's header: nothing in the file elaborates
+until it is dealt with.  /Should/ be rebuilt arrives while the file is
+open, when a dependency has gone stale underneath it; the file still
+works, it is just no longer current.
+
+The second comes at information severity, which
+~lean4-flymake-minimum-severity~ keeps out of the editor by default, so
+look for it under =All messages= in the goal display rather than as an
+underline.  Set that option to =note= to have it flagged in the buffer
+too.
 
 * Common Pitfalls
 

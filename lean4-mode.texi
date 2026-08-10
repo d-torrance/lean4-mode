@@ -96,6 +96,10 @@ Configuration
 * Semantic highlighting::
 * Optional packages::
 
+Troubleshooting
+
+* "Imports are out of date and must be rebuilt"::
+
 @end detailmenu
 @end menu
 
@@ -295,6 +299,9 @@ buffer.  To put it in a side window on the right:
 @item @samp{C-c C-d}
 @tab Rebuild changed imports and reload the file
 @tab @code{lean4-refresh-file-dependencies}
+@item 
+@tab -- the same command under the name Lean's messages use
+@tab @code{lean4-restart-file}
 @item @samp{C-c C-r}
 @tab Restart the language server
 @tab @code{eglot-reconnect}
@@ -1141,6 +1148,40 @@ reports.
 Note that it is the file on disk that is compiled, not the buffer: save
 first, or what Lean reports will be about the previous version.  A buffer
 visiting no file at all is written to a temporary one instead.
+
+@menu
+* "Imports are out of date and must be rebuilt"::
+@end menu
+
+@node "Imports are out of date and must be rebuilt"
+@section "Imports are out of date and must be rebuilt"
+
+Lean says this, and adds @emph{use the "Restart File" command in your editor}.
+That command is @samp{C-c C-d}, which is @code{lean4-refresh-file-dependencies} and
+also @code{lean4-restart-file} under the name Lean uses; it is @samp{Restart File}
+in the @samp{Lean} menu.  VS Code registers both names for it too.
+
+Visiting a file does not build what it imports -- see @ref{Building dependencies} -- so this is what Lean says when an import has been
+rebuilt, or edited, since the file was last opened.  On a project that
+depends on Mathlib, fetch the cache before rebuilding, or @samp{C-c C-d} will
+compile it locally:
+
+@example
+C-c C-p C-c   then   C-c C-d
+@end example
+
+
+Lean words it two ways, and they mean different things.  @emph{Must} be
+rebuilt is an error in the file's header: nothing in the file elaborates
+until it is dealt with.  @emph{Should} be rebuilt arrives while the file is
+open, when a dependency has gone stale underneath it; the file still
+works, it is just no longer current.
+
+The second comes at information severity, which
+@code{lean4-flymake-minimum-severity} keeps out of the editor by default, so
+look for it under @samp{All messages} in the goal display rather than as an
+underline.  Set that option to @samp{note} to have it flagged in the buffer
+too.
 
 @node Common Pitfalls
 @chapter Common Pitfalls
