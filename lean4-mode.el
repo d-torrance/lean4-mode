@@ -66,6 +66,7 @@
 (require 'lean4-lake)
 (require 'lean4-module)
 (require 'lean4-loogle)
+(require 'lean4-toolchain)
 
 ;; Declare symbols defined in external dependencies.  This silences
 ;; byte-compiler warnings:
@@ -182,6 +183,12 @@ and which is what this mode did before."
       buffer-file-name]
      ["Fetch cache for open files"     lean4-lake-fetch-open-file-caches t])
     ["Search Mathlib with Loogle..." lean4-loogle-search t]
+    ("Lean version"
+     ["Set this project's Lean version..." lean4-select-project-toolchain t]
+     ["Set the default Lean version..."    lean4-select-default-toolchain t]
+     "--"
+     ["Update a release channel..."        lean4-update-release-channel   t]
+     ["Remove Lean versions..."            lean4-uninstall-toolchains     t])
     ("Module hierarchy"
      ["What this file imports"    lean4-module-hierarchy         t]
      ["What imports this file"    lean4-module-hierarchy-inverse t]

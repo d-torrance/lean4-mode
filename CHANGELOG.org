@@ -211,7 +211,17 @@ xref, project roots through =project.el=.
   query is read with the Lean input method inherited, so =\alpha= becomes α
   in the minibuffer, Loogle's syntax leaning on notation.  The counterpart
   of VS Code's "Search With Loogle".
-- A test suite: 273 unit tests, and 37 end-to-end tests that run against
+- Four commands for choosing which Lean to use, the counterparts of VS
+  Code's: ~lean4-select-project-toolchain~ writes the project's
+  =lean-toolchain=, ~lean4-select-default-toolchain~ runs =elan default=,
+  ~lean4-update-release-channel~ fetches the newest version of a channel
+  that has moved on, and ~lean4-uninstall-toolchains~ removes installed
+  ones.  The versions offered include the released ones that are not
+  installed, fetched from =release.lean-lang.org= as VS Code fetches them,
+  each marked accordingly and ordered newest first.  All four need elan 4
+  or later, as VS Code's do.  Installing elan itself is deliberately not
+  offered.
+- A test suite: 288 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed

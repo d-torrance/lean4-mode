@@ -65,6 +65,7 @@ Usage
 * Building dependencies::
 * Building::
 * Mathlib's build cache::
+* Choosing which Lean to use::
 * Searching Mathlib with Loogle::
 * The module hierarchy::
 * Other Lake operations::
@@ -258,6 +259,7 @@ buffer.  To put it in a side window on the right:
 * Building dependencies::
 * Building::
 * Mathlib's build cache::
+* Choosing which Lean to use::
 * Searching Mathlib with Loogle::
 * The module hierarchy::
 * Other Lake operations::
@@ -571,7 +573,7 @@ though, stops the build rather than leaving it to do that work locally.
 resolution, ‘M-x compile’ is the thing.
 
 
-File: lean4-mode.info,  Node: Mathlib's build cache,  Next: Searching Mathlib with Loogle,  Prev: Building,  Up: Usage
+File: lean4-mode.info,  Node: Mathlib's build cache,  Next: Choosing which Lean to use,  Prev: Building,  Up: Usage
 
 2.9 Mathlib's build cache
 =========================
@@ -598,9 +600,60 @@ package is the thing to run once, after cloning.
 whatever Lake reports, as with any other build.
 
 
-File: lean4-mode.info,  Node: Searching Mathlib with Loogle,  Next: The module hierarchy,  Prev: Mathlib's build cache,  Up: Usage
+File: lean4-mode.info,  Node: Choosing which Lean to use,  Next: Searching Mathlib with Loogle,  Prev: Mathlib's build cache,  Up: Usage
 
-2.10 Searching Mathlib with Loogle
+2.10 Choosing which Lean to use
+===============================
+
+Four commands, in the ‘Lean’ menu under ‘Lean version’.
+
+Command                            Sets
+--------------------------------------------------------------------------
+‘lean4-select-project-toolchain’   this project's ‘lean-toolchain’
+‘lean4-select-default-toolchain’   the version used outside any project
+‘lean4-update-release-channel’     fetches a channel's newest version
+‘lean4-uninstall-toolchains’       removes installed versions
+
+   All four need elan 4 or later, which is where ‘elan dump-state’
+arrives; VS Code requires the same, for the same reason - without it the
+versions cannot be listed with what elan has resolved them to.
+
+   The versions offered are not only the ones installed.  As VS Code
+does, ‘release.lean-lang.org’ is asked for the stable, beta and nightly
+releases too, so a version you have not got can be chosen and elan
+fetches it; each is marked ‘(installed)’ or ‘(not installed)’.  Being
+unable to reach that list is a warning, not a failure: what is installed
+is still worth offering.  Releases are listed newest first, with a
+release above the candidates that led to it.
+
+   Only ‘lean4-select-default-toolchain’ offers
+‘leanprover/lean4:stable’, the channel meaning "whatever is newest".  A
+project pins a version instead, which is the same distinction VS Code
+draws.
+
+   ‘lean4-update-release-channel’ offers only the channels actually
+behind, showing what each is installed at and what it would become, and
+says so where none are.  ‘lean4-uninstall-toolchains’ marks each version
+as unused or names the projects still using it, from ‘elan toolchain
+gc’; it takes several at once, comma-separated.
+
+   Each asks before acting.  Setting a project's version asks hardest,
+and the warning is VS Code's: it is meant for maintainers of a project,
+and changing it can break not only the project's own code but its
+lakefile and its Lake dependencies.  To take a dependency's version
+instead, in order to stay compatible with it,
+‘lean4-lake-update-dependency’ is the command to use.
+
+   Installing elan itself is not offered.  ‘M-x lean4-diagnose’ reports
+whether it is there and which version is active, which is the part that
+belongs in an editor; installing a toolchain manager is better done in a
+shell, where its output can be seen.  Lean's setup guide
+(https://lean-lang.org/lean4/doc/setup.html) covers it.
+
+
+File: lean4-mode.info,  Node: Searching Mathlib with Loogle,  Next: The module hierarchy,  Prev: Choosing which Lean to use,  Up: Usage
+
+2.11 Searching Mathlib with Loogle
 ==================================
 
 ‘M-x lean4-loogle-search’ asks Loogle (https://loogle.lean-lang.org),
@@ -634,7 +687,7 @@ and it answers about Mathlib rather than about the code in hand.
 
 File: lean4-mode.info,  Node: The module hierarchy,  Next: Other Lake operations,  Prev: Searching Mathlib with Loogle,  Up: Usage
 
-2.11 The module hierarchy
+2.12 The module hierarchy
 =========================
 
 What a module imports, and what imports it, as a tree in a ‘*Lean Module
@@ -673,7 +726,7 @@ and non-meta’ for one imported both ways.
 
 File: lean4-mode.info,  Node: It needs a built project,  Up: The module hierarchy
 
-2.11.1 It needs a built project
+2.12.1 It needs a built project
 -------------------------------
 
 The server answers these from its reference data, which it builds from
@@ -688,7 +741,7 @@ after a rebuild may be the one from before it; ‘g’ asks again.
 
 File: lean4-mode.info,  Node: Other Lake operations,  Next: Completion,  Prev: The module hierarchy,  Up: Usage
 
-2.12 Other Lake operations
+2.13 Other Lake operations
 ==========================
 
 Two more commands live in the same ‘Project’ menu.
@@ -718,7 +771,7 @@ has a window to point at a folder.
 
 File: lean4-mode.info,  Node: Completion,  Prev: Other Lake operations,  Up: Usage
 
-2.13 Completion
+2.14 Completion
 ===============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -936,38 +989,39 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2104
-Node: Requirements2329
-Node: From source3409
-Node: With a source-based package manager3897
-Node: Native vc (Emacs 30 or later)4408
-Node: Doom-Emacs4853
-Node: Straight5172
-Node: Upgrading from version 15529
-Node: Usage6826
-Node: Keys in a Lean buffer8343
-Node: Keys in the goal display10013
-Node: The tactic state14374
-Node: Copying what is on display15166
-Node: How much of a goal to show16193
-Node: Errors and warnings19704
-Node: Building dependencies23457
-Node: Building24717
-Node: Mathlib's build cache25912
-Node: Searching Mathlib with Loogle27270
-Node: The module hierarchy28875
-Node: It needs a built project30577
-Node: Other Lake operations31227
-Node: Completion32652
-Node: Configuration33774
-Node: Frequently used options34213
-Node: The goal display's controls35876
-Node: Older Lean versions37197
-Node: Semantic highlighting38179
-Node: Optional packages39498
-Node: Troubleshooting39991
-Node: Common Pitfalls40641
-Node: Acknowledgements41242
+Node: Installation2135
+Node: Requirements2360
+Node: From source3440
+Node: With a source-based package manager3928
+Node: Native vc (Emacs 30 or later)4439
+Node: Doom-Emacs4884
+Node: Straight5203
+Node: Upgrading from version 15560
+Node: Usage6857
+Node: Keys in a Lean buffer8405
+Node: Keys in the goal display10075
+Node: The tactic state14436
+Node: Copying what is on display15228
+Node: How much of a goal to show16255
+Node: Errors and warnings19766
+Node: Building dependencies23519
+Node: Building24779
+Node: Mathlib's build cache25974
+Node: Choosing which Lean to use27329
+Node: Searching Mathlib with Loogle29956
+Node: The module hierarchy31566
+Node: It needs a built project33268
+Node: Other Lake operations33918
+Node: Completion35343
+Node: Configuration36465
+Node: Frequently used options36904
+Node: The goal display's controls38567
+Node: Older Lean versions39888
+Node: Semantic highlighting40870
+Node: Optional packages42189
+Node: Troubleshooting42682
+Node: Common Pitfalls43332
+Node: Acknowledgements43933
 
 End Tag Table
 
