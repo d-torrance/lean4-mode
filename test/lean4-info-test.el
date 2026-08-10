@@ -798,6 +798,87 @@ not updating at all."
                                        (lean4-info--point-state))))))
       (set-marker (lean4-info-pin-marker pin) nil))))
 
+(ert-deftest lean4-info-a-position-just-pinned-is-shown-once ()
+  "Pinning at point does not put the same position on display twice.
+
+Regression test.  `lean4-info--following-point-p' asks about point in
+the current buffer, and the sections are inserted with the info buffer
+current -- where the answer is always yes.  So the position just pinned
+got a pinned section and a followed section, one above the other, and
+pausing from the file pointed at whichever of the two the reader had not
+meant: what should have read \"pinned and paused\" in one section came
+out as a pinned one and a paused one."
+  (with-temp-buffer
+    (rename-buffer "Twice.lean" 'unique)
+    (insert "theorem t : True := by\n  trivial\n")
+    (goto-char (point-min))
+    (let* ((source (current-buffer))
+           (pin (lean4-info--pin-create :marker (copy-marker (point))
+                                        :goals "⊢ True"
+                                        :id 1))
+           (lean4-info--pins (list pin))
+           ;; What `lean4-info-toggle-pin' leaves behind: pinned where
+           ;; point still is.
+           (lean4-info--pinned-at (cons source (point)))
+           (following (lean4-info--following-point-p)))
+      (should-not following)
+      (with-temp-buffer
+        (lean4-info-mode)
+        (let ((inhibit-read-only t))
+          (lean4-info--insert-display "Twice.lean:1:0" "⊢ True" nil nil nil nil
+                                      following source))
+        (goto-char (point-min))
+        (should (= 1 (how-many "^Twice\\.lean:"))))
+      ;; Once point has moved off it, both are shown -- one pinned, one
+      ;; followed, as VS Code has it.
+      (goto-char (point-max))
+      (let ((following (lean4-info--following-point-p)))
+        (should following)
+        (with-temp-buffer
+          (lean4-info-mode)
+          (let ((inhibit-read-only t))
+            (lean4-info--insert-display "Twice.lean:3:0" "⊢ True" nil nil nil
+                                        nil following source))
+          (goto-char (point-min))
+          (should (= 2 (how-many "^Twice\\.lean:")))))
+      (set-marker (lean4-info-pin-marker pin) nil))))
+
+(ert-deftest lean4-info-redisplay-decides-following-in-the-lean-buffer ()
+  "Whether to show the followed position is settled where point means something.
+
+Regression test, guarding the same fault from the other side: the whole
+render runs with the info buffer current, so anything that reads point
+has to be worked out before that."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (with-temp-buffer
+        (rename-buffer "Decide.lean" 'unique)
+        (insert "theorem t : True := by\n  trivial\n")
+        (goto-char (point-min))
+        (let* ((asked nil)
+               (source (current-buffer))
+               (pin (lean4-info--pin-create :marker (copy-marker (point))
+                                            :goals "⊢ True"
+                                            :id 1))
+               (lean4-info--pins (list pin))
+               (lean4-info--pinned-at (cons source (point)))
+               (lean4-info--rendered nil)
+               (lean4-goals "⊢ True"))
+          (cl-letf* ((following (symbol-function
+                                 'lean4-info--following-point-p))
+                     ((symbol-function 'lean4-info--following-point-p)
+                      (lambda ()
+                        (push (current-buffer) asked)
+                        (funcall following))))
+            (lean4-info-buffer-redisplay 'force))
+          (should asked)
+          (should (seq-every-p (lambda (buffer) (eq buffer source)) asked))
+          (with-current-buffer lean4-info-buffer-name
+            (goto-char (point-min))
+            (should (= 1 (how-many "^Decide\\.lean:"))))
+          (set-marker (lean4-info-pin-marker pin) nil)))
+    (kill-buffer lean4-info-buffer-name)))
+
 
 (ert-deftest lean4-info-rebuilding-does-not-scroll-the-display ()
   "A rebuild leaves the reader where they were.

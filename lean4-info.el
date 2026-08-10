@@ -850,11 +850,13 @@ the file, which is where VS Code puts it and does not."
            (seq-remove #'lean4-diagnostics-silent-p diagnostics)
            line))))
 
-(defun lean4-info--render-key (goals term-goal location diagnostics all)
+(defun lean4-info--render-key (goals term-goal location diagnostics all
+                                     following)
   "Return what the display would be built from, for comparing.
 
 GOALS, TERM-GOAL and LOCATION describe the position being followed;
-DIAGNOSTICS is every message in the file and ALL the file's own list.
+DIAGNOSTICS is every message in the file, ALL the file's own list, and
+FOLLOWING says whether the followed position is to be shown at all.
 
 The buffer is erased and rebuilt from scratch, which is visible as a
 flicker, and the server can republish diagnostics repeatedly without
@@ -867,7 +869,7 @@ anything the reader would see changing."
         ;; cue to show them.  Folding is not in here at all: that is
         ;; `magit-section's, and it hides in place without a rebuild.
         (hash-table-count lean4-info--trace-children)
-        (lean4-info--following-point-p)
+        following
         (mapcar (lambda (pin)
                   (list (marker-position (lean4-info-pin-marker pin))
                         (lean4-info-pin-goals pin)
@@ -928,11 +930,14 @@ BUFFER is the Lean buffer the messages in HERE belong to."
     lean4-info-all-messages-paused)))
 
 (defun lean4-info--insert-display (location goals term-goal here sorted all
-                                            buffer)
+                                            following buffer)
   "Insert the whole display: the pins, the followed position, the file.
 
 LOCATION, GOALS, TERM-GOAL and HERE describe the position being
-followed; SORTED is every message in BUFFER, ALL the file's own list."
+followed; SORTED is every message in BUFFER, ALL the file's own list.
+FOLLOWING says whether the followed position is to be shown at all; it
+is decided in BUFFER, where point means something -- see
+`lean4-info--following-point-p'."
   (magit-insert-section (lean4-info-section 'root)
     ;; Pinned positions first, above the one following point, as VS Code
     ;; stacks them.  Each keeps updating: a pin is a marker, so it
@@ -942,7 +947,7 @@ followed; SORTED is every message in BUFFER, ALL the file's own list."
     ;; heading.
     (dolist (pin lean4-info--pins)
       (lean4-info--insert-pinned pin sorted buffer))
-    (when (lean4-info--following-point-p)
+    (when following
       (lean4-info--insert-followed location goals term-goal here buffer))
     ;; One section for the file, as VS Code has it, rather than one above
     ;; point and one below: that split said where a message was relative
@@ -971,15 +976,18 @@ Lean buffer to be the selected one, which it is not in that case."
            (handle lean4-info--handle)
            ;; Computed here, in the Lean buffer: by the time a heading is
            ;; inserted the info buffer is current, and point there says
-           ;; nothing about the position being reported on.
+           ;; nothing about the position being reported on.  `following'
+           ;; is one of these -- asked in the info buffer it is always
+           ;; true, which showed the position just pinned twice over.
            (location (lean4-info--location-string))
            (line (1- (line-number-at-pos nil 'absolute)))
+           (following (lean4-info--following-point-p))
            (diagnostics (lean4-info--diagnostics))
            (all (lean4-info--file-messages diagnostics line))
            (sorted (lean4-info--sort-messages diagnostics line))
            (here (lean4-info--diagnostics-at-line sorted line))
            (key (lean4-info--render-key goals term-goal location
-                                        diagnostics all)))
+                                        diagnostics all following)))
       ;; Nothing to see: rebuilding would only make the display blink.
       (unless (and (equal key lean4-info--rendered)
                    (get-buffer lean4-info-buffer-name))
@@ -990,7 +998,7 @@ Lean buffer to be the selected one, which it is not in that case."
           (lean4-info--keeping-position
             (erase-buffer)
             (lean4-info--insert-display location goals term-goal here
-                                        sorted all buffer)
+                                        sorted all following buffer)
             (lean4-info--add-visibility-indicators)))))))
 
 ;;;; Refresh
@@ -1682,7 +1690,10 @@ instead.  VS Code leaves its control inert there, which says less."
   "Return non-nil if the position following point should be shown.
 
 Not while it is the position just pinned: pinning happens at point, so
-the two are the same until point moves."
+the two are the same until point moves.
+
+Asks about point in the current buffer, so it has to be called in the
+Lean buffer -- in the info buffer the answer is always yes."
   (not (and lean4-info--pinned-at
             (eq (car lean4-info--pinned-at) (current-buffer))
             (= (cdr lean4-info--pinned-at) (point)))))
