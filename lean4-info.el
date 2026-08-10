@@ -717,6 +717,131 @@ folded."
   :documentation "A section of the goal display.
 Carries the keymap for everything in it; see `lean4-info-section-map'.")
 
+(defun lean4-info--diagnostics ()
+  "Return the diagnostics to build the display from.
+
+Silent ones are kept.  `isSilent' marks a message as being for the goal
+display rather than for the editor -- the completed-proof report is one
+-- so this is the one place they belong.  `lean4-diagnostics' keeps them
+out of Flymake, which is where they would be noise."
+  (or (copy-sequence lean4-info--diagnostics)
+      ;; No RPC: recover the raw objects Eglot stashed on the Flymake
+      ;; diagnostics.
+      (delq nil (mapcar #'lean4-diagnostic-lsp-data (flymake-diagnostics)))))
+
+(defun lean4-info--file-messages (diagnostics line)
+  "Return the file's own list, drawn from DIAGNOSTICS and ordered against LINE.
+
+Held as it was while paused.  Leaves out what Lean marked as being for
+the goal display rather than the editor: the completed-proof report
+belongs against the proof it is about, not in a list of everything in
+the file, which is where VS Code puts it and does not."
+  (if lean4-info-all-messages-paused
+      lean4-info--all-messages-frozen
+    (setq lean4-info--all-messages-frozen
+          (lean4-info--sort-messages
+           (seq-remove #'lean4-diagnostics-silent-p diagnostics)
+           line))))
+
+(defun lean4-info--render-key (goals term-goal location diagnostics all)
+  "Return what the display would be built from, for comparing.
+
+GOALS, TERM-GOAL and LOCATION describe the position being followed;
+DIAGNOSTICS is every message in the file and ALL the file's own list.
+
+The buffer is erased and rebuilt from scratch, which is visible as a
+flicker, and the server can republish diagnostics repeatedly without
+anything the reader would see changing."
+  (list goals term-goal location diagnostics all
+        lean4-info-paused
+        lean4-info-message-order
+        lean4-info-all-messages-paused
+        lean4-info--trace-generation
+        (lean4-info--following-point-p)
+        (mapcar (lambda (pin)
+                  (list (marker-position (lean4-info-pin-marker pin))
+                        (lean4-info-pin-goals pin)
+                        (lean4-info-pin-term-goal pin)))
+                lean4-info--pins)))
+
+(defun lean4-info--insert-pinned (pin sorted buffer)
+  "Insert PIN's section, its messages taken from SORTED in BUFFER."
+  (lean4-info--marking-pin pin
+    (magit-insert-section (lean4-info-section 'pinned)
+      (magit-insert-heading
+       (lean4-info--heading-text
+        (lean4-info--heading
+         (lean4-info--marker-location-string (lean4-info-pin-marker pin))
+         (lean4-info--pin-controls pin)
+         "pinned")))
+      (lean4-info--indented
+        (lean4-info--insert-position
+         (lean4-info-pin-goals pin)
+         (lean4-info-pin-term-goal pin)
+         (cadr (lean4-info--split-diagnostics
+                sorted (lean4-info--marker-line pin)))
+         buffer)))))
+
+(defun lean4-info--insert-followed (location goals term-goal here buffer)
+  "Insert the section following point: LOCATION, GOALS, TERM-GOAL, HERE.
+BUFFER is the Lean buffer the messages in HERE belong to."
+  (magit-insert-section (lean4-info-section 'position)
+    (magit-insert-heading
+     (lean4-info--heading-text
+      (lean4-info--heading location (lean4-info--controls)
+                           (lean4-info--point-state))))
+    (lean4-info--indented
+      (lean4-info--insert-position goals term-goal here buffer))))
+
+(defun lean4-info--all-messages-controls ()
+  "Return the controls for the file's message list."
+  (concat
+   (lean4-info--button
+    (lean4-info-sort-glyph)
+    (if (eq lean4-info-message-order 'point)
+        "mouse-1: order by position in the file"
+      "mouse-1: order by nearness to point")
+    #'lean4-info-toggle-message-order
+    ;; Marked engaged when the order is not the default one, there being
+    ;; no glyph to say which is in force.
+    (eq lean4-info-message-order 'location))
+   "  "
+   (lean4-info--button
+    (if lean4-info-all-messages-paused
+        (lean4-info-resume-glyph)
+      (lean4-info-pause-glyph))
+    (if lean4-info-all-messages-paused
+        "mouse-1: unpause the file's message list"
+      "mouse-1: pause the file's message list")
+    #'lean4-info-toggle-all-messages-pause
+    lean4-info-all-messages-paused)))
+
+(defun lean4-info--insert-display (location goals term-goal here sorted all
+                                            buffer)
+  "Insert the whole display: the pins, the followed position, the file.
+
+LOCATION, GOALS, TERM-GOAL and HERE describe the position being
+followed; SORTED is every message in BUFFER, ALL the file's own list."
+  (magit-insert-section (lean4-info-section 'root)
+    ;; Pinned positions first, above the one following point, as VS Code
+    ;; stacks them.  Each keeps updating: a pin is a marker, so it
+    ;; follows its declaration as the file is edited.  The root is left
+    ;; headless, holding them all side by side -- `magit-section' refuses
+    ;; to fold a root, and a heading that does not fold is worse than no
+    ;; heading.
+    (dolist (pin lean4-info--pins)
+      (lean4-info--insert-pinned pin sorted buffer))
+    (when (lean4-info--following-point-p)
+      (lean4-info--insert-followed location goals term-goal here buffer))
+    ;; One section for the file, as VS Code has it, rather than one above
+    ;; point and one below: that split said where a message was relative
+    ;; to point, which the line number in each entry already says.
+    (lean4-info--mk-message-section
+     'all-messages
+     (lean4-info--messages-caption "All messages" all
+                                   (lean4-info--all-messages-controls))
+     all buffer)))
+
 (defun lean4-info-buffer-redisplay (&optional force)
   "Re-render the Lean info buffer from the last goals and diagnostics.
 
@@ -733,139 +858,29 @@ Lean buffer to be the selected one, which it is not in that case."
            ;; Carried across so that ElDoc and xref, which run in the info
            ;; buffer, can make RPC calls about what is displayed there.
            (handle lean4-info--handle)
-           ;; Computed here, in the Lean buffer: by the time the heading is
+           ;; Computed here, in the Lean buffer: by the time a heading is
            ;; inserted the info buffer is current, and point there says
            ;; nothing about the position being reported on.
            (location (lean4-info--location-string))
            (line (1- (line-number-at-pos nil 'absolute)))
-           (diagnostics
-            ;; Silent diagnostics are kept.  `isSilent' marks a message as
-            ;; being for the goal display rather than for the editor --
-            ;; the completed-proof report is one -- so this is the one
-            ;; place they belong.  Dropping them here was backwards, and
-            ;; lost "Goals accomplished!" from a display that had room for
-            ;; it and a reader expecting it.  `lean4-diagnostics' keeps
-            ;; them out of Flymake, which is where they would be noise.
-            (or (copy-sequence lean4-info--diagnostics)
-                ;; No RPC: recover the raw objects Eglot stashed on the
-                ;; Flymake diagnostics.
-                (delq nil (mapcar #'lean4-diagnostic-lsp-data
-                                  (flymake-diagnostics)))))
-           ;; The file's list leaves out what Lean marked as being for the
-           ;; goal display rather than the editor.  The completed-proof
-           ;; report belongs against the proof it is about, not in a list
-           ;; of everything in the file -- which is where VS Code puts it,
-           ;; and does not.
-           (all (if lean4-info-all-messages-paused
-                    lean4-info--all-messages-frozen
-                  (setq lean4-info--all-messages-frozen
-                        (lean4-info--sort-messages
-                         (seq-remove #'lean4-diagnostics-silent-p diagnostics)
-                         line)))))
-      (pcase-let* ((sorted (lean4-info--sort-messages diagnostics line))
-                   (following (lean4-info--following-point-p))
-                   (`(,_above ,here ,_below)
-                    (lean4-info--split-diagnostics sorted line))
-
-                  (key (list goals term-goal location lean4-info-paused
-                             (mapcar (lambda (pin)
-                                       (list (marker-position
-                                              (lean4-info-pin-marker pin))
-                                             (lean4-info-pin-goals pin)
-                                             (lean4-info-pin-term-goal pin)))
-                                     lean4-info--pins)
-                             (lean4-info--following-point-p)
-                             diagnostics
-                             lean4-info-message-order
-                             lean4-info-all-messages-paused all
-                             lean4-info--trace-generation)))
-        ;; Nothing to see: rebuilding would only make the display blink.
-        (unless (and (equal key lean4-info--rendered)
-                     (get-buffer lean4-info-buffer-name))
-          (setq lean4-info--rendered key)
+           (diagnostics (lean4-info--diagnostics))
+           (all (lean4-info--file-messages diagnostics line))
+           (sorted (lean4-info--sort-messages diagnostics line))
+           (here (cadr (lean4-info--split-diagnostics sorted line)))
+           (key (lean4-info--render-key goals term-goal location
+                                        diagnostics all)))
+      ;; Nothing to see: rebuilding would only make the display blink.
+      (unless (and (equal key lean4-info--rendered)
+                   (get-buffer lean4-info-buffer-name))
+        (setq lean4-info--rendered key)
         (with-current-buffer lean4-info-buffer-name
           (setq lean4-info--handle handle
                 lean4-info--source-buffer buffer)
           (lean4-info--keeping-position
-          (erase-buffer)
-          (magit-insert-section (lean4-info-section 'root)
-            ;; The position is a section in its own right rather than the
-            ;; root, which `magit-section' refuses to fold: a heading with
-            ;; a chevron that does nothing is worse than no chevron.  The
-            ;; root is left headless, holding the position and the file's
-            ;; messages side by side.
-            ;; Pinned positions first, above the one following point, as
-            ;; VS Code stacks them.  Each keeps updating: a pin is a
-            ;; marker, so it follows its declaration as the file is
-            ;; edited.
-            (dolist (pin lean4-info--pins)
-              (lean4-info--marking-pin pin
-              (magit-insert-section (lean4-info-section 'pinned)
-                (magit-insert-heading
-                 (lean4-info--heading-text
-                  (lean4-info--heading
-                  (lean4-info--marker-location-string
-                   (lean4-info-pin-marker pin))
-                  (lean4-info--pin-controls pin)
-                  "pinned")))
-                (lean4-info--indented
-                  (lean4-info--insert-position
-                   (lean4-info-pin-goals pin)
-                   (lean4-info-pin-term-goal pin)
-                   (car (cdr (lean4-info--split-diagnostics
-                              sorted
-                              (lean4-info--marker-line pin))))
-                   buffer)))))
-            (when following
-            (magit-insert-section (lean4-info-section 'position)
-            (magit-insert-heading
-             (lean4-info--heading-text
-              (lean4-info--heading location (lean4-info--controls)
-                                   (lean4-info--point-state))))
-            ;; Say so, rather than leaving a bare heading: outside a proof
-            ;; there is nothing to report, and a display that goes blank
-            ;; reads like one that has stopped working.  VS Code words it
-            ;; this way.  This is about the position being reported on, so
-            ;; the messages from elsewhere in the file that may follow do
-            ;; not count -- the notice and the "All messages:" section
-            ;; can and should appear together.
-            ;; Everything the position itself has to say is set in from
-            ;; its heading, so the file and line reads as what it is: the
-            ;; thing the goal, the expected type and the messages are all
-            ;; about.  The file's own messages stay at the outer level.
-            (lean4-info--indented
-              (lean4-info--insert-position goals term-goal here buffer))))
-            ;; One section for the file, as VS Code has it, rather than
-            ;; one above point and one below: the split said where a
-            ;; message was relative to point, which the line number in
-            ;; each entry already says, and it made the count in the
-            ;; heading two counts of nothing in particular.
-            (lean4-info--mk-message-section
-             'all-messages
-             (lean4-info--messages-caption
-              "All messages" all
-              (concat
-               (lean4-info--button
-                (lean4-info-sort-glyph)
-                (if (eq lean4-info-message-order 'point)
-                    "mouse-1: order by position in the file"
-                  "mouse-1: order by nearness to point")
-                #'lean4-info-toggle-message-order
-                ;; Marked engaged when the order is not the default one,
-                ;; there being no glyph to say which is in force.
-                (eq lean4-info-message-order 'location))
-               "  "
-               (lean4-info--button
-                (if lean4-info-all-messages-paused
-                    (lean4-info-resume-glyph)
-                  (lean4-info-pause-glyph))
-                (if lean4-info-all-messages-paused
-                    "mouse-1: unpause the file's message list"
-                  "mouse-1: pause the file's message list")
-                #'lean4-info-toggle-all-messages-pause
-                lean4-info-all-messages-paused)))
-             all buffer))
-          (lean4-info--add-visibility-indicators))))))))
+            (erase-buffer)
+            (lean4-info--insert-display location goals term-goal here
+                                        sorted all buffer)
+            (lean4-info--add-visibility-indicators)))))))
 
 ;;;; Refresh
 
