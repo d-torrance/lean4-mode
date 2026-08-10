@@ -518,10 +518,17 @@ Loogle's syntax leans on notation.  An active region is offered as the
 starting point.
 
 Results appear in a =*Lean Loogle*= buffer: each is its name, the module it
-lives in, and its type, foldable like everything else.  =RET= opens the
-result's documentation in a browser, as clicking its name does in VS Code;
-=w= copies its name; =g= asks again; =q= buries the buffer.  Where Loogle
-offers a spelling suggestion it is a button that searches for it instead.
+lives in, and its type, foldable like everything else.  Where Loogle offers
+a spelling suggestion it is a button that searches for it instead.
+
+| Key   | Description                                    | Command                            |
+|-------+------------------------------------------------+------------------------------------|
+| =RET= | Open the result's documentation in a browser   | ~lean4-loogle-browse-documentation~ |
+| =w=   | Copy the result's name                         | ~lean4-loogle-copy-name~           |
+| =g=   | Ask Loogle the same query again                | ~lean4-loogle-again~               |
+| =q=   | Bury the buffer                                | ~quit-window~                      |
+
+=RET= does what clicking a result's name does in VS Code.
 
 This needs no Lean server and no project: Loogle is a web service, and it
 answers about Mathlib rather than about the code in hand.
@@ -547,8 +554,14 @@ chords not being Emacs ones, so bind them to taste:
 #+end_src
 
 The buffer is a ~magit-section~ tree, so it folds with =TAB= and moves the
-way the goal display does.  =RET= visits the module at point, =g= asks for
-the tree again, and =q= buries it.
+way the goal display does.
+
+| Key   | Description                          | Command                 |
+|-------+--------------------------------------+-------------------------|
+| =RET= | Visit the file of the module at point | ~lean4-module-visit~    |
+| =TAB= | Fold or unfold the node at point      | ~magit-section-toggle~  |
+| =g=   | Ask for the tree again                | ~lean4-module-refresh~  |
+| =q=   | Bury the buffer                       | ~quit-window~           |
 
 A level is fetched when it is opened, not before: Mathlib's import graph
 is far too large to ask for at once.  An unopened node shows =...= until

@@ -770,10 +770,28 @@ Loogle's syntax leans on notation.  An active region is offered as the
 starting point.
 
 Results appear in a @samp{*Lean Loogle*} buffer: each is its name, the module it
-lives in, and its type, foldable like everything else.  @samp{RET} opens the
-result's documentation in a browser, as clicking its name does in VS Code;
-@samp{w} copies its name; @samp{g} asks again; @samp{q} buries the buffer.  Where Loogle
-offers a spelling suggestion it is a button that searches for it instead.
+lives in, and its type, foldable like everything else.  Where Loogle offers
+a spelling suggestion it is a button that searches for it instead.
+
+@multitable {aaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@headitem Key
+@tab Description
+@tab Command
+@item @samp{RET}
+@tab Open the result's documentation in a browser
+@tab @code{lean4-loogle-browse-documentation}
+@item @samp{w}
+@tab Copy the result's name
+@tab @code{lean4-loogle-copy-name}
+@item @samp{g}
+@tab Ask Loogle the same query again
+@tab @code{lean4-loogle-again}
+@item @samp{q}
+@tab Bury the buffer
+@tab @code{quit-window}
+@end multitable
+
+@samp{RET} does what clicking a result's name does in VS Code.
 
 This needs no Lean server and no project: Loogle is a web service, and it
 answers about Mathlib rather than about the code in hand.
@@ -805,8 +823,25 @@ chords not being Emacs ones, so bind them to taste:
 @end lisp
 
 The buffer is a @code{magit-section} tree, so it folds with @samp{TAB} and moves the
-way the goal display does.  @samp{RET} visits the module at point, @samp{g} asks for
-the tree again, and @samp{q} buries it.
+way the goal display does.
+
+@multitable {aaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaa}
+@headitem Key
+@tab Description
+@tab Command
+@item @samp{RET}
+@tab Visit the file of the module at point
+@tab @code{lean4-module-visit}
+@item @samp{TAB}
+@tab Fold or unfold the node at point
+@tab @code{magit-section-toggle}
+@item @samp{g}
+@tab Ask for the tree again
+@tab @code{lean4-module-refresh}
+@item @samp{q}
+@tab Bury the buffer
+@tab @code{quit-window}
+@end multitable
 
 A level is fetched when it is opened, not before: Mathlib's import graph
 is far too large to ask for at once.  An unopened node shows @samp{...} until
