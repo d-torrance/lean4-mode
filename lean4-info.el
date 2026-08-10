@@ -225,18 +225,7 @@ Also choose settings used for the *Lean Goal* buffer."
                 #'lean4-info-xref-backend nil 'local)
       (add-hook 'post-command-hook
                 #'lean4-info-highlight-subterm nil 'local)
-      (add-hook 'post-command-hook
-                #'lean4-info--repaint-chevrons nil 'local)
-      ;; The indicators are drawn here instead, so that they can be
-      ;; indented with the headings they belong to.  The variable was
-      ;; renamed and reshaped in magit-section 4, and naming the old one
-      ;; outright is a byte-compilation error there, so choose at run
-      ;; time.
-      (set (make-local-variable
-            (if (boundp 'magit-section-visibility-indicators)
-                'magit-section-visibility-indicators
-              (intern "magit-section-visibility-indicator")))
-           nil)
+
       (eldoc-mode 1)
       (setq buffer-read-only t))))
 
@@ -391,39 +380,45 @@ LINE counted from one and COLUMN from zero."
 (defconst lean4-info--indent 2
   "Columns each level of the goal display is set in by.")
 
+(defvar lean4-info--level 0
+  "How far in the section being inserted sits.")
+
+(defun lean4-info--prefix ()
+  "Return the indentation for the section being inserted."
+  (make-string (* lean4-info--indent lean4-info--level) ?\s))
+
 (defmacro lean4-info--indented (&rest body)
-  "Insert whatever BODY inserts one level to the right.
-
-The indentation is a `line-prefix\=' display property rather than spaces
-in the buffer.  The goal text carries the positions that `lean4-render\=',
-ElDoc and xref read back out of it, and inserting characters into it
-would move every one of them."
+  "Insert whatever BODY inserts one level further in."
   (declare (indent 0) (debug t))
-  `(let ((start (point)))
-     (prog1 (progn ,@body)
-       (lean4-info--indent-region start (point)))))
+  `(let ((lean4-info--level (1+ lean4-info--level)))
+     ,@body))
 
-(defun lean4-info--indent-region (start end)
-  "Set the text between START and END in by one level.
+(defun lean4-info--indent-string (string prefix)
+  "Return STRING with PREFIX before each of its lines.
 
-Nested calls accumulate.  The outer one runs last, so it adds its level
-in front of whatever the inner ones left rather than replacing it, which
-is why the indentation is kept in `lean4-info-indent' as well: painting
-a chevron overwrites `line-prefix', and repainting has to be able to
-find the indentation again."
-  (let ((step (make-string lean4-info--indent ?\s))
-        (pos start))
-    (while (< pos end)
-      (let* ((next (or (next-single-property-change
-                        pos 'lean4-info-indent nil end)
-                       end))
-             (indent (concat step (or (get-text-property
-                                       pos 'lean4-info-indent)
-                                      ""))))
-        (put-text-property pos next 'lean4-info-indent indent)
-        (put-text-property pos next 'line-prefix indent)
-        (put-text-property pos next 'wrap-prefix indent)
-        (setq pos next)))))
+Built from substrings, which carry their text properties with them: the
+goal text is propertized character by character, and that is what
+`lean4-render', ElDoc and xref read back out of it."
+  (if (string-empty-p prefix)
+      string
+    (let ((parts nil)
+          (start 0))
+      (while (string-match "\n" string start)
+        (push (concat prefix (substring string start (match-end 0))) parts)
+        (setq start (match-end 0)))
+      (unless (= start (length string))
+        (push (concat prefix (substring string start)) parts))
+      (apply #'concat (nreverse parts)))))
+
+(defun lean4-info--insert (&rest strings)
+  "Insert STRINGS, indented to the level being inserted at."
+  (insert (lean4-info--indent-string (apply #'concat strings)
+                                     (lean4-info--prefix))))
+
+(defun lean4-info--heading-text (string)
+  "Return STRING as a heading at the level being inserted at."
+  (concat (lean4-info--prefix) string))
+
 
 (defmacro lean4-info--marking-pin (pin &rest body)
   "Evaluate BODY, marking everything it inserts as belonging to PIN.
@@ -455,19 +450,19 @@ BUFFER is the Lean buffer the messages belong to."
   ;; position, so the file's own messages do not count -- the notice and
   ;; the "All messages" section can and should appear together.
   (unless (or goals term-goal here)
-    (insert (propertize "No info found.\n" 'face 'shadow)))
+    (lean4-info--insert (propertize "No info found.\n" 'face 'shadow)))
   (when goals
     (magit-insert-section (lean4-info-section 'goals)
-      (magit-insert-heading "Goals:")
+      (magit-insert-heading (lean4-info--heading-text "Goals:"))
       (magit-insert-section-body
         (if (eq goals 'accomplished)
-            (insert "goals accomplished\n\n")
-          (insert goals "\n\n")))))
+            (lean4-info--insert "goals accomplished\n\n")
+          (lean4-info--insert goals "\n\n")))))
   (when term-goal
     (magit-insert-section (lean4-info-section 'term-goal)
-      (magit-insert-heading "Expected type:")
+      (magit-insert-heading (lean4-info--heading-text "Expected type:"))
       (magit-insert-section-body
-        (insert term-goal "\n"))))
+        (lean4-info--insert term-goal "\n"))))
   (lean4-info--mk-message-section
    'messages (lean4-info--messages-caption "Messages" here) here buffer))
 
@@ -490,13 +485,14 @@ position alone read as a bare pair of numbers."
         ;; there from anywhere on the line.  The label itself is plain
         ;; text, since clicking a heading folds it, so the one thing that
         ;; goes there by mouse is the one control that says so.
-        (propertize
+        (lean4-info--heading-text
+         (propertize
          (lean4-info--align-right
           (propertize place 'face 'lean4-info-location)
           (lean4-info--goto-button buffer line column))
-         'lean4-info-position (list buffer line column)))
+          'lean4-info-position (list buffer line column))))
       (magit-insert-section-body
-        (insert
+        (lean4-info--insert
          ;; Plain diagnostics carry a string; interactive ones carry a
          ;; tree, whose terms and traces render live.
          (if (stringp message)
@@ -510,7 +506,7 @@ Each message becomes a foldable section of its own, headed by the place
 in BUFFER it belongs to.  Nothing is inserted when MESSAGES is empty."
   (when messages
     (magit-insert-section (magit-section value)
-      (magit-insert-heading caption)
+      (magit-insert-heading (lean4-info--heading-text caption))
       (magit-insert-section-body
         (lean4-info--indented
           (dolist (diagnostic messages)
@@ -662,21 +658,20 @@ the badge with a second, coarser count of the same messages."
                    label)))
     (if controls (lean4-info--align-right caption controls) caption)))
 
-(defcustom lean4-info-chevrons nil
-  "Fold indicators for the goal display, as a cons of open and closed.
-Nil means pick whichever pair the frame can display."
-  :group 'lean4-info
-  :type '(choice (const :tag "Choose to suit the frame" nil)
-                 (cons (string :tag "Open") (string :tag "Closed"))))
+(defun lean4-info--add-visibility-indicators ()
+  "Draw the fold indicators on the sections just inserted.
 
-(defun lean4-info-chevron-pair ()
-  "Return this frame\='s fold indicators, as a cons of open and closed."
-  (or lean4-info-chevrons
-      (seq-find (lambda (pair)
-                  (and (lean4-info--displayable-p (car pair))
-                       (lean4-info--displayable-p (cdr pair))))
-                '(("▾ " . "▸ ") ("v " . "> ")))
-      '("- " . "+ ")))
+`magit-section' updates them only from `magit-section-show' and
+`magit-section-hide', so a section that has never been toggled carries
+none: the display looked as though nothing folded until something was
+folded, after which that one section gained an indicator and the rest
+still had none."
+  (when (and (fboundp 'magit-section-maybe-update-visibility-indicator)
+             (bound-and-true-p magit-root-section))
+    (letrec ((walk (lambda (section)
+                     (magit-section-maybe-update-visibility-indicator section)
+                     (mapc walk (oref section children)))))
+      (funcall walk magit-root-section))))
 
 (defun lean4-info--foldable-p (section)
   "Return non-nil if SECTION has a body that can actually be folded.
@@ -688,91 +683,6 @@ a section with an empty body is one whose content and end coincide."
       (magit-section-content-p section)
     (let ((content (oref section content)))
       (and content (not (= content (oref section end)))))))
-
-(defun lean4-info--paint-chevrons ()
-  "Put a fold indicator at the start of every heading that folds.
-
-`magit-section' draws its own in the fringe, which cannot be indented: a
-section set in from its parent has its text move right while its
-indicator stays at the frame edge, so the two drift apart.
-
-Drawn into the `display' of the heading\='s first character, not the
-line\='s `line-prefix'.  A `line-prefix' is drawn only where a display
-line begins, and folding a section makes `magit-section' cover its body
-*including the newline before the next heading* -- which puts that
-heading at the edge of an invisible run, where the prefix stops being
-drawn.  The heading below a folded one lost its chevron, and its
-indentation with it.
-
-Nothing is inserted into the buffer.  The goal text carries the
-positions `lean4-render', ElDoc and xref read back out of it, and it is
-also what `magit-section' keeps its own markers into."
-  (when (bound-and-true-p magit-root-section)
-    (pcase-let ((inhibit-read-only t)
-                (`(,open . ,closed) (lean4-info-chevron-pair)))
-      (letrec ((walk
-                (lambda (section visible)
-                  (when (lean4-info--foldable-p section)
-                    (let* ((start (oref section start))
-                           (indent (or (get-text-property
-                                        start 'lean4-info-indent)
-                                       ""))
-                           (chevron (if (oref section hidden) closed open))
-                           (character (char-after start)))
-                      (when character
-                        ;; A folded section's children are still in the
-                        ;; buffer, merely invisible -- and Emacs draws a
-                        ;; `display' string even on an invisible
-                        ;; character, so one left on a hidden heading put
-                        ;; its indentation and first letter on screen with
-                        ;; nothing else.  Take it off rather than
-                        ;; shortening it.
-                        (if (not visible)
-                            (remove-text-properties start (1+ start)
-                                                    '(display nil))
-                          (put-text-property
-                           start (1+ start) 'display
-                           (concat indent chevron (string character))))
-                        ;; The indentation comes with the chevron now, so
-                        ;; the line must not carry it as well -- and that
-                        ;; means `wrap-prefix' too, not just `line-prefix'.
-                        ;; A heading that follows a folded section
-                        ;; continues that section's display line, and a
-                        ;; continued line is drawn with its `wrap-prefix',
-                        ;; which indented such a heading a second time.
-                        (let ((end (save-excursion (goto-char start)
-                                                   (line-end-position))))
-                          (put-text-property start end 'line-prefix "")
-                          (put-text-property start end 'wrap-prefix "")))))
-                  (let ((visible (and visible (not (oref section hidden)))))
-                    (dolist (child (oref section children))
-                      (funcall walk child visible))))))
-        (funcall walk magit-root-section t)))))
-
-(defvar-local lean4-info--folds nil
-  "What was folded when the chevrons were last painted.")
-
-(defun lean4-info--fold-state ()
-  "Return which sections are folded, as a list."
-  (when (bound-and-true-p magit-root-section)
-    (let (state)
-      (letrec ((walk (lambda (section)
-                       (push (and (oref section hidden) t) state)
-                       (mapc walk (oref section children)))))
-        (funcall walk magit-root-section))
-      (nreverse state))))
-
-(defun lean4-info--repaint-chevrons ()
-  "Repaint the fold indicators if anything has been folded or unfolded.
-
-`magit-section' has commands and mouse bindings of its own for folding,
-and no hook that runs when one of them does.  Rather than advise each,
-notice the change afterwards: comparing the tree costs nothing beside
-what folding it already cost."
-  (let ((state (lean4-info--fold-state)))
-    (unless (equal state lean4-info--folds)
-      (setq lean4-info--folds state)
-      (lean4-info--paint-chevrons))))
 
 (defun lean4-info-mouse-1 (event)
   "Do whatever EVENT was clicked on.
@@ -892,11 +802,12 @@ Lean buffer to be the selected one, which it is not in that case."
               (lean4-info--marking-pin pin
               (magit-insert-section (lean4-info-section 'pinned)
                 (magit-insert-heading
-                 (lean4-info--heading
+                 (lean4-info--heading-text
+                  (lean4-info--heading
                   (lean4-info--marker-location-string
                    (lean4-info-pin-marker pin))
                   (lean4-info--pin-controls pin)
-                  "pinned"))
+                  "pinned")))
                 (lean4-info--indented
                   (lean4-info--insert-position
                    (lean4-info-pin-goals pin)
@@ -907,9 +818,10 @@ Lean buffer to be the selected one, which it is not in that case."
                    buffer)))))
             (when following
             (magit-insert-section (lean4-info-section 'position)
-            (magit-insert-heading (lean4-info--heading
-                                   location (lean4-info--controls)
-                                   (lean4-info--point-state)))
+            (magit-insert-heading
+             (lean4-info--heading-text
+              (lean4-info--heading location (lean4-info--controls)
+                                   (lean4-info--point-state))))
             ;; Say so, rather than leaving a bare heading: outside a proof
             ;; there is nothing to report, and a display that goes blank
             ;; reads like one that has stopped working.  VS Code words it
@@ -953,8 +865,7 @@ Lean buffer to be the selected one, which it is not in that case."
                 #'lean4-info-toggle-all-messages-pause
                 lean4-info-all-messages-paused)))
              all buffer))
-          (lean4-info--paint-chevrons)
-          (setq lean4-info--folds (lean4-info--fold-state)))))))))
+          (lean4-info--add-visibility-indicators))))))))
 
 ;;;; Refresh
 

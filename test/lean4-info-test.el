@@ -14,21 +14,97 @@
 (require 'ert)
 (require 'lean4-mode)
 
-(defun lean4-info-test--chevrons ()
-  "Return the indentation and fold indicator drawn on each heading.
 
-Both live in the `display' of the heading\='s first character, which the
-character itself follows; drop that to leave what is drawn in front of
-it."
-  (let (found)
-    (letrec ((walk (lambda (section)
-                     (when (lean4-info--foldable-p section)
-                       (let ((shown (get-text-property (oref section start)
-                                                       'display)))
-                         (push (and shown (substring shown 0 -1)) found)))
-                     (mapc walk (oref section children)))))
-      (funcall walk magit-root-section))
-    (nreverse found)))
+(defmacro lean4-info-test--with-fringe-indicators (&rest body)
+  "Evaluate BODY with `magit-section' drawing fold indicators in the fringe.
+
+The variable behind this was renamed and reshaped in magit-section 4:
+3.3.0, which Debian and Ubuntu ship, has
+`magit-section-visibility-indicator' holding a single cons, and later
+versions have `magit-section-visibility-indicators' holding an alist
+keyed by frame type.  Bind whichever exists.
+
+The fringe form is the one to ask for either way.  3.3.0 draws its other
+form, an ellipsis, only on a section that is already hidden, so it would
+show nothing here; and the fringe form makes a real overlay even under
+--batch, where the bitmap itself has nowhere to render."
+  (declare (indent 0) (debug t))
+  (let ((fringe '(magit-fringe-bitmap> . magit-fringe-bitmapv)))
+    `(cl-progv
+         (list (if (boundp 'magit-section-visibility-indicators)
+                   'magit-section-visibility-indicators
+                 'magit-section-visibility-indicator))
+         (list (if (boundp 'magit-section-visibility-indicators)
+                   '((,fringe) (?> . ?v))
+                 ',fringe))
+       ,@body)))
+
+(defun lean4-info-test--indicator-count ()
+  "Return the number of fold indicators drawn in this buffer."
+  (length (seq-filter (lambda (overlay)
+                        (overlay-get overlay 'magit-vis-indicator))
+                      (overlays-in (point-min) (point-max)))))
+
+(ert-deftest lean4-info-sections-show-fold-indicators-when-inserted ()
+  "A freshly built display shows which sections fold.
+
+Regression test.  `magit-section' updates its indicators only from
+`magit-section-show' and `magit-section-hide', so nothing inserted
+carried one until it had been toggled: the display looked as though
+nothing folded, and folding one section made that one -- and only that
+one -- grow an indicator."
+  (lean4-info-test--with-fringe-indicators
+    (lean4-ensure-info-buffer lean4-info-buffer-name)
+    (unwind-protect
+        (with-current-buffer lean4-info-buffer-name
+          (let ((inhibit-read-only t))
+            (erase-buffer)
+            (magit-insert-section (lean4-info-section 'root)
+              (magit-insert-section (lean4-info-section 'goals)
+                (magit-insert-heading "Goals:")
+                (magit-insert-section-body (insert "one goal\n")))))
+          (lean4-info--add-visibility-indicators)
+          (should (> (lean4-info-test--foldable-count) 0))
+          (should (= (lean4-info-test--indicator-count)
+                     (lean4-info-test--foldable-count))))
+      (kill-buffer lean4-info-buffer-name))))
+
+(ert-deftest lean4-info-indentation-is-real-text ()
+  "Sections are set in with spaces, as `magit-section' buffers are.
+
+Drawn text rather than a `line-prefix' or a `display' property: those
+are drawn only where a display line begins, or drawn even where the
+character is invisible, and folding a section puts the heading below it
+on the wrong side of both rules."
+  (with-temp-buffer
+    (lean4-info--insert "top\n")
+    (lean4-info--indented
+      (lean4-info--insert "one\n")
+      (lean4-info--indented (lean4-info--insert "two\n")))
+    (should (equal (buffer-string) "top\n  one\n    two\n"))
+    ;; Nothing out of band is left behind.
+    (should-not (text-property-not-all (point-min) (point-max)
+                                       'line-prefix nil))
+    (should-not (text-property-not-all (point-min) (point-max)
+                                       'display nil))))
+
+(ert-deftest lean4-info-indentation-keeps-the-text-properties ()
+  "Indenting a goal does not cost it what it carries.
+
+The goal text is propertized character by character, and that is what
+`lean4-render', ElDoc and xref read back out of it."
+  (let ((goal (concat (propertize "⊢ n" 'lean4-info 'handle)
+                      "\n"
+                      (propertize "  + 1" 'lean4-info 'handle))))
+    (with-temp-buffer
+      (lean4-info--indented (lean4-info--insert goal))
+      (goto-char (point-min))
+      (should (search-forward "⊢" nil t))
+      (should (eq (get-text-property (1- (point)) 'lean4-info) 'handle))
+      (goto-char (point-max))
+      (should (eq (get-text-property (1- (point)) 'lean4-info) 'handle))
+      ;; And the indentation itself carries nothing.
+      (should-not (get-text-property (point-min) 'lean4-info)))))
 
 (defun lean4-info-test--foldable-count ()
   "Return the number of sections in this buffer that have a body to fold."
@@ -39,191 +115,7 @@ it."
       (funcall walk magit-root-section))
     n))
 
-(ert-deftest lean4-info-sections-show-fold-indicators-when-inserted ()
-  "A freshly built goal display shows which sections fold.
 
-Regression test.  magit-section updates its own indicators only from
-`magit-section-show' and `magit-section-hide', so nothing inserted
-carried one until it had been toggled: the display looked as though
-nothing folded, and folding one section made that one section -- and
-only that one -- grow a chevron."
-  (lean4-ensure-info-buffer lean4-info-buffer-name)
-  (unwind-protect
-      (with-current-buffer lean4-info-buffer-name
-        (let ((inhibit-read-only t))
-          (erase-buffer)
-          (magit-insert-section (magit-section 'root)
-            (magit-insert-heading "Root:")
-            (magit-insert-section (magit-section 'goals)
-              (magit-insert-heading "Goals:")
-              (magit-insert-section-body (insert "one goal\n")))))
-        (lean4-info--paint-chevrons)
-        (should (> (lean4-info-test--foldable-count) 0))
-        (should (= (length (lean4-info-test--chevrons))
-                   (lean4-info-test--foldable-count)))
-        (should (seq-every-p #'identity (lean4-info-test--chevrons))))
-    (kill-buffer lean4-info-buffer-name)))
-
-(ert-deftest lean4-info-chevrons-are-indented-with-their-heading ()
-  "The indicator sits with the text it is about, not at the frame edge.
-
-Regression test.  magit-section draws in the fringe, which cannot be
-indented: a section set in from its parent had its text move right while
-its indicator stayed put, so the two drifted apart."
-  (lean4-ensure-info-buffer lean4-info-buffer-name)
-  (unwind-protect
-      (with-current-buffer lean4-info-buffer-name
-        (let ((inhibit-read-only t))
-          (erase-buffer)
-          (magit-insert-section (magit-section 'root)
-            (magit-insert-heading "Root:")
-            (lean4-info--indented
-              (magit-insert-section (magit-section 'goals)
-                (magit-insert-heading "Goals:")
-                (magit-insert-section-body (insert "one goal\n"))))))
-        (lean4-info--paint-chevrons)
-        (pcase-let ((`(,open . ,_) (lean4-info-chevron-pair))
-                    (`(,root ,goals) (lean4-info-test--chevrons)))
-          ;; The outer heading is not set in; the inner one is, and its
-          ;; indicator is set in with it rather than left behind.
-          (should (equal root open))
-          (should (equal goals (concat "  " open)))))
-    (kill-buffer lean4-info-buffer-name)))
-
-(ert-deftest lean4-info-chevrons-follow-folding ()
-  "Folding a section turns its indicator round, without being told."
-  (lean4-ensure-info-buffer lean4-info-buffer-name)
-  (unwind-protect
-      (with-current-buffer lean4-info-buffer-name
-        (let ((inhibit-read-only t))
-          (erase-buffer)
-          (magit-insert-section (magit-section 'root)
-            (magit-insert-section (magit-section 'goals)
-              (magit-insert-heading "Goals:")
-              (magit-insert-section-body (insert "body\n")))))
-        (lean4-info--paint-chevrons)
-        (setq lean4-info--folds (lean4-info--fold-state))
-        (let ((section (car (oref magit-root-section children))))
-          (pcase-let ((`(,open . ,closed) (lean4-info-chevron-pair)))
-            (should (equal (car (lean4-info-test--chevrons)) open))
-            (magit-section-hide section)
-            ;; No hook runs when magit folds; the repaint notices instead.
-            (lean4-info--repaint-chevrons)
-            (should (equal (car (lean4-info-test--chevrons)) closed))
-            (magit-section-show section)
-            (lean4-info--repaint-chevrons)
-            (should (equal (car (lean4-info-test--chevrons)) open)))))
-    (kill-buffer lean4-info-buffer-name)))
-
-(ert-deftest lean4-info-heading-below-a-folded-one-keeps-its-chevron ()
-  "Folding one section does not take the indicator off the next.
-
-Regression test.  The indicator was drawn in the line\='s `line-prefix',
-and folding a section makes `magit-section' cover its body including the
-newline before the next heading -- which leaves that heading at the edge
-of an invisible run, where a `line-prefix' stops being drawn.  The
-heading below a folded one lost its chevron, and its indentation with
-it."
-  (lean4-ensure-info-buffer lean4-info-buffer-name)
-  (unwind-protect
-      (with-current-buffer lean4-info-buffer-name
-        (let ((inhibit-read-only t))
-          (erase-buffer)
-          (magit-insert-section (magit-section 'root)
-            (lean4-info--indented
-              (magit-insert-section (magit-section 'a)
-                (magit-insert-heading "A heading")
-                (magit-insert-section-body (insert "body of A\n")))
-              (magit-insert-section (magit-section 'b)
-                (magit-insert-heading "B heading")
-                (magit-insert-section-body (insert "body of B\n"))))))
-        (lean4-info--paint-chevrons)
-        (pcase-let ((`(,open . ,closed) (lean4-info-chevron-pair))
-                    (a (nth 0 (oref magit-root-section children))))
-          (should (equal (lean4-info-test--chevrons)
-                         (list (concat "  " open) (concat "  " open))))
-          (magit-section-hide a)
-          (lean4-info--paint-chevrons)
-          ;; The folded one turns round; the one below keeps both its
-          ;; indicator and its indentation.
-          (should (equal (lean4-info-test--chevrons)
-                         (list (concat "  " closed) (concat "  " open))))
-          ;; And is indented once, not twice.  A heading following a
-          ;; folded section continues that section's display line, and a
-          ;; continued line is drawn with its `wrap-prefix' -- so a
-          ;; heading carrying its indentation in both places got it
-          ;; twice.
-          (dolist (section (list a (nth 1 (oref magit-root-section
-                                                children))))
-            (let ((start (oref section start)))
-              (should (equal (get-text-property start 'line-prefix) ""))
-              (should (equal (get-text-property start 'wrap-prefix) ""))))))
-    (kill-buffer lean4-info-buffer-name)))
-
-(ert-deftest lean4-info-folding-leaves-no-chevron-hanging ()
-  "Folding a section leaves no indicator behind under it.
-
-Regression test.  A folded section\='s children are still in the buffer,
-merely invisible, and a `line-prefix' at the edge of an invisible run is
-drawn anyway -- which showed as a chevron hanging under a section that
-had just been folded shut."
-  (lean4-ensure-info-buffer lean4-info-buffer-name)
-  (unwind-protect
-      (with-current-buffer lean4-info-buffer-name
-        (let ((inhibit-read-only t))
-          (erase-buffer)
-          (magit-insert-section (magit-section 'root)
-            (magit-insert-section (magit-section 'parent)
-              (magit-insert-heading "Parent:")
-              (magit-insert-section-body
-                (lean4-info--indented
-                  (magit-insert-section (magit-section 'child)
-                    (magit-insert-heading "Child:")
-                    (magit-insert-section-body (insert "body\n"))))))))
-        (lean4-info--paint-chevrons)
-        (setq lean4-info--folds (lean4-info--fold-state))
-        (pcase-let ((`(,open . ,closed) (lean4-info-chevron-pair))
-                    (parent (car (oref magit-root-section children))))
-          (should (equal (lean4-info-test--chevrons)
-                         (list open (concat "  " open))))
-          (magit-section-hide parent)
-          (lean4-info--repaint-chevrons)
-          ;; The parent turns round; the child is drawn with nothing at
-          ;; all.  Emacs draws a `display' string even on an invisible
-          ;; character, so anything left on the hidden heading -- its
-          ;; indentation, its first letter -- would appear on screen with
-          ;; the rest of the heading gone.
-          (should (equal (lean4-info-test--chevrons) (list closed nil)))
-          (magit-section-show parent)
-          (lean4-info--repaint-chevrons)
-          (should (equal (lean4-info-test--chevrons)
-                         (list open (concat "  " open))))))
-    (kill-buffer lean4-info-buffer-name)))
-
-(ert-deftest lean4-info-indentation-accumulates ()
-  "Nested levels add up rather than replacing one another.
-
-The outer level is applied last, so it has to add itself in front of
-what the inner ones left."
-  (with-temp-buffer
-    (lean4-info--indented
-      (insert "one\n")
-      (lean4-info--indented (insert "two\n")))
-    (goto-char (point-min))
-    (should (equal (get-text-property (point) 'lean4-info-indent) "  "))
-    (forward-line 1)
-    (should (equal (get-text-property (point) 'lean4-info-indent) "    "))
-    ;; And still no spaces in the text itself.
-    (should (equal (buffer-string) "one\ntwo\n"))))
-
-(ert-deftest lean4-info-chevron-pair-suits-the-frame ()
-  "The pair is chosen for the frame, and is configurable."
-  (cl-letf (((symbol-function 'lean4-info--displayable-p) (lambda (&rest _) t)))
-    (should (equal (lean4-info-chevron-pair) '("▾ " . "▸ "))))
-  (cl-letf (((symbol-function 'lean4-info--displayable-p) #'ignore))
-    (should (equal (lean4-info-chevron-pair) '("- " . "+ "))))
-  (let ((lean4-info-chevrons '("D " . "R ")))
-    (should (equal (lean4-info-chevron-pair) '("D " . "R ")))))
 
 (defun lean4-info-test--insert-message (diagnostic buffer)
   "Insert DIAGNOSTIC for BUFFER into a fresh section tree, and return it."
@@ -364,9 +256,9 @@ there was nothing to fold and no chevron to say there might be."
               ;; Content is what makes a section foldable, and what the
               ;; indicator is drawn from.
               (should (oref message content)))
-            (lean4-info--paint-chevrons)
-            (should (member (car (lean4-info-chevron-pair))
-                            (lean4-info-test--chevrons)))))
+            (lean4-info-test--with-fringe-indicators
+              (lean4-info--add-visibility-indicators)
+              (should (> (lean4-info-test--indicator-count) 0)))))
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
@@ -466,25 +358,6 @@ a `lean4-info-section'."
                       'lean4-info-mouse-1))))
     (kill-buffer lean4-info-buffer-name)))
 
-
-(ert-deftest lean4-info-no-chevron-on-a-section-that-cannot-fold ()
-  "A heading with an empty body gets no indicator.
-Folding it would do nothing, so saying it can be folded is a lie."
-  (lean4-ensure-info-buffer lean4-info-buffer-name)
-  (unwind-protect
-      (with-current-buffer lean4-info-buffer-name
-        (let ((inhibit-read-only t))
-          (erase-buffer)
-          (magit-insert-section (magit-section 'root)
-            (magit-insert-section (magit-section 'empty)
-              (magit-insert-heading "Empty:"))
-            (magit-insert-section (magit-section 'full)
-              (magit-insert-heading "Full:")
-              (magit-insert-section-body (insert "body\n")))))
-        (lean4-info--paint-chevrons)
-        (should (equal (lean4-info-test--chevrons)
-                       (list (car (lean4-info-chevron-pair))))))
-    (kill-buffer lean4-info-buffer-name)))
 
 
 (ert-deftest lean4-info-return-goes-to-the-thing-at-point ()
@@ -646,16 +519,6 @@ two
       (set-marker (lean4-info-pin-marker pin) nil))))
 
 
-(ert-deftest lean4-info-indents-without-touching-the-text ()
-  "Indentation is a display property, not spaces in the buffer.
-
-The goal text carries the positions `lean4-render', ElDoc and xref read
-back out of it; inserting characters into it would move every one."
-  (with-temp-buffer
-    (lean4-info--indented (insert "goal\nmore\n"))
-    (should (equal (buffer-string) "goal\nmore\n"))
-    (should (equal (get-text-property (point-min) 'line-prefix) "  "))
-    (should (equal (get-text-property (point-min) 'wrap-prefix) "  "))))
 
 (ert-deftest lean4-info-each-section-reports-its-own-state ()
   "Pinned and paused are different things and belong to different sections.

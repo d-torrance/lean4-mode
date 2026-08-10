@@ -423,15 +423,13 @@ is in, and that is what the message is anchored to."
         (should (string-search (lean4-info-goto-glyph) (buffer-string)))
         ;; What the position has to say is set in from its heading; the
         ;; file's own messages are not.
+        ;; What the position has to say is set in from its heading; the
+        ;; file's own messages are not.  Indented with real spaces, as a
+        ;; `magit-section' buffer is.
         (goto-char (point-min))
-        (should (search-forward "Messages (" nil t))
-        (should (equal (get-text-property (match-beginning 0)
-                                          'lean4-info-indent)
-                       "  "))
+        (should (re-search-forward "^  Messages (" nil t))
         (goto-char (point-min))
-        (should (search-forward "All messages (" nil t))
-        (should-not (get-text-property (match-beginning 0)
-                                       'lean4-info-indent))))))
+        (should (re-search-forward "^All messages (" nil t))))))
 
 (ert-deftest lean4-e2e-silent-messages-belong-to-the-position ()
   "The completed-proof report shows at the proof, not in the file's list.
