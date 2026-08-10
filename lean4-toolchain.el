@@ -38,6 +38,7 @@
 
 ;;; Code:
 
+(require 'compile)
 (require 'seq)
 (require 'subr-x)
 (require 'url)
@@ -397,6 +398,118 @@ ask what each channel now resolves to."
             (message "%s is now at its newest version" channel)
           (user-error "Could not update %s: %s" channel
                       (string-trim output)))))))
+
+;;;; Installing a Lean version
+
+;;;###autoload
+(defun lean4-install-toolchain (toolchain)
+  "Download and install TOOLCHAIN, without making it the default.
+
+Runs `elan toolchain install'.  Choosing a version that is not installed
+in any of the other commands fetches it as a side effect; this is for
+fetching one ahead of needing it."
+  (interactive
+   (progn (lean4-toolchain--require-elan)
+          (list (lean4-toolchain--read "Install Lean version: "))))
+  (lean4-toolchain--require-elan)
+  (message "Installing %s..." toolchain)
+  (pcase-let ((`(,status . ,output)
+               (lean4-toolchain--elan "toolchain" "install" toolchain)))
+    (if (eq status 0)
+        (message "Installed %s" toolchain)
+      (user-error "Could not install %s: %s" toolchain (string-trim output)))))
+
+;;;; Elan itself
+
+;; VS Code installs elan by fetching a script from elan.lean-lang.org and
+;; running it -- which is what Lean's own setup guide tells anyone to do, and
+;; the only way onto a machine with no package manager for it.  The command is
+;; shown in full first: "an editor downloaded and ran a shell script" is worth
+;; being asked about rather than told about afterwards.
+
+(defconst lean4-elan-unix-installer
+  (concat "curl \"https://elan.lean-lang.org/elan-init.sh\" -sSf"
+          " | sh -s -- -y --default-toolchain " lean4-toolchain-stable)
+  "How to install elan anywhere with a POSIX shell.
+Taken from VS Code, which takes it from Lean\\='s setup guide.")
+
+(defconst lean4-elan-windows-installer
+  (concat
+   "$installCode = (Invoke-WebRequest"
+   " -Uri \"https://elan.lean-lang.org/elan-init.ps1\""
+   " -UseBasicParsing -ErrorAction Stop).Content; "
+   "$installer = [ScriptBlock]::Create("
+   "[System.Text.Encoding]::UTF8.GetString($installCode)); "
+   "Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope Process; "
+   "& $installer -NoPrompt 1 -DefaultToolchain " lean4-toolchain-stable)
+  "How to install elan on Windows, as PowerShell.
+The counterpart of VS Code\\='s own script.")
+
+(defun lean4-elan--installer ()
+  "Return the command that installs elan here, and the shell to run it in."
+  (if (memq system-type '(windows-nt ms-dos))
+      (cons lean4-elan-windows-installer "powershell")
+    (cons lean4-elan-unix-installer shell-file-name)))
+
+;;;###autoload
+(defun lean4-install-elan ()
+  "Install elan, which installs and selects Lean versions.
+
+Fetches and runs the installer from elan.lean-lang.org, which is what VS
+Code does and what Lean\\='s setup guide describes.  The exact command is
+shown first, since this downloads a script and runs it.
+
+The output goes to a compilation buffer.  Emacs will not find the new
+elan on the variable `exec-path' until the environment it was started with is
+refreshed, which in practice means restarting Emacs."
+  (interactive)
+  (when (lean4-toolchain--elan-major-version)
+    (user-error "Elan is already installed; `lean4-update-elan' updates it"))
+  (pcase-let ((`(,command . ,shell) (lean4-elan--installer)))
+    (unless (yes-or-no-p
+             (format "Run this to install elan?\n  %s\nProceed? " command))
+      (user-error "Not installing elan"))
+    (let ((shell-file-name shell)
+          (compilation-buffer-name-function (lambda (&rest _) "*elan*")))
+      (compile command))))
+
+;;;###autoload
+(defun lean4-update-elan ()
+  "Update elan itself, with `elan self update'.
+This updates the tool that manages Lean versions, not any Lean version;
+`lean4-update-release-channel' does that."
+  (interactive)
+  (lean4-toolchain--require-elan)
+  (unless (yes-or-no-p "Update elan itself? ")
+    (user-error "Not updating elan"))
+  (message "Updating elan...")
+  (pcase-let ((`(,status . ,output) (lean4-toolchain--elan "self" "update")))
+    (if (eq status 0)
+        (message "%s" (string-trim output))
+      (user-error "Could not update elan: %s" (string-trim output)))))
+
+;;;###autoload
+(defun lean4-uninstall-elan ()
+  "Remove elan, and with it every Lean version it installed.
+
+`elan self uninstall' takes the toolchains with it, so every project on
+this machine loses the Lean it was using and both Lean and Lake leave the
+PATH.  Asked twice, there being no undoing it short of installing elan
+again and fetching every version afresh."
+  (interactive)
+  (lean4-toolchain--require-elan)
+  (let ((installed (length (ignore-errors (lean4-toolchain-installed)))))
+    (unless (yes-or-no-p
+             (format "Remove elan and all %d Lean version%s it installed? "
+                     installed (if (= installed 1) "" "s")))
+      (user-error "Not removing elan"))
+    (unless (yes-or-no-p "This cannot be undone.  Really remove elan? ")
+      (user-error "Not removing elan")))
+  (pcase-let ((`(,status . ,output)
+               (lean4-toolchain--elan "self" "uninstall" "-y")))
+    (if (eq status 0)
+        (message "Elan removed")
+      (user-error "Could not remove elan: %s" (string-trim output)))))
 
 ;;;; Uninstalling
 

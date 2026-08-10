@@ -79,6 +79,10 @@ Usage
 * Other Lake operations::
 * Completion::
 
+Choosing which Lean to use
+
+* Elan itself::
+
 The module hierarchy
 
 * It needs a built project::
@@ -711,10 +715,33 @@ its Lake dependencies.  To take a dependency's version instead, in order
 to stay compatible with it, @code{lean4-lake-update-dependency} is the command
 to use.
 
-Installing elan itself is not offered.  @samp{M-x lean4-diagnose} reports
-whether it is there and which version is active, which is the part that
-belongs in an editor; installing a toolchain manager is better done in a
-shell, where its output can be seen.  Lean's @uref{https://lean-lang.org/lean4/doc/setup.html, setup guide} covers it.
+@menu
+* Elan itself::
+@end menu
+
+@node Elan itself
+@subsection Elan itself
+
+Three more commands manage the tool rather than the versions.
+
+@code{lean4-install-elan} fetches and runs the installer from
+@samp{elan.lean-lang.org}, which is what VS Code does and what Lean's @uref{https://lean-lang.org/lean4/doc/setup.html, setup
+guide} describes.  It shows the exact command and asks before running it,
+since this downloads a script and executes it; output goes to a
+compilation buffer.  It refuses where elan is already installed.  Emacs
+will not find the new elan until the environment it was started with is
+refreshed, which usually means restarting Emacs.
+
+@code{lean4-update-elan} runs @samp{elan self update}.
+
+@code{lean4-uninstall-elan} runs @samp{elan self uninstall}, which takes every
+installed Lean version with it -- so every project on the machine loses
+the Lean it was using, and Lean and Lake leave the @samp{PATH}.  It asks
+twice.
+
+@code{lean4-install-toolchain} downloads a version without making it the
+default, for fetching one ahead of needing it; choosing a @samp{(not
+installed)} version in any of the other commands fetches it anyway.
 
 @node Searching Mathlib with Loogle
 @section Searching Mathlib with Loogle

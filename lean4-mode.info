@@ -71,6 +71,10 @@ Usage
 * Other Lake operations::
 * Completion::
 
+Choosing which Lean to use
+
+* Elan itself::
+
 The module hierarchy
 
 * It needs a built project::
@@ -644,11 +648,37 @@ lakefile and its Lake dependencies.  To take a dependency's version
 instead, in order to stay compatible with it,
 ‘lean4-lake-update-dependency’ is the command to use.
 
-   Installing elan itself is not offered.  ‘M-x lean4-diagnose’ reports
-whether it is there and which version is active, which is the part that
-belongs in an editor; installing a toolchain manager is better done in a
-shell, where its output can be seen.  Lean's setup guide
-(https://lean-lang.org/lean4/doc/setup.html) covers it.
+* Menu:
+
+* Elan itself::
+
+
+File: lean4-mode.info,  Node: Elan itself,  Up: Choosing which Lean to use
+
+2.10.1 Elan itself
+------------------
+
+Three more commands manage the tool rather than the versions.
+
+   ‘lean4-install-elan’ fetches and runs the installer from
+‘elan.lean-lang.org’, which is what VS Code does and what Lean's setup
+guide (https://lean-lang.org/lean4/doc/setup.html) describes.  It shows
+the exact command and asks before running it, since this downloads a
+script and executes it; output goes to a compilation buffer.  It refuses
+where elan is already installed.  Emacs will not find the new elan until
+the environment it was started with is refreshed, which usually means
+restarting Emacs.
+
+   ‘lean4-update-elan’ runs ‘elan self update’.
+
+   ‘lean4-uninstall-elan’ runs ‘elan self uninstall’, which takes every
+installed Lean version with it - so every project on the machine loses
+the Lean it was using, and Lean and Lake leave the ‘PATH’.  It asks
+twice.
+
+   ‘lean4-install-toolchain’ downloads a version without making it the
+default, for fetching one ahead of needing it; choosing a ‘(not
+installed)’ version in any of the other commands fetches it anyway.
 
 
 File: lean4-mode.info,  Node: Searching Mathlib with Loogle,  Next: The module hierarchy,  Prev: Choosing which Lean to use,  Up: Usage
@@ -989,39 +1019,40 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2135
-Node: Requirements2360
-Node: From source3440
-Node: With a source-based package manager3928
-Node: Native vc (Emacs 30 or later)4439
-Node: Doom-Emacs4884
-Node: Straight5203
-Node: Upgrading from version 15560
-Node: Usage6857
-Node: Keys in a Lean buffer8405
-Node: Keys in the goal display10075
-Node: The tactic state14436
-Node: Copying what is on display15228
-Node: How much of a goal to show16255
-Node: Errors and warnings19766
-Node: Building dependencies23519
-Node: Building24779
-Node: Mathlib's build cache25974
-Node: Choosing which Lean to use27329
-Node: Searching Mathlib with Loogle29956
-Node: The module hierarchy31566
-Node: It needs a built project33268
-Node: Other Lake operations33918
-Node: Completion35343
-Node: Configuration36465
-Node: Frequently used options36904
-Node: The goal display's controls38567
-Node: Older Lean versions39888
-Node: Semantic highlighting40870
-Node: Optional packages42189
-Node: Troubleshooting42682
-Node: Common Pitfalls43332
-Node: Acknowledgements43933
+Node: Installation2180
+Node: Requirements2405
+Node: From source3485
+Node: With a source-based package manager3973
+Node: Native vc (Emacs 30 or later)4484
+Node: Doom-Emacs4929
+Node: Straight5248
+Node: Upgrading from version 15605
+Node: Usage6902
+Node: Keys in a Lean buffer8450
+Node: Keys in the goal display10120
+Node: The tactic state14481
+Node: Copying what is on display15273
+Node: How much of a goal to show16300
+Node: Errors and warnings19811
+Node: Building dependencies23564
+Node: Building24824
+Node: Mathlib's build cache26019
+Node: Choosing which Lean to use27374
+Node: Elan itself29692
+Node: Searching Mathlib with Loogle30887
+Node: The module hierarchy32497
+Node: It needs a built project34199
+Node: Other Lake operations34849
+Node: Completion36274
+Node: Configuration37396
+Node: Frequently used options37835
+Node: The goal display's controls39498
+Node: Older Lean versions40819
+Node: Semantic highlighting41801
+Node: Optional packages43120
+Node: Troubleshooting43613
+Node: Common Pitfalls44263
+Node: Acknowledgements44864
 
 End Tag Table
 

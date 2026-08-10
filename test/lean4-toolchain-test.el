@@ -216,5 +216,118 @@ VS Code draws the same distinction: a project pins a version."
       (lambda (_) '(0 . "elan 4.2.2\n"))
     (should-error (lean4-uninstall-toolchains nil) :type 'user-error)))
 
+;;;; Elan itself
+
+(ert-deftest lean4-toolchain-installer-is-the-documented-one ()
+  "The command is the one Lean's setup guide gives, as VS Code uses it."
+  (should (string-search "elan.lean-lang.org/elan-init.sh"
+                         lean4-elan-unix-installer))
+  (should (string-search "--default-toolchain leanprover/lean4:stable"
+                         lean4-elan-unix-installer))
+  (should (string-search "elan-init.ps1" lean4-elan-windows-installer))
+  ;; PowerShell where PowerShell is what there is.
+  (let ((system-type 'windows-nt))
+    (should (equal (cdr (lean4-elan--installer)) "powershell")))
+  (let ((system-type 'gnu/linux))
+    (should (equal (car (lean4-elan--installer)) lean4-elan-unix-installer))))
+
+(ert-deftest lean4-toolchain-install-elan-declines-when-it-is-there ()
+  "Installing over an existing elan is refused; updating is the command."
+  (lean4-toolchain-test--with-elan
+      (lambda (_) '(0 . "elan 4.2.2\n"))
+    (should-error (lean4-install-elan) :type 'user-error)))
+
+(ert-deftest lean4-toolchain-install-elan-asks-before-running-anything ()
+  "Declining runs nothing at all."
+  (lean4-toolchain-test--with-elan
+      (lambda (_) '(not-found . ""))
+    (let (compiled)
+      (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) nil))
+                ((symbol-function 'compile)
+                 (lambda (command &rest _) (setq compiled command))))
+        (should-error (lean4-install-elan) :type 'user-error))
+      (should-not compiled))))
+
+(ert-deftest lean4-toolchain-install-elan-runs-the-shown-command ()
+  "What was agreed to is what runs."
+  (lean4-toolchain-test--with-elan
+      (lambda (_) '(not-found . ""))
+    (let (compiled shown)
+      (cl-letf (((symbol-function 'yes-or-no-p)
+                 (lambda (prompt &rest _) (setq shown prompt) t))
+                ((symbol-function 'compile)
+                 (lambda (command &rest _) (setq compiled command))))
+        (lean4-install-elan))
+      (should (equal compiled (car (lean4-elan--installer))))
+      ;; The command is in the question, not merely implied by it.
+      (should (string-search (car (lean4-elan--installer)) shown)))))
+
+(ert-deftest lean4-toolchain-update-elan-asks-first ()
+  "Declining leaves elan alone."
+  (let (calls)
+    (lean4-toolchain-test--with-elan
+        (lambda (arguments)
+          (push arguments calls)
+          (cons 0 (if (equal arguments '("--version")) "elan 4.2.2\n" "")))
+      (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) nil)))
+        (should-error (lean4-update-elan) :type 'user-error))
+      (should-not (member '("self" "update") calls)))))
+
+(ert-deftest lean4-toolchain-update-elan-runs-self-update ()
+  "Agreeing runs `elan self update' and nothing else."
+  (let (calls)
+    (lean4-toolchain-test--with-elan
+        (lambda (arguments)
+          (push arguments calls)
+          (cons 0 (if (equal arguments '("--version"))
+                      "elan 4.2.2\n"
+                    "elan updated\n")))
+      (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                ((symbol-function 'message) #'ignore))
+        (lean4-update-elan))
+      (should (member '("self" "update") calls)))))
+
+(ert-deftest lean4-toolchain-uninstall-elan-asks-twice ()
+  "One `yes' is not enough to remove elan and every Lean with it."
+  (let ((asked 0) calls)
+    (lean4-toolchain-test--with-elan
+        (lambda (arguments)
+          (push arguments calls)
+          (cons 0 (if (equal arguments '("--version"))
+                      "elan 4.2.2\n"
+                    lean4-toolchain-test--state)))
+      ;; Yes to the first question, no to the second: nothing happens.
+      (cl-letf (((symbol-function 'yes-or-no-p)
+                 (lambda (&rest _) (cl-incf asked) (= asked 1))))
+        (should-error (lean4-uninstall-elan) :type 'user-error))
+      (should (= asked 2))
+      (should-not (member '("self" "uninstall" "-y") calls)))))
+
+(ert-deftest lean4-toolchain-uninstall-elan-runs-self-uninstall ()
+  "Both answers yes runs it, with the flag that stops elan asking again."
+  (let (calls)
+    (lean4-toolchain-test--with-elan
+        (lambda (arguments)
+          (push arguments calls)
+          (cons 0 (if (equal arguments '("--version"))
+                      "elan 4.2.2\n"
+                    lean4-toolchain-test--state)))
+      (cl-letf (((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                ((symbol-function 'message) #'ignore))
+        (lean4-uninstall-elan))
+      (should (member '("self" "uninstall" "-y") calls)))))
+
+(ert-deftest lean4-toolchain-install-toolchain-runs-elan-install ()
+  "Installing a version ahead of needing it."
+  (let (calls)
+    (lean4-toolchain-test--with-elan
+        (lambda (arguments)
+          (push arguments calls)
+          (cons 0 (if (equal arguments '("--version")) "elan 4.2.2\n" "")))
+      (cl-letf (((symbol-function 'message) #'ignore))
+        (lean4-install-toolchain "leanprover/lean4:v4.33.0"))
+      (should (member '("toolchain" "install" "leanprover/lean4:v4.33.0")
+                      calls)))))
+
 (provide 'lean4-toolchain-test)
 ;;; lean4-toolchain-test.el ends here

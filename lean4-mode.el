@@ -188,7 +188,12 @@ and which is what this mode did before."
      ["Set the default Lean version..."    lean4-select-default-toolchain t]
      "--"
      ["Update a release channel..."        lean4-update-release-channel   t]
-     ["Remove Lean versions..."            lean4-uninstall-toolchains     t])
+      ["Install a Lean version..."         lean4-install-toolchain        t]
+     ["Remove Lean versions..."            lean4-uninstall-toolchains     t]
+     "--"
+     ["Update elan"                        lean4-update-elan              t]
+     ["Install elan..."                    lean4-install-elan             t]
+     ["Remove elan..."                     lean4-uninstall-elan           t])
     ("Module hierarchy"
      ["What this file imports"    lean4-module-hierarchy         t]
      ["What imports this file"    lean4-module-hierarchy-inverse t]

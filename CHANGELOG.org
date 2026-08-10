@@ -219,9 +219,14 @@ xref, project roots through =project.el=.
   ones.  The versions offered include the released ones that are not
   installed, fetched from =release.lean-lang.org= as VS Code fetches them,
   each marked accordingly and ordered newest first.  All four need elan 4
-  or later, as VS Code's do.  Installing elan itself is deliberately not
-  offered.
-- A test suite: 288 unit tests, and 37 end-to-end tests that run against
+  or later, as VS Code's do.
+- Elan itself can be managed too, as in VS Code: ~lean4-install-elan~
+  fetches and runs the installer from =elan.lean-lang.org=, showing the
+  command and asking first; ~lean4-update-elan~ runs =elan self update=;
+  ~lean4-uninstall-elan~ runs =elan self uninstall=, asking twice since it
+  takes every installed Lean version with it.  ~lean4-install-toolchain~
+  downloads a version ahead of needing it.
+- A test suite: 297 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed
