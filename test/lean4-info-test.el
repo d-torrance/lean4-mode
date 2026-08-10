@@ -69,6 +69,34 @@ one -- grow an indicator."
                      (lean4-info-test--foldable-count))))
       (kill-buffer lean4-info-buffer-name))))
 
+(ert-deftest lean4-info-buffer-has-a-mode-of-its-own ()
+  "The goal display is a major mode, not a buffer configured by hand.
+
+That is what makes \\[describe-mode] list its bindings, gives the reader
+`lean4-info-mode-hook', and lets `display-buffer-alist' match on the mode
+rather than on the buffer's name."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (with-current-buffer lean4-info-buffer-name
+        (should (derived-mode-p 'lean4-info-mode))
+        ;; Sections, folding and read-only come from the parent.
+        (should (derived-mode-p 'magit-section-mode))
+        (should buffer-read-only)
+        (should (eq (keymap-lookup nil "TAB") 'magit-section-toggle))
+        ;; Its own bindings win over the parent's.
+        (should (eq (keymap-lookup nil "RET") 'lean4-info-return))
+        (should (eq (syntax-table) lean4-syntax-table))
+        ;; `g' is `revert-buffer' here, from `special-mode', and reverting
+        ;; a buffer with no file behind it fails unless it is told what to
+        ;; do instead.
+        (should (eq (keymap-lookup nil "g") 'revert-buffer))
+        (let ((called nil))
+          (cl-letf (((symbol-function 'lean4-info-refresh-paused)
+                     (lambda () (setq called t))))
+            (revert-buffer))
+          (should called)))
+    (kill-buffer lean4-info-buffer-name)))
+
 (ert-deftest lean4-info-indentation-is-real-text ()
   "Sections are set in with spaces, as `magit-section' buffers are.
 

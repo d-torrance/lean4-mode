@@ -48,7 +48,7 @@ keyboard cannot."
                      ("C-c C-a" . lean4-info-toggle-all-messages-pause)))
     (should (eq (keymap-lookup lean4-mode-map (car binding)) (cdr binding)))
     ;; And in the display itself, so none of them needs the Lean buffer.
-    (should (eq (keymap-lookup lean4-info-buffer-map (car binding))
+    (should (eq (keymap-lookup lean4-info-mode-map (car binding))
                 (cdr binding)))))
 
 (ert-deftest lean4-mode-menu-offers-the-goal-display-commands ()

@@ -60,17 +60,6 @@
   "Lean4-Mode Info."
   :group 'lean4)
 
-;; Lean Info Mode (for "*lean4-info*" buffer)
-;; Automode List
-;;;###autoload
-(define-derived-mode lean4-info-mode prog-mode "Lean-Info"
-  "Major mode for Lean4-Mode Info Buffer."
-  :syntax-table lean4-syntax-table
-  :group 'lean4
-  (setq-local font-lock-defaults lean4-info-font-lock-defaults)
-  (setq-local indent-tabs-mode nil)
-  (setq-local lisp-indent-function 'common-lisp-indent-function))
-
 (defconst lean4-info-buffer-name "*Lean Goal*")
 
 (defvar-local lean4-goals nil
@@ -166,18 +155,47 @@ info buffer.")
 Released when the next set replaces them; Lean reference counts these
 and will hold the memory until told otherwise.")
 
-(defvar-keymap lean4-info-buffer-map
-  :doc "Keymap for the *Lean Goal* buffer."
+(defvar-keymap lean4-info-mode-map
+  :doc "Keymap for the *Lean Goal* buffer.
+`magit-section-mode-map' is its parent, so folding, movement and TAB are
+whatever the reader\='s Magit does."
   ;; `M-.' comes free from the xref backend; RET goes to whatever is at
   ;; point, which on a term is the same thing.
   "RET" #'lean4-info-return
-  "TAB" #'magit-section-toggle
   "C-c C-t" #'lean4-info-goto-type-definition
   "C-c C-SPC" #'lean4-info-toggle-pause
   "C-c C-s" #'lean4-info-toggle-pin
   "C-c C-o" #'lean4-info-toggle-message-order
   "C-c C-a" #'lean4-info-toggle-all-messages-pause
   "C-c C-g" #'lean4-info-refresh-paused)
+
+(define-derived-mode lean4-info-mode magit-section-mode "Lean Goal"
+  "Major mode for the *Lean Goal* buffer.
+
+A mode of its own rather than settings applied to the buffer by hand:
+\\[describe-mode] then lists what the display answers to, `lean4-info-mode-hook'
+gives the reader somewhere to add to it, and `display-buffer-alist' can
+match on the mode rather than on the buffer\='s name.
+
+Hover and jumping are offered through the standard hooks, so the
+reader\='s own ElDoc and xref frontends present them.
+
+Read-only and undo-less already, from `magit-section-mode'."
+  :syntax-table lean4-syntax-table
+  :interactive nil
+  :group 'lean4-info
+  ;; `g', which `special-mode' binds to `revert-buffer', otherwise fails
+  ;; on a buffer with no file behind it.  Refetching is what reverting
+  ;; means here.
+  (setq-local revert-buffer-function
+              (lambda (&rest _) (lean4-info-refresh-paused)))
+  (add-hook 'eldoc-documentation-functions
+            #'lean4-info-eldoc-function nil 'local)
+  (add-hook 'xref-backend-functions
+            #'lean4-info-xref-backend nil 'local)
+  (add-hook 'post-command-hook #'lean4-info-highlight-subterm nil 'local)
+  (add-hook 'post-command-hook #'lean4-info--fetch-open-traces nil 'local)
+  (eldoc-mode 1))
 
 (defun lean4-info--pin-at-point ()
   "Return the pin whose section point is in, or nil."
@@ -201,28 +219,11 @@ what both of them ask."
 
 
 (defun lean4-ensure-info-buffer (buffer)
-  "Create BUFFER if it does not exist.
-Also choose settings used for the *Lean Goal* buffer."
+  "Create BUFFER in `lean4-info-mode' if it does not exist.
+The buffer is supposed to be the *Lean Goal* buffer."
   (unless (get-buffer buffer)
     (with-current-buffer (get-buffer-create buffer)
-      (buffer-disable-undo)
-      (magit-section-mode)
-      (set-syntax-table lean4-syntax-table)
-      (use-local-map (make-composed-keymap lean4-info-buffer-map
-                                           (current-local-map)))
-      ;; Hover and jumping are offered through the standard hooks, so the
-      ;; user's own ElDoc and xref frontends handle presentation.
-      (add-hook 'eldoc-documentation-functions
-                #'lean4-info-eldoc-function nil 'local)
-      (add-hook 'xref-backend-functions
-                #'lean4-info-xref-backend nil 'local)
-      (add-hook 'post-command-hook
-                #'lean4-info-highlight-subterm nil 'local)
-      (add-hook 'post-command-hook
-                #'lean4-info--fetch-open-traces nil 'local)
-
-      (eldoc-mode 1)
-      (setq buffer-read-only t))))
+      (lean4-info-mode))))
 
 (defun lean4-toggle-info-buffer (buffer)
   "Create or delete BUFFER.
@@ -254,9 +255,14 @@ multi-line declaration stays visible while point moves through it."
 (defun lean4-info--fontify-string (text)
   "Return TEXT fontified as Lean source, with inaccessible names dimmed.
 Used for goals arriving as plain text.  Interactive goals are already
-propertized by `lean4-render', which dims those names itself."
+propertized by `lean4-render', which dims those names itself.
+
+Font lock alone, rather than a major mode kept solely to carry these two
+settings: nothing here reads a mode, and the goal display's own mode is
+`lean4-info-mode', which is a different thing entirely."
   (with-temp-buffer
-    (delay-mode-hooks (lean4-info-mode))
+    (set-syntax-table lean4-syntax-table)
+    (setq-local font-lock-defaults lean4-info-font-lock-defaults)
     (insert text)
     (font-lock-ensure)
     (when lean4-highlight-inaccessible-names
