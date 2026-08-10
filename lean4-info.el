@@ -242,46 +242,6 @@ The buffer is supposed to be the *Lean Goal* buffer."
    ;; current window of current buffer is selected (i.e., in focus)
    (eq (current-buffer) (window-buffer))))
 
-;;;; Diagnostics
-
-(defun lean4-diagnostic-lsp-data (diagnostic)
-  "Return the raw LSP object behind Flymake DIAGNOSTIC, or nil.
-Eglot stashes the server's original `Diagnostic' there, which is the
-only way to reach Lean's extensions to it."
-  (alist-get 'eglot-lsp-diag (flymake-diagnostic-data diagnostic)))
-
-(defun lean4-diagnostic-full-range (diagnostic)
-  "Return the `fullRange' of Flymake DIAGNOSTIC, falling back to `range'.
-Lean reports two extents per diagnostic: `range', which is what gets
-underlined, and `fullRange', which covers the whole construct the
-message is about.  Servers older than the extension send only `range'."
-  (let ((lsp (lean4-diagnostic-lsp-data diagnostic)))
-    (or (plist-get lsp :fullRange)
-        (plist-get lsp :range))))
-
-(defun lean4-diagnostic-full-start-line (diagnostic)
-  "Return the zero-based line DIAGNOSTIC's full range starts on."
-  (thread-first (lean4-diagnostic-full-range diagnostic)
-                (plist-get :start)
-                (plist-get :line)))
-
-(defun lean4-diagnostic-full-end-line (diagnostic)
-  "Return the zero-based line DIAGNOSTIC's full range ends on."
-  (thread-first (lean4-diagnostic-full-range diagnostic)
-                (plist-get :end)
-                (plist-get :line)))
-
-(defun lean4-diagnostic-message (diagnostic)
-  "Return the message text of Flymake DIAGNOSTIC.
-Prefers the server's own wording: Eglot prefixes the text it hands
-Flymake with the server name, which is useful in the echo area but only
-noise in a buffer that shows nothing but Lean diagnostics."
-  (or (plist-get (lean4-diagnostic-lsp-data diagnostic) :message)
-      (let ((text (flymake-diagnostic-text diagnostic)))
-        ;; Eglot 1.12 stores a string here; later versions store the list
-        ;; (SOURCE CODE MESSAGE).
-        (if (listp text) (car (last text)) text))))
-
 (defun lean4-info--range (diagnostic)
   "Return the extent of raw LSP DIAGNOSTIC, preferring Lean's `fullRange'."
   (or (plist-get diagnostic :fullRange) (plist-get diagnostic :range)))
