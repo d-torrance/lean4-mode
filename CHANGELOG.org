@@ -82,6 +82,12 @@ xref, project roots through =project.el=.
   instead of switching ~electric-indent-local-mode~ off, which took a
   minor mode away from anyone who had turned it on.  The goal display
   likewise no longer turns ElDoc on for the reader.
+- The goal display follows point wherever point is moved from.  It
+  watched for movement with a hook local to the Lean buffer, so it saw
+  only commands run there: pressing a go-to control in the display sent
+  point elsewhere in the file and left the display reporting on the
+  position point had just left, until the Lean buffer was given a
+  command of its own.
 
 * Version 1.1.2
 

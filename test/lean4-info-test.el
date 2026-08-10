@@ -553,6 +553,119 @@ the Lean window already selected, the same code appeared to work."
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
+(ert-deftest lean4-info-follows-point-moved-from-outside-the-lean-buffer ()
+  "Point moving in the Lean buffer updates the display, whoever moved it.
+
+Regression test.  The watch for point moving was a hook local to the
+Lean buffer, so it only ever saw commands run there: pressing a go-to
+control in the display moved point in the file from the display's own
+buffer, and the display went on reporting on the position point had just
+left until the Lean buffer was given a command of its own."
+  (let ((source (get-buffer-create "*lean4-info-test-source*"))
+        scheduled)
+    (lean4-ensure-info-buffer lean4-info-buffer-name)
+    (unwind-protect
+        (cl-letf (((symbol-function 'lean4-info-buffer-redisplay-debounced)
+                   (lambda () (push (current-buffer) scheduled))))
+          (with-current-buffer source
+            (let ((lean4-mode-hook nil)
+                  (lean4-auto-start-server nil)
+                  (lean4-info-auto-open nil))
+              (lean4-mode))
+            (insert "example : True := trivial\n")
+            (goto-char (point-min)))
+          (with-current-buffer lean4-info-buffer-name
+            (setq lean4-info--source-buffer source)
+            ;; Bring the display up to date with the file as it stands.
+            (lean4-info--follow-point)
+            (should (equal scheduled (list source)))
+            ;; Nothing has moved, so there is nothing to do: the hook runs
+            ;; after every command in every buffer, and an update rebuilds
+            ;; the display and asks the server for goals afresh.
+            (setq scheduled nil)
+            (lean4-info--follow-point)
+            (should-not scheduled)
+            ;; A control in the display sends point elsewhere in the file
+            ;; without ever leaving the display's own buffer.
+            (with-current-buffer source (goto-char (point-max)))
+            (lean4-info--follow-point)
+            (should (equal scheduled (list source)))
+            ;; So does an edit that leaves point where it is.
+            (setq scheduled nil)
+            (with-current-buffer source
+              (save-excursion (insert "example : True := trivial\n")))
+            (lean4-info--follow-point)
+            (should (equal scheduled (list source)))))
+      (kill-buffer source)
+      (kill-buffer lean4-info-buffer-name))))
+
+(ert-deftest lean4-info-follows-a-buffer-it-has-been-away-from ()
+  "Returning to a Lean buffer brings its goals back, point or no point.
+
+The display shows one buffer at a time, so coming back to a file it has
+left has to be reported even though point in that file has not moved
+since -- which is what happens whenever the reader looks at one file and
+returns to another."
+  (let ((source (get-buffer-create "*lean4-info-test-source*"))
+        (other (get-buffer-create "*lean4-info-test-other*"))
+        scheduled)
+    (lean4-ensure-info-buffer lean4-info-buffer-name)
+    (unwind-protect
+        (cl-letf (((symbol-function 'lean4-info-buffer-redisplay-debounced)
+                   (lambda () (push (current-buffer) scheduled))))
+          (dolist (buffer (list source other))
+            (with-current-buffer buffer
+              (let ((lean4-mode-hook nil)
+                    (lean4-auto-start-server nil)
+                    (lean4-info-auto-open nil))
+                (lean4-mode))
+              (insert "example : True := trivial\n")))
+          (with-current-buffer lean4-info-buffer-name
+            (setq lean4-info--source-buffer source))
+          (with-current-buffer source
+            (lean4-info--follow-point)
+            (should (equal scheduled (list source))))
+          ;; The reader looks at the other file, which the display takes up.
+          (setq scheduled nil)
+          (with-current-buffer other
+            (lean4-info--follow-point)
+            (should (equal scheduled (list other))))
+          (with-current-buffer lean4-info-buffer-name
+            (setq lean4-info--source-buffer other))
+          ;; And comes back.  Point in the first file is where it was.
+          (setq scheduled nil)
+          (with-current-buffer source
+            (lean4-info--follow-point)
+            (should (equal scheduled (list source)))))
+      (kill-buffer source)
+      (kill-buffer other)
+      (kill-buffer lean4-info-buffer-name))))
+
+(ert-deftest lean4-info-updates-the-buffer-it-shows-from-any-window ()
+  "The display is due an update while the reader is reading the display.
+
+Its own window being selected is what a go-to control leaves behind, and
+what reading a long goal means.  The buffer whose goals are shown is
+still the one to report on; another Lean buffer, which the display is
+not following, is not."
+  (let ((source (get-buffer-create "*lean4-info-test-source*"))
+        (other (get-buffer-create "*lean4-info-test-other*")))
+    (lean4-ensure-info-buffer lean4-info-buffer-name)
+    (unwind-protect
+        (progn
+          (with-current-buffer lean4-info-buffer-name
+            (setq lean4-info--source-buffer source))
+          (delete-other-windows)
+          (set-window-buffer (selected-window) lean4-info-buffer-name)
+          (with-current-buffer source
+            (should (lean4-info-buffer-active lean4-info-buffer-name)))
+          (with-current-buffer other
+            (should-not (lean4-info-buffer-active lean4-info-buffer-name))))
+      (delete-other-windows)
+      (kill-buffer source)
+      (kill-buffer other)
+      (kill-buffer lean4-info-buffer-name))))
+
 (ert-deftest lean4-info-sections-carry-the-display-keymap ()
   "Every section carries the button bindings, heading and body alike.
 

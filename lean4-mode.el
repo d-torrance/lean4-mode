@@ -167,10 +167,7 @@ and which is what this mode did before."
     ["Customize lean4-mode" (customize-group 'lean4)          t]))
 
 (defconst lean4-hooks-alist
-  '((before-save-hook . lean4-whitespace-cleanup)
-    ;; Update the goal display as point moves.  Diagnostics arrive
-    ;; separately and are handled in `lean4-eglot'.
-    (post-command-hook . lean4-info-buffer-redisplay-debounced))
+  '((before-save-hook . lean4-whitespace-cleanup))
   "Hooks which lean4-mode needs to hook in.
 
 The `car' of each pair is a hook variable, the `cdr' a function

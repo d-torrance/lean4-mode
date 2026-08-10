@@ -879,6 +879,62 @@ stuck until it was closed and reopened."
       (with-current-buffer lean4-info-buffer-name
         (should-not (string-search "2 + 2 = 4" (buffer-string)))))))
 
+(defun lean4-e2e--followed-location ()
+  "Return the position the display says it is reporting on.
+The section following point is the first one in the display, so its
+heading -- which names the position -- is the buffer's first line."
+  (with-current-buffer lean4-info-buffer-name
+    (save-excursion
+      (goto-char (point-min))
+      (buffer-substring-no-properties (point) (line-end-position)))))
+
+(ert-deftest lean4-e2e-goal-display-follows-a-go-to-control ()
+  "Pressing a go-to control takes the display where it sends point.
+
+Regression test.  Point moving was watched for by a hook local to the
+Lean buffer, so it saw only commands run there -- and a control pressed
+by mouse runs with the display's own buffer current, `push-button'
+making it current again afterwards.  The jump happened and the display
+went on reporting on the position point had left, until the Lean buffer
+was given a command of its own."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (let ((source (current-buffer)))
+        ;; Start on the `sorry', whose goal is 2 + 2 = 4.
+        (lean4-e2e--show-goal-at lean4-e2e--sorry-line)
+        (should (string-search "Fixture.lean:8:" (lean4-e2e--followed-location)))
+        (with-current-buffer lean4-info-buffer-name
+          (should (string-search "2 + 2 = 4" (buffer-string))))
+        ;; Press the control beside the type error, which is elsewhere in
+        ;; the file entirely.
+        (lean4-e2e--wait-until
+         "the type error to be listed among the file's messages"
+         (lambda ()
+           (accept-process-output nil 0.05)
+           (with-current-buffer lean4-info-buffer-name
+             (string-search "Fixture.lean:10:" (buffer-string)))))
+        (with-current-buffer lean4-info-buffer-name
+          (goto-char (point-min))
+          (should (search-forward "Fixture.lean:10:" nil t))
+          (forward-line 0)
+          ;; The control set hard right of that message's own row.
+          (forward-button 1)
+          ;; As a click presses it: `push-button' runs a mouse action with
+          ;; the clicked window's buffer current and restores it, so the
+          ;; hook that notices point has moved runs here, not in the file.
+          (save-current-buffer (push-button))
+          (run-hooks 'post-command-hook))
+        (with-current-buffer source
+          (should (= (line-number-at-pos) 10)))
+        (lean4-e2e--wait-until
+         "the display to follow the control to the type error"
+         (lambda ()
+           (accept-process-output nil 0.05)
+           (string-search "Fixture.lean:10:" (lean4-e2e--followed-location))))
+        (with-current-buffer lean4-info-buffer-name
+          (should-not (string-search "2 + 2 = 4" (buffer-string))))))))
+
 ;;;; Pinning and pausing
 
 (ert-deftest lean4-e2e-info-buffer-pause-freezes-the-display ()

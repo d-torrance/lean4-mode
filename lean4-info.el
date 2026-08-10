@@ -197,7 +197,14 @@ Read-only and undo-less already, from `magit-section-mode'.
   (add-hook 'xref-backend-functions
             #'lean4-info-xref-backend nil 'local)
   (add-hook 'post-command-hook #'lean4-info-highlight-subterm nil 'local)
-  (add-hook 'post-command-hook #'lean4-info--fetch-open-traces nil 'local))
+  (add-hook 'post-command-hook #'lean4-info--fetch-open-traces nil 'local)
+  ;; Following point is watched for globally rather than in the Lean
+  ;; buffer, because point there can be moved by a command run anywhere;
+  ;; see `lean4-info--follow-point'.  Installed here and taken off with
+  ;; this buffer, so the one global hook the package adds exists only
+  ;; while there is a display for it to update.
+  (add-hook 'post-command-hook #'lean4-info--follow-point)
+  (add-hook 'kill-buffer-hook #'lean4-info--unfollow-point nil 'local))
 
 (defun lean4-info--pin-at-point ()
   "Return the pin whose section point is in, or nil."
@@ -230,13 +237,30 @@ The buffer is supposed to be the *Lean Goal* buffer."
     (lean4-ensure-info-buffer buffer)
     (display-buffer buffer)))
 
+(defun lean4-info--displayed-buffer ()
+  "Return the Lean buffer whose goals are on display, or nil.
+
+Recorded local to the info buffer as it is rendered, so it has to be
+read from there.  There is only ever one info buffer, so this asks about
+the one buffer rather than taking it as an argument."
+  (when-let* ((info (get-buffer lean4-info-buffer-name))
+              (source (buffer-local-value 'lean4-info--source-buffer info))
+              ((buffer-live-p source)))
+    source))
+
 (defun lean4-info-buffer-active (buffer)
   "Check whether given info BUFFER should show info for current buffer."
   (and
    ;; info buffer visible (on any frame)
    (get-buffer-window buffer t)
-   ;; current window of current buffer is selected (i.e., in focus)
-   (eq (current-buffer) (window-buffer))))
+   (or
+    ;; current window of current buffer is selected (i.e., in focus)
+    (eq (current-buffer) (window-buffer))
+    ;; Or this is the buffer the display is already following, whichever
+    ;; window is selected: point in a Lean buffer can be moved from
+    ;; outside it -- by a go-to control in the display itself, most of
+    ;; all -- and the display has to keep up when it is.
+    (eq (current-buffer) (lean4-info--displayed-buffer)))))
 
 (defun lean4-info--diagnostics-at-line (diagnostics line)
   "Return the raw LSP DIAGNOSTICS whose full range covers zero-based LINE.
@@ -1026,6 +1050,53 @@ to blink at the reader for as long as they kept typing."
                (with-current-buffer buffer
                  (lean4-info-buffer-redisplay)
                  (lean4-info-buffer-refresh))))))))
+
+;;;; Following point
+
+(defvar-local lean4-info--followed-state nil
+  "What the goal display was last told about this buffer.
+A list of point and the buffer's modification tick, compared after every
+command to notice that one of them has changed.")
+
+(defun lean4-info--followed-buffer ()
+  "Return the Lean buffer the goal display should be reporting on.
+
+The current buffer, when the reader is in a Lean buffer.  Otherwise the
+buffer already on display: that is the one whose point a control in the
+display moves, and the one an edit elsewhere in the session -- a
+diagnostics list, a compilation buffer -- sends point into."
+  (if (derived-mode-p 'lean4-mode)
+      (current-buffer)
+    (lean4-info--displayed-buffer)))
+
+(defun lean4-info--follow-point ()
+  "Update the goal display when point has moved in the buffer it follows.
+
+On `post-command-hook' globally, rather than local to the Lean buffer:
+what matters is where point in the Lean buffer now is, and a command run
+anywhere can move it.  A local hook saw only commands run in the Lean
+buffer itself, so pressing a go-to control in the display left the
+display reporting on the position point had just left -- it went on
+saying so until the reader gave the Lean buffer a command of its own.
+
+Nothing is done unless point or the text has actually changed, or the
+display is reporting on some other buffer.  The hook runs after every
+command in every buffer, and an update is neither free nor invisible: it
+rebuilds the display and asks the server for goals afresh."
+  (when-let* ((buffer (lean4-info--followed-buffer)))
+    (let ((displayed (lean4-info--displayed-buffer)))
+      (with-current-buffer buffer
+        (let ((state (list (point) (buffer-chars-modified-tick))))
+          (unless (and (equal state lean4-info--followed-state)
+                       (eq displayed buffer))
+            (setq lean4-info--followed-state state)
+            (lean4-info-buffer-redisplay-debounced)))))))
+
+(defun lean4-info--unfollow-point ()
+  "Stop watching where point goes, the goal display being gone.
+On the info buffer's `kill-buffer-hook', so the global hook that does
+the watching lives exactly as long as the display it serves."
+  (remove-hook 'post-command-hook #'lean4-info--follow-point))
 
 (defvar-local lean4-info--generation 0
   "Counter used to discard replies that arrive out of order.
