@@ -175,8 +175,8 @@ The goal text is propertized character by character, and that is what
 (ert-deftest lean4-info-controls-run-in-the-lean-buffer ()
   "A clicked control acts on the Lean buffer, not on the info buffer.
 
-Regression test.  `mouse-1' runs the command with the info buffer
-current, where pinning is meaningless -- `lean4-info-toggle-pin' needs
+Regression test.  A control pressed by mouse runs its command with the
+info buffer current, where pinning is meaningless -- `lean4-info-toggle-pin' needs
 point in a Lean buffer, so clicking the pin only raised an error."
   (let ((source (get-buffer-create "*lean4-info-test-source*")))
     (lean4-ensure-info-buffer lean4-info-buffer-name)
@@ -283,19 +283,57 @@ position and the one for the file."
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
-(defun lean4-info-test--click (position)
-  "Click POSITION in the window showing the info buffer.
-Drives `lean4-info-mouse-1' with the event a real click makes."
-  (let ((window (get-buffer-window lean4-info-buffer-name)))
-    (should window)
-    (lean4-info-mouse-1 (list 'mouse-1 (list window position '(0 . 0) 0)))))
+(ert-deftest lean4-info-the-display-answers-to-the-mouse-as-buttons-do ()
+  "The display puts back the `button.el' bindings `magit-section' shadows.
 
-(ert-deftest lean4-info-a-click-presses-controls-and-nothing-else ()
-  "`mouse-1' presses a control, and anywhere else only moves point.
+A button carries `button-map' on its `keymap' property, which
+`magit-section' overwrites, so the section keymap holds the two parts of
+it a control needs: `mouse-2' to press one, and the `follow-link'
+binding that lets `mouse-1-click-follows-link' reach `mouse-2'.  Folding
+stays with whatever `magit-section' offers."
+  (should (eq (keymap-lookup lean4-info-section-map "<mouse-2>")
+              'push-button))
+  (should (eq (keymap-lookup lean4-info-section-map "<follow-link>")
+              'mouse-face))
+  (dolist (key '("<mouse-1>" "<double-mouse-1>" "<left-fringe> <mouse-1>"
+                 "<left-margin> <mouse-1>"))
+    ;; `keymap-lookup' answers with a number, not nil, when the sequence
+    ;; runs past what the keymap defines.
+    (should-not (commandp (keymap-lookup lean4-info-section-map key)))))
 
-That is how `mouse-1' behaves throughout Emacs, and point on a subterm
-is what puts it under ElDoc.  RET reaches further, having no control
-under a pointer to press."
+(ert-deftest lean4-info-a-control-is-the-only-thing-a-click-presses ()
+  "The controls highlight under the pointer, and nothing else does.
+
+That highlight is what the `follow-link' binding answers with, so it is
+what decides where `mouse-1' presses rather than moves point: the go-to
+control is a link, and the position it names, the message under it and a
+subterm are all ordinary text."
+  (let ((source (get-buffer-create "Named.lean")))
+    (unwind-protect
+        (progn
+          (with-current-buffer source
+            (erase-buffer)
+            (insert "line one\nline two\n"))
+          (lean4-info-test--insert-message
+           '(:range (:start (:line 1 :character 0)) :message "boom") source)
+          (with-current-buffer lean4-info-buffer-name
+            (goto-char (point-min))
+            (should (search-forward (lean4-info-goto-glyph) nil t))
+            (should (get-text-property (match-beginning 0) 'mouse-face))
+            (goto-char (point-min))
+            (should (search-forward "Named.lean:2:0" nil t))
+            (should-not (get-text-property (match-beginning 0) 'mouse-face))
+            (goto-char (point-min))
+            (should (search-forward "boom" nil t))
+            (should-not (get-text-property (match-beginning 0) 'mouse-face))))
+      (kill-buffer source)
+      (kill-buffer lean4-info-buffer-name))))
+
+(ert-deftest lean4-info-pressing-a-control-goes-and-hands-the-focus-back ()
+  "`push-button' at a control runs it, which is how the mouse arrives.
+
+`mouse-2' presses the button, and `mouse-1' on a link is translated into
+`mouse-2' before it gets here, so both end up in `push-button'."
   (let ((source (get-buffer-create "Named.lean")))
     (unwind-protect
         (progn
@@ -312,80 +350,39 @@ under a pointer to press."
           (select-window (split-window))
           (set-window-buffer (selected-window) lean4-info-buffer-name)
           (with-current-buffer lean4-info-buffer-name
-            (setq lean4-info--source-buffer source))
-          ;; The control beside the message is what goes there by mouse,
-          ;; and it hands the focus back to the Lean window.
-          (let ((glyph (with-current-buffer lean4-info-buffer-name
-                         (goto-char (point-min))
-                         (should (search-forward (lean4-info-goto-glyph) nil t))
-                         (match-beginning 0))))
-            (lean4-info-test--click glyph))
+            (setq lean4-info--source-buffer source)
+            (goto-char (point-min))
+            (should (search-forward (lean4-info-goto-glyph) nil t))
+            (should (push-button (match-beginning 0))))
           (should (eq (selected-window) (get-buffer-window source)))
           (with-current-buffer source
-            (should (= (line-number-at-pos) 2))
-            (goto-char (point-min)))
-          ;; The label saying the same position is not a control: a click
-          ;; there moves point in the display and nothing else.
-          (let ((label (with-current-buffer lean4-info-buffer-name
-                         (goto-char (point-min))
-                         (should (search-forward "Named.lean:2:0" nil t))
-                         (match-beginning 0))))
-            (lean4-info-test--click label)
-            (with-current-buffer lean4-info-buffer-name
-              (should (= (point) label)))
-            (should (= (with-current-buffer source (point)) 1))
-            ;; And the click leaves its window selected, which is the
-            ;; window ElDoc describes point in.
-            (should (eq (selected-window)
-                        (get-buffer-window lean4-info-buffer-name)))
-            ;; RET, with no control to press, does go there.
-            (with-current-buffer lean4-info-buffer-name
-              (should (lean4-info--act-at label)))
-            (should (= (with-current-buffer source (line-number-at-pos)) 2)))
-          (with-current-buffer lean4-info-buffer-name
-            ;; Nothing to act on: RET and a click both only move point.
-            (goto-char (point-min))
-            (should-not (lean4-info--act-at (point)))
-            (should-not (lean4-info-return)))
-          ;; `mouse-1' is the one thing this binds; folding is left to
-          ;; whatever `magit-section' offers, so the display folds the
-          ;; way the reader's Magit does.
-          (should (eq (keymap-lookup lean4-info-section-map "<mouse-1>")
-                      'lean4-info-mouse-1))
-          (dolist (key '("<double-mouse-1>" "<left-fringe> <mouse-1>"
-                         "<left-margin> <mouse-1>"))
-            ;; `keymap-lookup' answers with a number, not nil, when the
-            ;; sequence runs past what the keymap defines.
-            (should-not (commandp (keymap-lookup lean4-info-section-map
-                                                 key)))))
+            (should (= (line-number-at-pos) 2))))
       (delete-other-windows)
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
 (ert-deftest lean4-info-a-subterm-is-left-to-eldoc-and-to-xref ()
-  "Clicking or pressing RET on a subterm leaves point on it, under ElDoc.
+  "A subterm is ordinary text: a click sets point on it, under ElDoc.
 
 Its definition is `\\[xref-find-definitions]', which the mode offers as
-an xref backend, and which VS Code spells Ctrl-click."
+an xref backend, and which VS Code spells Ctrl-click.  RET leaves it
+alone as well."
   (lean4-ensure-info-buffer lean4-info-buffer-name)
   (unwind-protect
-      (progn
-        (delete-other-windows)
-        (set-window-buffer (selected-window) lean4-info-buffer-name)
-        (with-current-buffer lean4-info-buffer-name
-          (let ((inhibit-read-only t))
-            (erase-buffer)
-            (magit-insert-section (lean4-info-section 'root)
-              (insert (propertize "Nat.succ" 'lean4-info '(:p 1)) "\n")))
-          (let ((jumps 0))
-            (cl-letf (((symbol-function 'xref-find-definitions)
-                       (lambda (&rest _) (interactive) (cl-incf jumps))))
-              (goto-char (point-max))
-              (lean4-info-test--click (point-min))
-              (should (= (point) (point-min)))
-              (should-not (lean4-info-return))
-              (should (= jumps 0))))))
-    (delete-other-windows)
+      (with-current-buffer lean4-info-buffer-name
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (magit-insert-section (lean4-info-section 'root)
+            (insert (propertize "Nat.succ" 'lean4-info '(:p 1)) "\n")))
+        ;; Not a link, so `mouse-1' stays `mouse-set-point' here.
+        (should-not (get-text-property (point-min) 'mouse-face))
+        (should-not (button-at (point-min)))
+        (let ((jumps 0))
+          (cl-letf (((symbol-function 'xref-find-definitions)
+                     (lambda (&rest _) (interactive) (cl-incf jumps))))
+            (goto-char (point-min))
+            (should-not (lean4-info-return))
+            (should (= jumps 0)))))
     (kill-buffer lean4-info-buffer-name)))
 
 
@@ -557,7 +554,7 @@ the Lean window already selected, the same code appeared to work."
       (kill-buffer lean4-info-buffer-name))))
 
 (ert-deftest lean4-info-sections-carry-the-display-keymap ()
-  "Every section answers to `mouse-1', heading and body alike.
+  "Every section carries the button bindings, heading and body alike.
 
 `magit-section' puts its own keymap over a section, and over a heading
 line again whenever the section is folded, so a keymap on the text does
@@ -576,15 +573,15 @@ a `lean4-info-section'."
           (dolist (position (list (oref section start)
                                   (1- (oref section end))))
             (should (eq (keymap-lookup (get-text-property position 'keymap)
-                                       "<mouse-1>")
-                        'lean4-info-mouse-1)))
+                                       "<mouse-2>")
+                        'push-button)))
           ;; And again after folding, which is when `magit-section' would
           ;; have overwritten a keymap put on the text.
           (magit-section-hide section)
           (should (eq (keymap-lookup
                        (get-text-property (oref section start) 'keymap)
-                       "<mouse-1>")
-                      'lean4-info-mouse-1))))
+                       "<mouse-2>")
+                      'push-button))))
     (kill-buffer lean4-info-buffer-name)))
 
 
@@ -713,7 +710,7 @@ order they start in."
   "The controls on the file's message heading can be clicked.
 
 Regression test.  Every section of the display is a `lean4-info-section',
-which is what carries the `mouse-1' binding, but this one was left a
+which is what carries the button bindings, but this one was left a
 plain `magit-section' -- so `magit-section' put its own heading keymap
 there instead and clicking the sort control did nothing."
   (let ((source (get-buffer-create "Sorted.lean")))
@@ -737,8 +734,8 @@ there instead and clicking the sort control did nothing."
               (should (eq (get-text-property position 'lean4-info-command)
                           'lean4-info-toggle-message-order))
               (should (eq (keymap-lookup (get-text-property position 'keymap)
-                                         "<mouse-1>")
-                          'lean4-info-mouse-1)))))
+                                         "<mouse-2>")
+                          'push-button)))))
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
@@ -1055,8 +1052,8 @@ three
       (should (eq (get-text-property pause 'lean4-info-command heading)
                   'lean4-info-toggle-pause))
       ;; Each is a real button, so `button-at' and `forward-button' find
-      ;; it once it is on display.  What `mouse-1' is bound to belongs to
-      ;; the section rather than to these characters, and is checked
+      ;; it once it is on display.  What the mouse is bound to belongs
+      ;; to the section rather than to these characters, and is checked
       ;; where a section exists -- see
       ;; `lean4-info-sections-carry-the-display-keymap'.
       (erase-buffer)

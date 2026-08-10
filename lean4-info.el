@@ -762,18 +762,6 @@ still had none."
     (lean4-info--map-sections
      #'magit-section-maybe-update-visibility-indicator)))
 
-(defun lean4-info--press-at (position)
-  "Press the control at POSITION; return non-nil if there was one.
-
-Everything a click does beyond moving point, and the first thing RET
-tries; `lean4-info--act-at' is the rest of what RET does."
-  ;; Asked at the click position rather than left to the button's own
-  ;; keymap: `magit-section' overwrites the keymap property on a heading
-  ;; whenever the section is folded, taking the button's bindings with it.
-  (when-let* ((button (button-at position)))
-    (button-activate button)
-    t))
-
 (defun lean4-info--act-at (position)
   "Do whatever POSITION is on; return non-nil if there was anything.
 
@@ -782,29 +770,10 @@ message at point was reported for.  The position is carried by the whole
 heading, so RET goes from anywhere on the line, the go-to control being
 the one part of it a click acts on."
   (or
-   (lean4-info--press-at position)
+   (push-button position)
    (when-let* ((where (get-text-property position 'lean4-info-position)))
      (lean4-info--error-button-action where)
      t)))
-
-(defun lean4-info-mouse-1 (event)
-  "Press the control EVENT was clicked on, or move point there.
-
-What `mouse-1' does throughout Emacs: on a button it acts, and anywhere
-else it sets point.  Point on a subterm is what puts that subterm under
-ElDoc, so a click is how the reader asks what a term is.  The go-to
-control beside a message is what goes to the place it was reported for,
-and \\[xref-find-definitions] is what goes to a definition.
-
-The window the click landed in is selected, not merely made current for
-the call: ElDoc describes point in the selected window, from
-`post-command-hook'."
-  (interactive "e")
-  (let* ((posn (event-start event))
-         (position (posn-point posn)))
-    (select-window (posn-window posn))
-    (unless (lean4-info--press-at position)
-      (goto-char position))))
 
 (defvar-keymap lean4-info-section-map
   :doc "Keymap over every section of the goal display.
@@ -815,11 +784,19 @@ Putting a keymap on the text directly does not survive: `magit-section'
 overwrites the property on a heading line whenever the section is
 folded.
 
-Only `mouse-1' is bound here.  Folding by mouse is left to whatever
+What it holds is `button.el\='s own contract, which that overwriting
+takes with it: `button-map' rides on the `keymap' property of a button,
+so the controls arrive here having lost it.  `mouse-2' presses one
+again, and `mouse-1' reaches `mouse-2' through
+`mouse-1-click-follows-link', which asks the `follow-link' binding what
+counts as a link and is told that highlighted text does -- which in this
+display is the controls and nothing else.  So `mouse-1' is
+`mouse-set-point' everywhere else, and folding by mouse is whatever
 `magit-section' offers -- a double click and a click on the fringe or
 the margin from version 4, and nothing at all in 3.3.0 -- so that this
 display folds exactly the way the reader\='s Magit does."
-  "<mouse-1>" #'lean4-info-mouse-1)
+  "<mouse-2>" #'push-button
+  "<follow-link>" 'mouse-face)
 
 (defclass lean4-info-section (magit-section)
   ((keymap :initform 'lean4-info-section-map))
@@ -1436,12 +1413,11 @@ move made and then silently undone."
   "Return LABEL as a clickable control running COMMAND, described by HELP.
 ACTIVE marks the control as engaged, which shows in its face.
 
-A real button, so `button-at' and `forward-button' find it and the
-display costs nothing to reach from outside.  What it runs is kept in a
-property of its own rather than in `action': `lean4-info--act-at' reads
-that at the click position, the binding belonging to the section rather
-than to these few characters because that is the only kind
-`magit-section' leaves alone."
+A real button, so `push-button', `button-at' and `forward-button' all
+find it and the display costs nothing to reach from outside.  What it
+runs is kept in a property of its own rather than in `action', which
+`lean4-info--press-control' reads: a control runs its command in the
+Lean buffer, which the button knows nothing about."
   (make-text-button
    (copy-sequence label) nil
    'type 'lean4-info-control
