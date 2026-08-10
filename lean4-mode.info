@@ -58,6 +58,7 @@ Usage
 
 * Keys in a Lean buffer::
 * Keys in the goal display::
+* The tactic state::
 * How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
@@ -241,6 +242,7 @@ buffer.  To put it in a side window on the right:
 
 * Keys in a Lean buffer::
 * Keys in the goal display::
+* The tactic state::
 * How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
@@ -268,7 +270,7 @@ Key                      Description                                            
 ‘TAB’                    Indent, cycling through the alternatives when pressed again   ‘lean4-tab-indent’
 
 
-File: lean4-mode.info,  Node: Keys in the goal display,  Next: How much of a goal to show,  Prev: Keys in a Lean buffer,  Up: Usage
+File: lean4-mode.info,  Node: Keys in the goal display,  Next: The tactic state,  Prev: Keys in a Lean buffer,  Up: Usage
 
 2.2 Keys in the goal display
 ============================
@@ -337,9 +339,24 @@ a trace node until something asks - a ‘simp’ trace on a real proof is
 enormous - so opening one fetches them, once.
 
 
-File: lean4-mode.info,  Node: How much of a goal to show,  Next: Errors and warnings,  Prev: Keys in the goal display,  Up: Usage
+File: lean4-mode.info,  Node: The tactic state,  Next: How much of a goal to show,  Prev: Keys in the goal display,  Up: Usage
 
-2.3 How much of a goal to show
+2.3 The tactic state
+====================
+
+The goals at point are listed under ‘Tactic state’, with the number of
+them on the line below, both as VS Code words and places them.  A single
+goal is counted too - ‘1 goal’ - so the line is there on every proof
+rather than only on a branching one.
+
+   A finished proof reads ‘goals accomplished’ instead, which is Lean's
+own wording for it; VS Code says ‘No goals’ there and counts nothing,
+and neither does this.
+
+
+File: lean4-mode.info,  Node: How much of a goal to show,  Next: Errors and warnings,  Prev: The tactic state,  Up: Usage
+
+2.4 How much of a goal to show
 ==============================
 
 A goal in Mathlib can carry more hypotheses than fit on a screen, most
@@ -396,7 +413,7 @@ filtered; the settings simply have nothing to act on.
 
 File: lean4-mode.info,  Node: Errors and warnings,  Next: Building dependencies,  Prev: How much of a goal to show,  Up: Usage
 
-2.4 Errors and warnings
+2.5 Errors and warnings
 =======================
 
 Diagnostics are reported through Flymake, which Eglot drives.  ‘C-c ! n’
@@ -461,7 +478,7 @@ is following point and it would only lead where point already is.
 
 File: lean4-mode.info,  Node: Building dependencies,  Next: Mathlib's build cache,  Prev: Errors and warnings,  Up: Usage
 
-2.5 Building dependencies
+2.6 Building dependencies
 =========================
 
 Visiting a file does not build what it imports.  The server decides that
@@ -487,7 +504,7 @@ outright.
 
 File: lean4-mode.info,  Node: Mathlib's build cache,  Next: Completion,  Prev: Building dependencies,  Up: Usage
 
-2.6 Mathlib's build cache
+2.7 Mathlib's build cache
 =========================
 
 Mathlib is far too large to build locally, and does not need to be: its
@@ -514,7 +531,7 @@ whatever Lake reports, as with any other build.
 
 File: lean4-mode.info,  Node: Completion,  Prev: Mathlib's build cache,  Up: Usage
 
-2.7 Completion
+2.8 Completion
 ==============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -732,31 +749,32 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation1902
-Node: Requirements2127
-Node: From source3207
-Node: With a source-based package manager3695
-Node: Native vc (Emacs 30 or later)4206
-Node: Doom-Emacs4651
-Node: Straight4970
-Node: Upgrading from version 15327
-Node: Usage6624
-Node: Keys in a Lean buffer7991
-Node: Keys in the goal display9661
-Node: How much of a goal to show14032
-Node: Errors and warnings17541
-Node: Building dependencies21294
-Node: Mathlib's build cache22567
-Node: Completion23919
-Node: Configuration25039
-Node: Frequently used options25478
-Node: The goal display's controls27141
-Node: Older Lean versions28462
-Node: Semantic highlighting29444
-Node: Optional packages30763
-Node: Troubleshooting31256
-Node: Common Pitfalls31906
-Node: Acknowledgements32507
+Node: Installation1923
+Node: Requirements2148
+Node: From source3228
+Node: With a source-based package manager3716
+Node: Native vc (Emacs 30 or later)4227
+Node: Doom-Emacs4672
+Node: Straight4991
+Node: Upgrading from version 15348
+Node: Usage6645
+Node: Keys in a Lean buffer8033
+Node: Keys in the goal display9703
+Node: The tactic state14064
+Node: How much of a goal to show14670
+Node: Errors and warnings18171
+Node: Building dependencies21924
+Node: Mathlib's build cache23197
+Node: Completion24549
+Node: Configuration25669
+Node: Frequently used options26108
+Node: The goal display's controls27771
+Node: Older Lean versions29092
+Node: Semantic highlighting30074
+Node: Optional packages31393
+Node: Troubleshooting31886
+Node: Common Pitfalls32536
+Node: Acknowledgements33137
 
 End Tag Table
 

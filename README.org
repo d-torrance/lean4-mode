@@ -221,6 +221,17 @@ the mouse, with the same indicator.  Lean does not send the children of
 a trace node until something asks -- a =simp= trace on a real proof is
 enormous -- so opening one fetches them, once.
 
+** The tactic state
+
+The goals at point are listed under =Tactic state=, with the number of
+them on the line below, both as VS Code words and places them.  A single
+goal is counted too -- =1 goal= -- so the line is there on every proof
+rather than only on a branching one.
+
+A finished proof reads =goals accomplished= instead, which is Lean's own
+wording for it; VS Code says =No goals= there and counts nothing, and
+neither does this.
+
 ** How much of a goal to show
 
 A goal in Mathlib can carry more hypotheses than fit on a screen, most of

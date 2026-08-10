@@ -164,7 +164,12 @@ xref, project roots through =project.el=.
   sent them and rendered on the way into the buffer, so a change costs a
   redraw rather than another request -- and so reaches a pinned or paused
   section, where re-fetching would be the wrong thing.
-- A test suite: 224 unit tests, and 36 end-to-end tests that run against
+- The goals at point are headed =Tactic state=, with the number of them
+  on the line below, both as VS Code words and places them.  The heading
+  read =Goals:= and there was no count.  A single goal is counted too, so
+  the line is there on every proof; a finished proof still reads =goals
+  accomplished=, where VS Code counts nothing either.
+- A test suite: 229 unit tests, and 36 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed

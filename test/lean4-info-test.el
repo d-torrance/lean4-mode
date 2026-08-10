@@ -1089,14 +1089,11 @@ bottom, as did every refresh while reading a long goal."
 Conflating the first two either hides the reward for finishing or claims
 every ordinary line is proved."
   ;; Not inside a proof at all: the server answers with nothing.
-  (should-not (lean4-info--goals-value nil [] #'ignore))
+  (should-not (lean4-info--goals-value nil []))
   ;; Inside a proof with nothing left.
-  (should (eq (lean4-info--goals-value '(:goals []) [] #'ignore)
-              'accomplished))
-  ;; Something left to prove.
-  (should (equal (lean4-info--goals-value '(:goals ["x"]) ["x"]
-                                          (lambda (goals) (elt goals 0)))
-                 "x")))
+  (should (eq (lean4-info--goals-value '(:goals []) []) 'accomplished))
+  ;; Something left to prove, kept as a list to be rendered on the way in.
+  (should (equal (lean4-info--goals-value '(:goals ["x"]) ["x"]) '("x"))))
 
 (ert-deftest lean4-info-heading-reports-the-position ()
   "The heading says which file and position the display is reporting on."
@@ -1457,6 +1454,60 @@ at the reader for as long as it is on screen."
                   (lean4-info--goals-text
                    '((:goalPrefix "⊢ " :hyps [] :type (:text "True")))))
                  "⊢ True")))
+
+(ert-deftest lean4-info-goal-count-agrees-in-number ()
+  "One goal is \"1 goal\"; more are \"goals\".
+Counted even at one, which is what VS Code does -- so the line is there
+on every proof, not only a branching one."
+  (should (equal (substring-no-properties
+                  (lean4-info--goal-count '((:type (:text "A")))))
+                 "1 goal"))
+  (should (equal (substring-no-properties
+                  (lean4-info--goal-count '((:type (:text "A"))
+                                            (:type (:text "B")))))
+                 "2 goals")))
+
+(ert-deftest lean4-info-goal-count-counts-plain-goals-too ()
+  "Goals from a server too old for the RPC are still counted.
+They are kept as the list of strings Lean sent, which is countable even
+though it cannot be filtered."
+  (should (equal (substring-no-properties
+                  (lean4-info--goal-count '("⊢ A" "⊢ B")))
+                 "2 goals")))
+
+(ert-deftest lean4-info-goal-count-declines-what-it-cannot-count ()
+  "Pre-rendered text and a finished proof get no count.
+VS Code heads a finished proof \"No goals\" rather than counting to zero;
+this reports Lean\\='s own wording there instead."
+  (should-not (lean4-info--goal-count "⊢ already text"))
+  (should-not (lean4-info--goal-count 'accomplished)))
+
+(ert-deftest lean4-info-tactic-state-is-headed-and-counted ()
+  "The section reads \"Tactic state\" with the count on the line below."
+  (with-temp-buffer
+    (lean4-info-mode)
+    (let ((inhibit-read-only t))
+      (magit-insert-section (lean4-info-test-root)
+        (lean4-info--insert-position
+         '((:goalPrefix "⊢ " :hyps [] :type (:text "A"))
+           (:goalPrefix "⊢ " :hyps [] :type (:text "B")))
+         nil nil (current-buffer))))
+    (let ((text (substring-no-properties (buffer-string))))
+      (should (string-search "Tactic state" text))
+      (should-not (string-search "Goals:" text))
+      ;; The count sits between the heading and the first goal.
+      (should (string-match-p "Tactic state.*\n *2 goals\n *⊢ A" text)))))
+
+(ert-deftest lean4-info-accomplished-is-not-counted ()
+  "A finished proof keeps Lean's wording and gains no count line."
+  (with-temp-buffer
+    (lean4-info-mode)
+    (let ((inhibit-read-only t))
+      (magit-insert-section (lean4-info-test-root)
+        (lean4-info--insert-position 'accomplished nil nil (current-buffer))))
+    (let ((text (substring-no-properties (buffer-string))))
+      (should (string-search "goals accomplished" text))
+      (should-not (string-search "0 goals" text)))))
 
 (ert-deftest lean4-info-goals-text-passes-plain-text-through ()
   "Goals that arrived as text cannot be filtered, and are not touched.

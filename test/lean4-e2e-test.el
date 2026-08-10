@@ -237,9 +237,11 @@ window showing the source."
              (with-current-buffer lean4-info-buffer-name
                (string-search "2 + 2 = 4" (buffer-string)))))
           (with-current-buffer lean4-info-buffer-name
-            ;; `magit-insert-heading' appends the child count, so the
-            ;; heading reads "Goals (1)".
-            (should (string-search "Goals" (buffer-string)))
+            ;; VS Code's own heading, with the number of goals below it.
+            ;; Counted even at one, which is what VS Code does.
+            (should (string-search "Tactic state" (buffer-string)))
+            (should (string-search "1 goal" (buffer-string)))
+            (should-not (string-search "1 goals" (buffer-string)))
             ;; The server's own wording, not Eglot's "Lean 4: " prefixed
             ;; version, which is useful in the echo area but noise here.
             (should-not (string-search "Lean 4: " (buffer-string)))))

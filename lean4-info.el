@@ -405,10 +405,29 @@ leave out -- so `lean4-info-show-goal-names' arrives inverted."
         :hide-let-values lean4-info-hide-let-values))
 
 (defun lean4-info--goals-text (goals)
-  "Return GOALS as text, rendering them now if they are still a tree."
-  (if (stringp goals)
-      goals
-    (lean4-render-goals goals (lean4-info--goal-settings))))
+  "Return GOALS as text, rendering them now if they are not text yet.
+
+Three shapes reach this.  Interactive goals are a list of
+`InteractiveGoal', which the renderer turns into text under the settings
+above.  Plain goals, from a server too old for the interactive RPC, are a
+list of strings that Lean has already rendered and that only want
+fontifying.  A bare string is passed through, being text already."
+  (cond ((stringp goals) goals)
+        ((stringp (car goals))
+         (mapconcat #'lean4-info--fontify-string goals "\n\n"))
+        (t (lean4-render-goals goals (lean4-info--goal-settings)))))
+
+(defun lean4-info--goal-count (goals)
+  "Return how VS Code counts GOALS above a tactic state, or nil.
+
+Nil for text, which is a count of nothing countable, and for
+`accomplished', where VS Code says \"No goals\" and this reports Lean\\='s
+own wording instead.  Otherwise every state is counted, a single goal
+included: that is what VS Code does."
+  (unless (or (stringp goals) (eq goals 'accomplished))
+    (let ((count (length goals)))
+      (propertize (format "%d %s" count (if (= count 1) "goal" "goals"))
+                  'font-lock-face 'lean4-info-goal-count))))
 
 (defun lean4-info--term-goal-text (term-goal)
   "Return TERM-GOAL as text, rendering it now if it is still a tree."
@@ -715,11 +734,14 @@ BUFFER is the Lean buffer the messages belong to."
     (lean4-info--insert (propertize "No info found.\n" 'face 'shadow)))
   (when goals
     (magit-insert-section (lean4-info-section 'goals)
-      (magit-insert-heading (lean4-info--heading-text "Goals:"))
+      ;; "Tactic state", as VS Code heads this, with the number of goals on
+      ;; the line below it, as VS Code puts it there.
+      (magit-insert-heading (lean4-info--heading-text "Tactic state"))
       (lean4-info--section-body
         (if (eq goals 'accomplished)
             (lean4-info--insert "goals accomplished\n\n")
-          (lean4-info--insert (lean4-info--goals-text goals) "\n\n")))))
+          (lean4-info--insert (lean4-info--goal-count goals) "\n"
+                              (lean4-info--goals-text goals) "\n\n")))))
   (when (and term-goal
              (not (eq lean4-info-expected-type-visibility 'hidden)))
     (magit-insert-section (lean4-info-section 'term-goal
@@ -1390,17 +1412,18 @@ subterm for its type and no jumping from one to its definition."
   :group 'lean4-info
   :type 'boolean)
 
-(defun lean4-info--goals-value (result goals render)
+(defun lean4-info--goals-value (result goals)
   "Decide what the goal display should hold for RESULT.
 
 Three outcomes have to stay distinct, because they mean different
 things to the reader: nil when point is not inside a proof at all and
 the section should be absent; `accomplished' when Lean returned a proof
-state with nothing left to prove; and whatever RENDER makes of GOALS
-otherwise."
+state with nothing left to prove; and GOALS themselves otherwise, kept
+as they arrived so that `lean4-info--goals-text' can render them under
+whatever settings are in force when they reach the buffer."
   (cond ((null result) nil)
         ((seq-empty-p goals) 'accomplished)
-        (t (funcall render goals))))
+        (t (append goals nil))))
 
 (defun lean4-info--release-refs ()
   "Give back the references held by the goals being replaced."
@@ -1436,8 +1459,7 @@ it is still elaborating, and there is nothing useful to report."
      ;; Rendering is pure -- it reads the tree and asks the server nothing --
      ;; so doing it once per redisplay costs only the string work.
      (funcall show-goals
-              (lean4-info--goals-value result (plist-get result :goals)
-                                       (lambda (goals) (append goals nil)))))
+              (lean4-info--goals-value result (plist-get result :goals))))
    #'ignore)
   (lean4-rpc-get-interactive-term-goal
    handle
@@ -1482,12 +1504,11 @@ it is still elaborating, and there is nothing useful to report."
   (lean4-info--request
    server :$/lean/plainGoal generation
    (lambda (result)
+     ;; Kept as the list of strings Lean sent rather than joined here, so
+     ;; that these are counted above the state as interactive goals are.
+     ;; Fontifying is `lean4-info--goals-text's, on the way in.
      (setq lean4-goals
-           (lean4-info--goals-value
-            result (plist-get result :goals)
-            (lambda (goals)
-              (mapconcat #'lean4-info--fontify-string
-                         (append goals nil) "\n\n"))))))
+           (lean4-info--goals-value result (plist-get result :goals)))))
   (lean4-info--request
    server :$/lean/plainTermGoal generation
    (lambda (result)
@@ -1585,6 +1606,12 @@ many pins there are."
 (defface lean4-info-location
   '((t :inherit magit-section-heading))
   "Face for the source position the goal display is reporting on."
+  :group 'lean4-info)
+
+(defface lean4-info-goal-count
+  '((t :inherit bold))
+  "Face for the number of goals shown above a tactic state.
+VS Code emboldens it, as it does the headings."
   :group 'lean4-info)
 
 ;; Unicode with a fallback, the way `magit-section' picks its own
