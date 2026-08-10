@@ -60,6 +60,7 @@ Usage
 * Keys in the goal display::
 * Errors and warnings::
 * Building dependencies::
+* Mathlib's build cache::
 * Completion::
 
 Configuration
@@ -241,6 +242,7 @@ buffer.  To put it in a side window on the right:
 * Keys in the goal display::
 * Errors and warnings::
 * Building dependencies::
+* Mathlib's build cache::
 * Completion::
 
 
@@ -259,6 +261,8 @@ Key                      Description                                            
 ‘C-c C-r’                Restart the language server                                   ‘eglot-reconnect’
 ‘C-c C-x’ or ‘C-c C-l’   Execute Lean in stand-alone mode                              ‘lean4-std-exe’
 ‘C-c C-p C-l’            Build the package with Lake                                   ‘lean4-lake-build’
+‘C-c C-p C-c’            Fetch Mathlib's build cache for the package                   ‘lean4-lake-fetch-cache’
+‘C-c C-p C-f’            Fetch Mathlib's build cache for this file                     ‘lean4-lake-fetch-file-cache’
 ‘TAB’                    Indent, cycling through the alternatives when pressed again   ‘lean4-tab-indent’
 
 
@@ -396,7 +400,7 @@ appears in the top heading, but only while pinned: unpinned, the display
 is following point and it would only lead where point already is.
 
 
-File: lean4-mode.info,  Node: Building dependencies,  Next: Completion,  Prev: Errors and warnings,  Up: Usage
+File: lean4-mode.info,  Node: Building dependencies,  Next: Mathlib's build cache,  Prev: Errors and warnings,  Up: Usage
 
 2.4 Building dependencies
 =========================
@@ -422,9 +426,36 @@ beneath it.  ‘C-c C-p C-l’ (‘lean4-lake-build’) builds the package
 outright.
 
 
-File: lean4-mode.info,  Node: Completion,  Prev: Building dependencies,  Up: Usage
+File: lean4-mode.info,  Node: Mathlib's build cache,  Next: Completion,  Prev: Building dependencies,  Up: Usage
 
-2.5 Completion
+2.5 Mathlib's build cache
+=========================
+
+Mathlib is far too large to build locally, and does not need to be: its
+artifacts are built upstream and can be downloaded.  Three commands ask
+for them, all through ‘lake exe cache get’, which is Mathlib's own
+executable rather than anything Lake provides - so in a project that
+does not depend on Mathlib they fail, and Lake says so in the
+compilation buffer.
+
+Key             Description                           Command
+--------------------------------------------------------------------------------------------
+‘C-c C-p C-c’   The whole package                     ‘lean4-lake-fetch-cache’
+‘C-c C-p C-f’   This file and what it imports         ‘lean4-lake-fetch-file-cache’
+                Every open Lean file in the package   ‘lean4-lake-fetch-open-file-caches’
+
+   The last is in the Lean menu, under ‘Project’, along with the other
+two and ‘lake build’.  Fetching for one file is much quicker than for
+the whole of Mathlib and is usually what is wanted; fetching for the
+package is the thing to run once, after cloning.
+
+   Output goes to a compilation buffer, so ‘M-x next-error’ walks
+whatever Lake reports, as with any other build.
+
+
+File: lean4-mode.info,  Node: Completion,  Prev: Mathlib's build cache,  Up: Usage
+
+2.6 Completion
 ==============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -642,29 +673,30 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation1845
-Node: Requirements2070
-Node: From source3150
-Node: With a source-based package manager3638
-Node: Native vc (Emacs 30 or later)4149
-Node: Doom-Emacs4594
-Node: Straight4913
-Node: Upgrading from version 15270
-Node: Usage6567
-Node: Keys in a Lean buffer7877
-Node: Keys in the goal display9302
-Node: Errors and warnings13666
-Node: Building dependencies17417
-Node: Completion18679
-Node: Configuration19799
-Node: Frequently used options20238
-Node: The goal display's controls21901
-Node: Older Lean versions23222
-Node: Semantic highlighting24204
-Node: Optional packages25523
-Node: Troubleshooting26016
-Node: Common Pitfalls26666
-Node: Acknowledgements27267
+Node: Installation1871
+Node: Requirements2096
+Node: From source3176
+Node: With a source-based package manager3664
+Node: Native vc (Emacs 30 or later)4175
+Node: Doom-Emacs4620
+Node: Straight4939
+Node: Upgrading from version 15296
+Node: Usage6593
+Node: Keys in a Lean buffer7929
+Node: Keys in the goal display9599
+Node: Errors and warnings13963
+Node: Building dependencies17714
+Node: Mathlib's build cache18987
+Node: Completion20339
+Node: Configuration21459
+Node: Frequently used options21898
+Node: The goal display's controls23561
+Node: Older Lean versions24882
+Node: Semantic highlighting25864
+Node: Optional packages27183
+Node: Troubleshooting27676
+Node: Common Pitfalls28326
+Node: Acknowledgements28927
 
 End Tag Table
 

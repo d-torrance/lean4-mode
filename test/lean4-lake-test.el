@@ -16,6 +16,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'cl-lib)
 (require 'lean4-lake)
 
 (defmacro lean4-lake-test--with-tree (spec &rest body)
@@ -96,6 +97,89 @@ walks to the outermost `lean-toolchain'."
           (should-error (lean4-lake-find-dir-safe) :type 'error)
         (set-buffer-modified-p nil)
         (setq buffer-file-name nil)))))
+
+;;;; Running Lake
+
+(defmacro lean4-lake-test--capture (&rest body)
+  "Evaluate BODY and return the command `compile' was called with.
+Also returns the directory it was called from, as a cons cell; nil if
+`compile' was never reached."
+  (declare (indent 0) (debug (body)))
+  `(let (captured)
+     (cl-letf (((symbol-function 'compile)
+                (lambda (command &rest _)
+                  (setq captured (cons command default-directory)))))
+       ,@body)
+     captured))
+
+(defmacro lean4-lake-test--in-file (relative spec &rest body)
+  "Visit RELATIVE in a tree built from SPEC and evaluate BODY.
+The buffer is a temporary one with `buffer-file-name' set and
+`lean4-mode' claimed as the major mode, rather than a really visited
+file: `find-file-noselect' on a .lean file would start a language
+server.  Inside BODY, `root' is the tree's root."
+  (declare (indent 2) (debug (form form body)))
+  `(lean4-lake-test--with-tree ,spec
+     (with-temp-buffer
+       (setq buffer-file-name (expand-file-name ,relative root))
+       (setq major-mode 'lean4-mode)
+       (unwind-protect
+           (progn ,@body)
+         (set-buffer-modified-p nil)
+         (setq buffer-file-name nil)))))
+
+(ert-deftest lean4-lake-build-runs-lake-build-at-the-root ()
+  "`lake build' runs in the package directory, not the file's."
+  (lean4-lake-test--in-file "Pkg/Mod.lean" '("lakefile.toml" "Pkg/Mod.lean")
+    (let ((captured (lean4-lake-test--capture (lean4-lake-build))))
+      (should (string-suffix-p "build" (car captured)))
+      (should (equal (file-truename (cdr captured)) (file-truename root))))))
+
+(ert-deftest lean4-lake-fetch-cache-asks-for-the-whole-package ()
+  "Fetching the cache names no files."
+  (lean4-lake-test--in-file "Pkg/Mod.lean" '("lakefile.toml" "Pkg/Mod.lean")
+    (should (string-suffix-p "exe cache get"
+                             (car (lean4-lake-test--capture
+                                    (lean4-lake-fetch-cache)))))))
+
+(ert-deftest lean4-lake-fetch-file-cache-names-a-relative-path ()
+  "`lake exe cache get' takes paths relative to the package."
+  (lean4-lake-test--in-file "Pkg/Mod.lean" '("lakefile.toml" "Pkg/Mod.lean")
+    (should (string-suffix-p "exe cache get Pkg/Mod.lean"
+                             (car (lean4-lake-test--capture
+                                    (lean4-lake-fetch-file-cache)))))))
+
+(ert-deftest lean4-lake-fetch-file-cache-needs-a-file ()
+  "A buffer visiting nothing is a user error, not a wrong-type one."
+  (lean4-lake-test--with-tree '("lakefile.toml")
+    (with-temp-buffer
+      (setq default-directory root)
+      (should-error (lean4-lake-fetch-file-cache) :type 'user-error))))
+
+(ert-deftest lean4-lake-open-files-are-relative-and-filtered ()
+  "Only Lean buffers under the package are collected, relative to it."
+  (lean4-lake-test--with-tree '("lakefile.toml" "Pkg/Mod.lean" "Pkg/Other.lean")
+    (let ((buffers nil))
+      (unwind-protect
+          (progn
+            ;; Two Lean files under the package, one Lean file outside it, and
+            ;; one buffer that is not Lean at all.
+            (dolist (spec `((,(expand-file-name "Pkg/Mod.lean" root) lean4-mode)
+                            (,(expand-file-name "Pkg/Other.lean" root) lean4-mode)
+                            ("/elsewhere/Far.lean" lean4-mode)
+                            (,(expand-file-name "Pkg/notes.org" root) text-mode)))
+              (let ((buffer (generate-new-buffer " *lean4-lake-test*")))
+                (push buffer buffers)
+                (with-current-buffer buffer
+                  (setq buffer-file-name (nth 0 spec))
+                  (setq major-mode (nth 1 spec)))))
+            (should (equal (sort (lean4-lake--open-files root) #'string<)
+                           '("Pkg/Mod.lean" "Pkg/Other.lean"))))
+        (dolist (buffer buffers)
+          (with-current-buffer buffer
+            (set-buffer-modified-p nil)
+            (setq buffer-file-name nil))
+          (kill-buffer buffer))))))
 
 (provide 'lean4-lake-test)
 ;;; lean4-lake-test.el ends here

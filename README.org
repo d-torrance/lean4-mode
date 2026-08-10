@@ -152,6 +152,8 @@ buffer.  To put it in a side window on the right:
 | =C-c C-r=              | Restart the language server                              | ~eglot-reconnect~                 |
 | =C-c C-x= or =C-c C-l= | Execute Lean in stand-alone mode                         | ~lean4-std-exe~                   |
 | =C-c C-p C-l=          | Build the package with Lake                              | ~lean4-lake-build~                |
+| =C-c C-p C-c=          | Fetch Mathlib's build cache for the package              | ~lean4-lake-fetch-cache~          |
+| =C-c C-p C-f=          | Fetch Mathlib's build cache for this file                | ~lean4-lake-fetch-file-cache~     |
 | =TAB=                  | Indent, cycling through the alternatives when pressed again | ~lean4-tab-indent~             |
 
 ** Keys in the goal display
@@ -301,6 +303,29 @@ Both default off for the same reason: on a project the size of Mathlib,
 opening one file to read it should not commit you to building everything
 beneath it.  =C-c C-p C-l= (~lean4-lake-build~) builds the package
 outright.
+
+** Mathlib's build cache
+
+Mathlib is far too large to build locally, and does not need to be: its
+artifacts are built upstream and can be downloaded.  Three commands ask
+for them, all through =lake exe cache get=, which is Mathlib's own
+executable rather than anything Lake provides -- so in a project that
+does not depend on Mathlib they fail, and Lake says so in the
+compilation buffer.
+
+| Key           | Description                             | Command                             |
+|---------------+-----------------------------------------+-------------------------------------|
+| =C-c C-p C-c= | The whole package                       | ~lean4-lake-fetch-cache~            |
+| =C-c C-p C-f= | This file and what it imports           | ~lean4-lake-fetch-file-cache~       |
+|               | Every open Lean file in the package     | ~lean4-lake-fetch-open-file-caches~ |
+
+The last is in the Lean menu, under =Project=, along with the other two
+and =lake build=.  Fetching for one file is much quicker than for the
+whole of Mathlib and is usually what is wanted; fetching for the package
+is the thing to run once, after cloning.
+
+Output goes to a compilation buffer, so =M-x next-error= walks whatever
+Lake reports, as with any other build.
 
 ** Completion
 

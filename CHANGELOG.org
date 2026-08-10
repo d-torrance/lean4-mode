@@ -146,7 +146,14 @@ xref, project roots through =project.el=.
   their versions, the workspace root and its toolchain, the command the
   server was started with, and the current diagnostics.  The counterpart
   of VS Code's "Show Setup Information".
-- A test suite: 195 unit tests, and 35 end-to-end tests that run against
+- Mathlib's build cache can be fetched, through =lake exe cache get=:
+  ~lean4-lake-fetch-cache~ (=C-c C-p C-c=) for the whole package,
+  ~lean4-lake-fetch-file-cache~ (=C-c C-p C-f=) for the current file and
+  what it imports, and ~lean4-lake-fetch-open-file-caches~ for every open
+  Lean file in the package.  The counterparts of VS Code's three "Fetch
+  Mathlib Build Cache" commands.  The Lean menu gains a =Project=
+  submenu holding these and =lake build=.
+- A test suite: 200 unit tests, and 35 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed

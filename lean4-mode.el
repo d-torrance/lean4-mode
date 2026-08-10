@@ -144,6 +144,8 @@ and which is what this mode did before."
   "C-c C-k"     #'quail-show-key
   "C-c C-i"     #'lean4-toggle-info
   "C-c C-p C-l" #'lean4-lake-build
+  "C-c C-p C-c" #'lean4-lake-fetch-cache
+  "C-c C-p C-f" #'lean4-lake-fetch-file-cache
   "C-c C-d"     #'lean4-refresh-file-dependencies
   "C-c C-r"     #'eglot-reconnect
   "C-c C-s"     #'lean4-info-toggle-pin
@@ -164,6 +166,17 @@ and which is what this mode did before."
     "--"
     ["List of errors"       flymake-show-buffer-diagnostics   flymake-mode]
     ["Restart lean process" eglot-reconnect                   t]
+    "--"
+    ("Project"
+     ["Build with Lake"                lean4-lake-build              t]
+     "--"
+     ;; Mathlib's own executable, so these are absent in a project that does
+     ;; not depend on it; whether it is there is Lake's answer to give.
+     ["Fetch Mathlib cache"            lean4-lake-fetch-cache        t]
+     ["Fetch cache for this file"      lean4-lake-fetch-file-cache
+      buffer-file-name]
+     ["Fetch cache for open files"     lean4-lake-fetch-open-file-caches t])
+    "--"
     ["Customize lean4-mode" (customize-group 'lean4)          t]))
 
 (defconst lean4-hooks-alist

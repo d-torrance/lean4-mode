@@ -68,6 +68,7 @@ Usage
 * Keys in the goal display::
 * Errors and warnings::
 * Building dependencies::
+* Mathlib's build cache::
 * Completion::
 
 Configuration
@@ -242,6 +243,7 @@ buffer.  To put it in a side window on the right:
 * Keys in the goal display::
 * Errors and warnings::
 * Building dependencies::
+* Mathlib's build cache::
 * Completion::
 @end menu
 
@@ -276,6 +278,12 @@ buffer.  To put it in a side window on the right:
 @item @samp{C-c C-p C-l}
 @tab Build the package with Lake
 @tab @code{lean4-lake-build}
+@item @samp{C-c C-p C-c}
+@tab Fetch Mathlib's build cache for the package
+@tab @code{lean4-lake-fetch-cache}
+@item @samp{C-c C-p C-f}
+@tab Fetch Mathlib's build cache for this file
+@tab @code{lean4-lake-fetch-file-cache}
 @item @samp{TAB}
 @tab Indent, cycling through the alternatives when pressed again
 @tab @code{lean4-tab-indent}
@@ -452,6 +460,39 @@ Both default off for the same reason: on a project the size of Mathlib,
 opening one file to read it should not commit you to building everything
 beneath it.  @samp{C-c C-p C-l} (@code{lean4-lake-build}) builds the package
 outright.
+
+@node Mathlib's build cache
+@section Mathlib's build cache
+
+Mathlib is far too large to build locally, and does not need to be: its
+artifacts are built upstream and can be downloaded.  Three commands ask
+for them, all through @samp{lake exe cache get}, which is Mathlib's own
+executable rather than anything Lake provides -- so in a project that
+does not depend on Mathlib they fail, and Lake says so in the
+compilation buffer.
+
+@multitable {aaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@headitem Key
+@tab Description
+@tab Command
+@item @samp{C-c C-p C-c}
+@tab The whole package
+@tab @code{lean4-lake-fetch-cache}
+@item @samp{C-c C-p C-f}
+@tab This file and what it imports
+@tab @code{lean4-lake-fetch-file-cache}
+@item 
+@tab Every open Lean file in the package
+@tab @code{lean4-lake-fetch-open-file-caches}
+@end multitable
+
+The last is in the Lean menu, under @samp{Project}, along with the other two
+and @samp{lake build}.  Fetching for one file is much quicker than for the
+whole of Mathlib and is usually what is wanted; fetching for the package
+is the thing to run once, after cloning.
+
+Output goes to a compilation buffer, so @samp{M-x next-error} walks whatever
+Lake reports, as with any other build.
 
 @node Completion
 @section Completion
