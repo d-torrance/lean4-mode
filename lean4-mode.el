@@ -158,30 +158,10 @@ and which is what this mode did before."
   `("Lean 4"
     ["Execute lean"         lean4-execute                     t]
     ["Toggle info display"  lean4-toggle-info                 t]
-    ;; `:label' is evaluated each time the menu is drawn, so these say what
-    ;; the next invocation will do rather than naming the command.  Note
-    ;; that easymenu's two vector forms cannot be mixed: ["NAME" CMD ENABLE]
-    ;; or ["NAME" CMD :keyword value ...], never a positional ENABLE
-    ;; followed by keywords, which are silently dropped.
-    ["Pin this position" lean4-info-toggle-pin
-     :label (if (lean4-info--pin-at) "Unpin this position"
-              "Pin this position")]
-    ["Unpin every position" lean4-info-unpin-all
-     :enable lean4-info--pins]
-    ["Pause goal display" lean4-info-toggle-pause
-     :label (if lean4-info-paused
-                "Unpause goal display"
-              "Pause goal display")]
-    ["Refresh paused display" lean4-info-refresh-paused
-     :enable lean4-info-paused]
-    ["Pause all messages" lean4-info-toggle-all-messages-pause
-     :label (if lean4-info-all-messages-paused
-                "Unpause all messages"
-              "Pause all messages")]
-    ["Order all messages" lean4-info-toggle-message-order
-     :label (if (eq lean4-info-message-order 'point)
-                "Order all messages by position in the file"
-              "Order all messages by nearness to point")]
+    "--"
+    ;; The goal display's controls, shared with `lean4-info-mode-menu'.
+    ,@lean4-info-menu-items
+    "--"
     ["List of errors"       flymake-show-buffer-diagnostics   flymake-mode]
     ["Restart lean process" eglot-reconnect                   t]
     ["Customize lean4-mode" (customize-group 'lean4)          t]))

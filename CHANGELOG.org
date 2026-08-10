@@ -44,6 +44,11 @@ xref, project roots through =project.el=.
 - Messages in the goal display are interactive too: a term inside a type
   mismatch behaves like a term inside a goal.
 - Pinning and pausing the goal display, both shown in its header line.
+- A menu in the goal display, offering the same controls as the Lean
+  menu -- they all work from either buffer -- alongside what only the
+  display can do.  The entries say what pressing them will do next, and
+  now read the Lean buffer's state when drawn in the display, where they
+  used only ever to offer to pin.
 - Indentation that guesses from the layout, with =TAB= cycling through
   the alternatives when the guess is wrong.  ~lean4-indent-function~
   restores the previous cycle-only behaviour.

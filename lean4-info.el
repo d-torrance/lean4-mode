@@ -1876,5 +1876,73 @@ untestable."
   (lean4-toggle-info-buffer lean4-info-buffer-name)
   (lean4-info-buffer-refresh))
 
+;;;; Menu
+
+;; The controls answer to the same commands from the Lean buffer and from
+;; the goal display, so both menus offer them and only the surrounding
+;; entries differ.  The two predicates below exist because a `:label' has
+;; to say what the *next* invocation will do, and the commands choose
+;; their subject from where point is: inside a pinned section that pin,
+;; otherwise the display as a whole.
+
+(defun lean4-info--pinned-here-p ()
+  "Return non-nil if `lean4-info-toggle-pin' here would unpin.
+The cases are `lean4-info-toggle-pin'\\='s own, in its order, so that the
+menu entry names what pressing it will actually do.  Its remaining case
+creates a pin, which is the nil answer."
+  (cond
+   ;; Inside a pinned section of the display: that is the pin meant.
+   ((lean4-info--pin-at-point))
+   ;; Elsewhere in the display: the command defers to the Lean buffer, so
+   ;; the answer is the one that buffer would give.
+   ((and (not (derived-mode-p 'lean4-mode))
+         (buffer-live-p lean4-info--source-buffer))
+    (with-current-buffer lean4-info--source-buffer
+      (lean4-info--pin-at)))
+   (t (lean4-info--pin-at))))
+
+(defun lean4-info--paused-here-p ()
+  "Return non-nil if what `lean4-info-toggle-pause' acts on here is paused."
+  (if-let* ((pin (lean4-info--pin-at-point)))
+      (lean4-info-pin-paused pin)
+    lean4-info-paused))
+
+(defconst lean4-info-menu-items
+  ;; `:label' is evaluated each time the menu is drawn, so these say what
+  ;; the next invocation will do rather than naming the command.  Note
+  ;; that easymenu's two vector forms cannot be mixed: ["NAME" CMD ENABLE]
+  ;; or ["NAME" CMD :keyword value ...], never a positional ENABLE
+  ;; followed by keywords, which are silently dropped.
+  '(["Pin this position" lean4-info-toggle-pin
+     :label (if (lean4-info--pinned-here-p) "Unpin this position"
+              "Pin this position")]
+    ["Unpin every position" lean4-info-unpin-all
+     :enable lean4-info--pins]
+    ["Pause goal display" lean4-info-toggle-pause
+     :label (if (lean4-info--paused-here-p) "Unpause goal display"
+              "Pause goal display")]
+    ["Refresh paused display" lean4-info-refresh-paused
+     :enable (lean4-info--paused-here-p)]
+    ["Pause all messages" lean4-info-toggle-all-messages-pause
+     :label (if lean4-info-all-messages-paused "Unpause all messages"
+              "Pause all messages")]
+    ["Order all messages" lean4-info-toggle-message-order
+     :label (if (eq lean4-info-message-order 'point)
+                "Order all messages by position in the file"
+              "Order all messages by nearness to point")])
+  "Menu entries for the goal display\\='s controls.
+Shared by `lean4-mode-menu' and `lean4-info-mode-menu': the commands
+work from either buffer, so it would only confuse matters for the two
+menus to offer different subsets of them.")
+
+(easy-menu-define lean4-info-mode-menu lean4-info-mode-map
+  "Menu for the *Lean Goal* buffer."
+  `("Lean Goal"
+    ,@lean4-info-menu-items
+    "--"
+    ["Go to type definition" lean4-info-goto-type-definition t]
+    ["Close goal display" lean4-toggle-info t]
+    ["Customize goal display" (customize-group 'lean4-info) t]))
+
 (provide 'lean4-info)
 ;;; lean4-info.el ends here

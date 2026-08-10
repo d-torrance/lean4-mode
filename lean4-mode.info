@@ -293,16 +293,19 @@ point moves, rather than showing the same position twice; returning to a
 pinned position later does show both.
 
    Every control has a key and a menu entry as well, so none of them
-needs a mouse.  With several pins there is no one pin for a key to mean,
-so ‘C-c C-s’ means the section point is standing in: inside a pinned
-section it unpins that one, and anywhere else it pins or unpins the
-position point is on in the Lean buffer.  ‘C-c C-SPC’ and ‘C-c C-g’ read
-the same way: inside a pinned section they pause and refresh that
-section, anywhere else the one following point.  ‘RET’ reaches the two
-things in the display that lead anywhere: on a control it does what
-clicking it would, and on a message heading it goes to the place the
-message was reported for.  Every control is therefore reachable without
-a mouse.
+needs a mouse.  The menu entries are the same in the Lean menu and in
+the goal display's own, since every one of these commands works from
+either buffer; each says what pressing it will do next, so an item reads
+"Unpin this position" where the position is already pinned.  With
+several pins there is no one pin for a key to mean, so ‘C-c C-s’ means
+the section point is standing in: inside a pinned section it unpins that
+one, and anywhere else it pins or unpins the position point is on in the
+Lean buffer.  ‘C-c C-SPC’ and ‘C-c C-g’ read the same way: inside a
+pinned section they pause and refresh that section, anywhere else the
+one following point.  ‘RET’ reaches the two things in the display that
+lead anywhere: on a control it does what clicking it would, and on a
+message heading it goes to the place the message was reported for.
+Every control is therefore reachable without a mouse.
 
    The last two are bound here as well as in the Lean buffer, so the
 display can be pinned or paused without leaving it.  Clicking their
@@ -610,17 +613,17 @@ Node: Upgrading from version 15244
 Node: Usage6541
 Node: Keys in a Lean buffer7825
 Node: Keys in the goal display9250
-Node: Errors and warnings13358
-Node: Completion17098
-Node: Configuration17700
-Node: Frequently used options18139
-Node: The goal display's controls19619
-Node: Older Lean versions20940
-Node: Semantic highlighting21922
-Node: Optional packages23241
-Node: Troubleshooting23734
-Node: Common Pitfalls24384
-Node: Acknowledgements24985
+Node: Errors and warnings13614
+Node: Completion17354
+Node: Configuration17956
+Node: Frequently used options18395
+Node: The goal display's controls19875
+Node: Older Lean versions21196
+Node: Semantic highlighting22178
+Node: Optional packages23497
+Node: Troubleshooting23990
+Node: Common Pitfalls24640
+Node: Acknowledgements25241
 
 End Tag Table
 

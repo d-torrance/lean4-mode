@@ -143,5 +143,48 @@ both look."
     (should (eq (syntax-table) lean4-mode-syntax-table))
     (should (eq local-abbrev-table lean4-mode-abbrev-table))))
 
+(ert-deftest lean4-menus-share-the-goal-display-controls ()
+  "Both menus offer the display\\='s controls, from the one list.
+The commands work from either buffer, so a control in one menu and not
+the other would only be a gap in whichever lacked it."
+  (let ((commands (mapcar (lambda (item) (aref item 1)) lean4-info-menu-items)))
+    (should commands)
+    (dolist (menu (list lean4-mode-menu lean4-info-mode-menu))
+      (let ((items (lean4-mode-test--menu-items menu)))
+        (dolist (command commands)
+          (should (assq command items)))))))
+
+(ert-deftest lean4-info-mode-menu-offers-its-own-commands ()
+  "The goal display\\='s menu also reaches what only it can do."
+  (let ((items (lean4-mode-test--menu-items lean4-info-mode-menu)))
+    (should (assq 'lean4-info-goto-type-definition items))
+    (should (assq 'lean4-toggle-info items))))
+
+(ert-deftest lean4-menu-pin-label-reads-the-source-buffer ()
+  "In the goal display the pin item reports on the Lean buffer.
+
+`lean4-info-toggle-pin' run from the display defers to the Lean buffer,
+so a label that asked only about the display -- where no pin marker ever
+lives -- offered to pin even with the followed position already pinned."
+  (let ((source (generate-new-buffer " *lean4-mode-test-source*"))
+        (lean4-info--pins nil))
+    (unwind-protect
+        (progn
+          (with-current-buffer source
+            (let ((lean4-mode-hook nil)
+                  (lean4-info-auto-open nil))
+              (lean4-mode))
+            (insert "example : True := trivial\n")
+            (goto-char (point-min))
+            (setq lean4-info--pins
+                  (list (lean4-info--pin-create :marker (point-marker)))))
+          (with-temp-buffer
+            (let ((lean4-info-mode-hook nil))
+              (lean4-info-mode))
+            (setq lean4-info--source-buffer source)
+            (should (equal (lean4-mode-test--menu-label 'lean4-info-toggle-pin)
+                           "Unpin this position"))))
+      (kill-buffer source))))
+
 (provide 'lean4-mode-test)
 ;;; lean4-mode-test.el ends here

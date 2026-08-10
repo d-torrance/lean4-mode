@@ -330,7 +330,11 @@ section is left out until point moves, rather than showing the same
 position twice; returning to a pinned position later does show both.
 
 Every control has a key and a menu entry as well, so none of them needs
-a mouse.  With several pins there is no one pin for a key to mean, so
+a mouse.  The menu entries are the same in the Lean menu and in the goal
+display's own, since every one of these commands works from either
+buffer; each says what pressing it will do next, so an item reads
+"Unpin this position" where the position is already pinned.
+With several pins there is no one pin for a key to mean, so
 @samp{C-c C-s} means the section point is standing in: inside a pinned
 section it unpins that one, and anywhere else it pins or unpins the
 position point is on in the Lean buffer.  @samp{C-c C-SPC} and @samp{C-c C-g} read the same way: inside a
