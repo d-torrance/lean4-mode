@@ -520,6 +520,62 @@ two
 
 
 
+(ert-deftest lean4-info-each-pin-pauses-on-its-own ()
+  "A pinned section freezes by itself, and says so.
+
+Pinning a position and freezing it are different things: a pinned goal
+follows its declaration through an edit unless told otherwise.  VS Code
+gives every pinned section its own pause, and so does this."
+  (with-temp-buffer
+    (rename-buffer "Pins.lean" 'unique)
+    (let* ((one (lean4-info--pin-create :marker (copy-marker (point-min))))
+           (two (lean4-info--pin-create :marker (copy-marker (point-min))))
+           (lean4-info--pins (list one two)))
+      (cl-letf (((symbol-function 'lean4-info--redisplay-source) #'ignore)
+                ((symbol-function 'lean4-info--refresh-pin) #'ignore))
+        (lean4-info-toggle-pin-pause one)
+        (should (lean4-info-pin-paused one))
+        (should-not (lean4-info-pin-paused two))
+        (lean4-info-toggle-pin-pause one)
+        (should-not (lean4-info-pin-paused one)))
+      ;; The heading says which, and offers a refresh only when paused.
+      (setf (lean4-info-pin-paused one) t)
+      (let ((heading (substring-no-properties
+                      (lean4-info--heading
+                       "x" (lean4-info--pin-controls one)
+                       "pinned and paused"))))
+        (should (string-search "pinned and paused" heading))
+        (should (string-search (lean4-info-refresh-glyph) heading))
+        (should (string-search (lean4-info-resume-glyph) heading)))
+      (setf (lean4-info-pin-paused one) nil)
+      (let ((heading (substring-no-properties
+                      (lean4-info--heading "x" (lean4-info--pin-controls one)
+                                           "pinned"))))
+        (should-not (string-search (lean4-info-refresh-glyph) heading))
+        (should (string-search (lean4-info-pause-glyph) heading)))
+      (set-marker (lean4-info-pin-marker one) nil)
+      (set-marker (lean4-info-pin-marker two) nil))))
+
+(ert-deftest lean4-info-a-paused-pin-is-not-refetched ()
+  "Pausing a pin is what stops it being fetched again."
+  (with-temp-buffer
+    (let ((pin (lean4-info--pin-create :marker (point-marker)))
+          (fetched nil))
+      (cl-letf (((symbol-function 'lean4-info--refresh-pin-interactive)
+                 (lambda (&rest _) (setq fetched t)))
+                ((symbol-function 'eglot-current-server) (lambda () t)))
+        (let ((lean4-info-interactive t))
+          (lean4-info--refresh-pin pin)
+          (should fetched)
+          (setq fetched nil)
+          (setf (lean4-info-pin-paused pin) t)
+          (lean4-info--refresh-pin pin)
+          (should-not fetched)
+          ;; Asked for outright, it is fetched even so.
+          (lean4-info-refresh-pin pin)
+          (should fetched)))
+      (set-marker (lean4-info-pin-marker pin) nil))))
+
 (ert-deftest lean4-info-each-section-reports-its-own-state ()
   "Pinned and paused are different things and belong to different sections.
 Pinned says a section is not following point; paused says the display is

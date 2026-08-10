@@ -94,7 +94,8 @@
   goals                                 ; rendered, `accomplished', or nil
   term-goal                             ; rendered expected type, or nil
   handle                                ; the RPC handle it was fetched through
-  refs)                                 ; server-side references it owns
+  refs                                  ; server-side references it owns
+  paused)                               ; held as it is, if non-nil
 
 (defvar lean4-info--pins nil
   "Pinned positions, in the order they were pinned.
@@ -172,6 +173,10 @@ and will hold the memory until told otherwise.")
   "C-c C-o" #'lean4-info-toggle-message-order
   "C-c C-a" #'lean4-info-toggle-all-messages-pause
   "C-c C-g" #'lean4-info-refresh-paused)
+
+(defun lean4-info--pin-at-point ()
+  "Return the pin whose section point is in, or nil."
+  (get-text-property (point) 'lean4-info-pin))
 
 (defun lean4-info-return ()
   "Act on whatever point is on.
@@ -761,7 +766,8 @@ anything the reader would see changing."
         (mapcar (lambda (pin)
                   (list (marker-position (lean4-info-pin-marker pin))
                         (lean4-info-pin-goals pin)
-                        (lean4-info-pin-term-goal pin)))
+                        (lean4-info-pin-term-goal pin)
+                        (lean4-info-pin-paused pin)))
                 lean4-info--pins)))
 
 (defun lean4-info--insert-pinned (pin sorted buffer)
@@ -773,7 +779,7 @@ anything the reader would see changing."
         (lean4-info--heading
          (lean4-info--marker-location-string (lean4-info-pin-marker pin))
          (lean4-info--pin-controls pin)
-         "pinned")))
+         (if (lean4-info-pin-paused pin) "pinned and paused" "pinned"))))
       (lean4-info--indented
         (lean4-info--insert-position
          (lean4-info-pin-goals pin)
@@ -1084,15 +1090,22 @@ the pinned location rather than at point."
     (when (lean4-info-buffer-active lean4-info-buffer-name)
       (lean4-info--refresh-here))))
 
+(defvar lean4-info--forced nil
+  "Bound while a refresh was asked for rather than merely due.")
+
 (defun lean4-info--refresh-pin (pin)
   "Fetch the goals at PIN into it.
+
+Does nothing while PIN is paused, which is what pausing one is for,
+unless the refresh was asked for outright.
 
 Only the goals and the expected type: the messages a pin shows are
 picked out of the file\='s diagnostics, which are fetched once however
 many pins there are."
   (let* ((marker (lean4-info-pin-marker pin))
          (buffer (marker-buffer marker)))
-    (when (buffer-live-p buffer)
+    (when (and (buffer-live-p buffer)
+               (or lean4-info--forced (not (lean4-info-pin-paused pin))))
       (with-current-buffer buffer
         (save-excursion
           (goto-char marker)
@@ -1255,17 +1268,6 @@ Nil means pick whichever candidate the frame can display."
   "Return the refresh control for this frame."
   (lean4-info--glyph lean4-info-refresh-icon '("⟳" "↻" "⭮") "R"))
 
-;;;###autoload
-(defun lean4-info-refresh-paused ()
-  "Bring a paused display up to date, without unpausing it.
-
-Pausing is for reading something while working elsewhere, which does not
-always mean wanting it stale for good.  This is VS Code's \"refresh
-paused state\"."
-  (interactive)
-  (lean4-info--redisplay-source)
-  (lean4-info-buffer-refresh))
-
 (defun lean4-info-goto-glyph ()
   "Return the go-to-position control for this frame."
   ;; VS Code uses a codicon of a page with an arrow leaving it.  Unicode
@@ -1353,10 +1355,49 @@ the display has moved on to since."
                                      (current-column))))
       "")))
 
+(defun lean4-info-toggle-pin-pause (pin)
+  "Hold PIN\='s goals as they are, or let them follow the file again.
+
+Each pin pauses on its own.  Pinning a position and freezing it are
+different things -- a pinned goal goes on following its declaration
+through an edit unless told otherwise -- and VS Code gives every pinned
+section its own pause."
+  (setf (lean4-info-pin-paused pin) (not (lean4-info-pin-paused pin)))
+  (lean4-info--redisplay-source)
+  (unless (lean4-info-pin-paused pin)
+    (lean4-info--refresh-pin pin))
+  (message "Pinned position %s"
+           (if (lean4-info-pin-paused pin) "paused" "unpaused")))
+
+(defun lean4-info-refresh-pin (pin)
+  "Bring PIN up to date without unpausing it."
+  (let ((lean4-info--forced t))
+    (lean4-info--refresh-pin pin)))
+
 (defun lean4-info--pin-controls (pin)
-  "Return the controls for PIN\='s section: the way there, and unpinning."
+  "Return the controls for PIN\='s section.
+
+The way back to it, a refresh while it is paused, its own pause, and
+unpinning -- in the order the followed section puts the same ones."
   (concat
    (lean4-info--marker-goto-button (lean4-info-pin-marker pin))
+   "  "
+   (if (lean4-info-pin-paused pin)
+       (concat (lean4-info--button
+                (lean4-info-refresh-glyph)
+                "mouse-1: bring this paused position up to date"
+                (lambda () (interactive) (lean4-info-refresh-pin pin)))
+               "  ")
+     "")
+   (lean4-info--button
+    (if (lean4-info-pin-paused pin)
+        (lean4-info-resume-glyph)
+      (lean4-info-pause-glyph))
+    (if (lean4-info-pin-paused pin)
+        "mouse-1: unpause this pinned position"
+      "mouse-1: pause this pinned position")
+    (lambda () (interactive) (lean4-info-toggle-pin-pause pin))
+    (lean4-info-pin-paused pin))
    "  "
    (lean4-info--button
     (lean4-info-unpin-glyph)
@@ -1424,22 +1465,40 @@ need not be single-width."
 
 ;;;###autoload
 (defun lean4-info-toggle-pause ()
-  "Pause or unpause the goal display.
+  "Pause or unpause the goal display, or the pinned section point is in.
+
 While paused it keeps showing whatever it last showed, so a goal can be
-read while point moves elsewhere.  The names follow Lean's own: VS Code
-calls these commands pause and unpause."
+read while point moves elsewhere.  Each pinned section pauses on its
+own, so inside one this means that one; anywhere else it means the
+section following point.  The names follow Lean\='s own: VS Code calls
+these commands pause and unpause."
   (interactive)
-  (setq lean4-info-paused (not lean4-info-paused))
-  ;; Redraw whatever the state: pausing suppresses the refresh, so without
-  ;; this the controls would keep showing the state they were in until
-  ;; something else happened to redisplay them.
-  (lean4-info--redisplay-source)
-  (unless lean4-info-paused
-    (lean4-info-buffer-refresh))
-  (message "Lean goal display %s"
-           (if lean4-info-paused "paused" "unpaused")))
+  (if-let* ((pin (lean4-info--pin-at-point)))
+      (lean4-info-toggle-pin-pause pin)
+    (setq lean4-info-paused (not lean4-info-paused))
+    ;; Redraw whatever the state: pausing suppresses the refresh, so
+    ;; without this the controls would keep showing the state they were
+    ;; in until something else happened to redisplay them.
+    (lean4-info--redisplay-source)
+    (unless lean4-info-paused
+      (lean4-info-buffer-refresh))
+    (message "Lean goal display %s"
+             (if lean4-info-paused "paused" "unpaused"))))
 
 ;;;###autoload
+(defun lean4-info-refresh-paused ()
+  "Bring a paused display up to date, without unpausing it.
+
+Inside a pinned section this means that section; anywhere else it means
+the one following point.  Pausing is for reading something while working
+elsewhere, which does not always mean wanting it stale for good.  This
+is VS Code\='s \"refresh paused state\"."
+  (interactive)
+  (if-let* ((pin (lean4-info--pin-at-point)))
+      (lean4-info-refresh-pin pin)
+    (lean4-info--redisplay-source)
+    (lean4-info-buffer-refresh)))
+
 (defun lean4-info-unpin (pin)
   "Remove PIN from the goal display."
   (setq lean4-info--pins (delq pin lean4-info--pins))
