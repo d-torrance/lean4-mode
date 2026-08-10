@@ -707,20 +707,6 @@ and clicking one is how the reader puts it under ElDoc."
         (unless (lean4-info--act-at position)
           (goto-char position))))))
 
-(defun lean4-info-mouse-toggle (event)
-  "Fold or unfold the section whose fold indicator EVENT clicked.
-
-The indicator is drawn by `magit-section' in the fringe, and clicking an
-indicator is what an indicator is for.  Magit binds the margin the same
-way from version 4."
-  (interactive "e")
-  (let ((posn (event-start event)))
-    (with-selected-window (posn-window posn)
-      (when-let* ((position (posn-point posn)))
-        (goto-char position)
-        (call-interactively #'magit-section-toggle)))))
-
-
 (defvar-keymap lean4-info-section-map
   :doc "Keymap over every section of the goal display.
 
@@ -728,13 +714,13 @@ Held by `lean4-info-section', whose sections `magit-section' then applies
 it to -- composed with its own bindings rather than replacing them.
 Putting a keymap on the text directly does not survive: `magit-section'
 overwrites the property on a heading line whenever the section is
-folded."
-  "<mouse-1>" #'lean4-info-mouse-1
-  ;; Folding is TAB, and a click on the indicator that says a section
-  ;; folds.  Not `mouse-1' over the text: that is how point is moved, and
-  ;; here it is how a subterm is put under ElDoc.
-  "<left-fringe> <mouse-1>" #'lean4-info-mouse-toggle
-  "<left-margin> <mouse-1>" #'lean4-info-mouse-toggle)
+folded.
+
+Only `mouse-1' is bound here.  Folding by mouse is left to whatever
+`magit-section' offers -- a double click and a click on the fringe or
+the margin from version 4, and nothing at all in 3.3.0 -- so that this
+display folds exactly the way the reader\='s Magit does."
+  "<mouse-1>" #'lean4-info-mouse-1)
 
 (defclass lean4-info-section (magit-section)
   ((keymap :initform 'lean4-info-section-map))

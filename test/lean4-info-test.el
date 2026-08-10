@@ -266,12 +266,18 @@ folded the subterm out of sight as well."
             (goto-char (point-min))
             (should-not (lean4-info--act-at (point)))
             (should-error (lean4-info-return) :type 'user-error))
-          ;; Folding is not among the things a click does.
+          ;; Folding is not among the things a click does, and not
+          ;; something this binds at all: it is left to whatever
+          ;; `magit-section' offers, so the display folds the way the
+          ;; reader's Magit does.
           (should (eq (keymap-lookup lean4-info-section-map "<mouse-1>")
                       'lean4-info-mouse-1))
-          (should (eq (keymap-lookup lean4-info-section-map
-                                     "<left-fringe> <mouse-1>")
-                      'lean4-info-mouse-toggle)))
+          (dolist (key '("<double-mouse-1>" "<left-fringe> <mouse-1>"
+                         "<left-margin> <mouse-1>"))
+            ;; `keymap-lookup' answers with a number, not nil, when the
+            ;; sequence runs past what the keymap defines.
+            (should-not (commandp (keymap-lookup lean4-info-section-map
+                                                 key)))))
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 

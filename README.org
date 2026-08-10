@@ -264,8 +264,10 @@ Its heading names the file, line and column, and carries an =↪= control,
 right-aligned, that sends point there.  Clicking does what =RET= does in the same
 spot, as =mouse-1= does throughout Emacs: on a control or a subterm it
 acts, and anywhere else it moves point -- which is how a subterm is put
-under ElDoc.  Folding is =TAB=, or a click on the fold indicator in the
-fringe.  The same control appears in the
+under ElDoc.  Folding is =TAB=, and by mouse whatever
+~magit-section~ itself offers -- a double click, or a click on the
+fringe or margin, from version 4; nothing in 3.3.0 -- so this display
+folds the way your Magit does.  The same control appears in the
 top heading, but only while pinned: unpinned, the display is following
 point and it would only lead where point already is.
 
