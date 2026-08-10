@@ -885,6 +885,29 @@ extension's; the other two open the same pages VS Code opens.
 The manual is shipped as Info beside the source, so it is found whether or
 not the package was installed anywhere Info knows to look.
 
+** "Timed out after 30 seconds" opening a file outside a project
+
+A file in a Lake package is served by the Lean its "lean-toolchain" pins.
+A file outside one is served by whatever elan's /default/ toolchain
+resolves to -- normally the =stable= channel, which moves with every Lean
+release.  The first time it names a version this machine has not got, elan
+downloads the whole toolchain before the server can start, and Eglot gives
+up after ~eglot-connect-timeout~ seconds, which is 30 by default.
+
+The download is what is slow, not this package, and it only happens once
+per version.  Either warm it first:
+
+: elan toolchain install stable
+
+-- or =M-x lean4-install-toolchain= -- or give the connection longer:
+
+#+begin_src elisp
+(setq eglot-connect-timeout 300)
+#+end_src
+
+=M-x lean4-diagnose= reports which toolchain a buffer resolved to, which
+is the quickest way to tell a pinned version from the default.
+
 ** "Imports are out of date and must be rebuilt"
 
 Lean says this, and adds /use the "Restart File" command in your editor/.

@@ -93,6 +93,7 @@ Configuration
 Troubleshooting
 
 * Where the documentation is::
+* "Timed out after 30 seconds" opening a file outside a project::
 * "Imports are out of date and must be rebuilt"::
 
 
@@ -1138,10 +1139,11 @@ buffer visiting no file at all is written to a temporary one instead.
 * Menu:
 
 * Where the documentation is::
+* "Timed out after 30 seconds" opening a file outside a project::
 * "Imports are out of date and must be rebuilt"::
 
 
-File: lean4-mode.info,  Node: Where the documentation is,  Next: "Imports are out of date and must be rebuilt",  Up: Troubleshooting
+File: lean4-mode.info,  Node: Where the documentation is,  Next: "Timed out after 30 seconds" opening a file outside a project,  Up: Troubleshooting
 
 4.1 Where the documentation is
 ==============================
@@ -1162,9 +1164,35 @@ extension's; the other two open the same pages VS Code opens.
 whether or not the package was installed anywhere Info knows to look.
 
 
-File: lean4-mode.info,  Node: "Imports are out of date and must be rebuilt",  Prev: Where the documentation is,  Up: Troubleshooting
+File: lean4-mode.info,  Node: "Timed out after 30 seconds" opening a file outside a project,  Next: "Imports are out of date and must be rebuilt",  Prev: Where the documentation is,  Up: Troubleshooting
 
-4.2 "Imports are out of date and must be rebuilt"
+4.2 "Timed out after 30 seconds" opening a file outside a project
+=================================================================
+
+A file in a Lake package is served by the Lean its "lean-toolchain"
+pins.  A file outside one is served by whatever elan's _default_
+toolchain resolves to - normally the ‘stable’ channel, which moves with
+every Lean release.  The first time it names a version this machine has
+not got, elan downloads the whole toolchain before the server can start,
+and Eglot gives up after ‘eglot-connect-timeout’ seconds, which is 30 by
+default.
+
+   The download is what is slow, not this package, and it only happens
+once per version.  Either warm it first:
+
+     elan toolchain install stable
+
+   - or ‘M-x lean4-install-toolchain’ - or give the connection longer:
+
+     (setq eglot-connect-timeout 300)
+
+   ‘M-x lean4-diagnose’ reports which toolchain a buffer resolved to,
+which is the quickest way to tell a pinned version from the default.
+
+
+File: lean4-mode.info,  Node: "Imports are out of date and must be rebuilt",  Prev: "Timed out after 30 seconds" opening a file outside a project,  Up: Troubleshooting
+
+4.3 "Imports are out of date and must be rebuilt"
 =================================================
 
 Lean says this, and adds _use the "Restart File" command in your
@@ -1234,45 +1262,46 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2356
-Node: Requirements2581
-Node: From source3661
-Node: With a source-based package manager4149
-Node: Native vc (Emacs 30 or later)4660
-Node: Doom-Emacs5105
-Node: Straight5424
-Node: Upgrading from version 15781
-Node: Usage7078
-Node: Keys in a Lean buffer8763
-Node: Keys in the goal display10545
-Node: The tactic state15065
-Node: Copying what is on display16284
-Node: How much of a goal to show17311
-Node: Errors and warnings20822
-Node: Building dependencies24917
-Node: Starting a project26187
-Node: Building27979
-Node: Mathlib's build cache29171
-Node: Choosing which Lean to use30528
-Node: Elan itself32863
-Node: Git and curl34079
-Node: Searching Mathlib with Loogle35826
-Node: The module hierarchy37841
-Node: It needs a built project39884
-Node: Other Lake operations40534
-Node: Completion41959
-Node: Finding a symbol you cannot name43122
-Node: Configuration44373
-Node: Frequently used options44812
-Node: The goal display's controls46475
-Node: Older Lean versions47796
-Node: Semantic highlighting48778
-Node: Optional packages50097
-Node: Troubleshooting50590
-Node: Where the documentation is52108
-Node: "Imports are out of date and must be rebuilt"53103
-Node: Common Pitfalls54591
-Node: Acknowledgements55192
+Node: Installation2422
+Node: Requirements2647
+Node: From source3727
+Node: With a source-based package manager4215
+Node: Native vc (Emacs 30 or later)4726
+Node: Doom-Emacs5171
+Node: Straight5490
+Node: Upgrading from version 15847
+Node: Usage7144
+Node: Keys in a Lean buffer8829
+Node: Keys in the goal display10611
+Node: The tactic state15131
+Node: Copying what is on display16350
+Node: How much of a goal to show17377
+Node: Errors and warnings20888
+Node: Building dependencies24983
+Node: Starting a project26253
+Node: Building28045
+Node: Mathlib's build cache29237
+Node: Choosing which Lean to use30594
+Node: Elan itself32929
+Node: Git and curl34145
+Node: Searching Mathlib with Loogle35892
+Node: The module hierarchy37907
+Node: It needs a built project39950
+Node: Other Lake operations40600
+Node: Completion42025
+Node: Finding a symbol you cannot name43188
+Node: Configuration44439
+Node: Frequently used options44878
+Node: The goal display's controls46541
+Node: Older Lean versions47862
+Node: Semantic highlighting48844
+Node: Optional packages50163
+Node: Troubleshooting50656
+Node: Where the documentation is52240
+Node: "Timed out after 30 seconds" opening a file outside a project53251
+Node: "Imports are out of date and must be rebuilt"54439
+Node: Common Pitfalls55962
+Node: Acknowledgements56563
 
 End Tag Table
 

@@ -48,7 +48,16 @@ goal display\\='s filters tell apart.")
 
 (defconst lean4-e2e--timeout 180
   "Seconds to allow for the server to start and elaborate the fixture.
-Generous because a cold start compiles the toolchain's index.")
+
+Generous because a cold start compiles the toolchain's index, and because
+elan downloads a whole toolchain the first time one is asked for -- which
+is what a file outside any project asks for, its version being elan's
+default rather than a pinned one.
+
+Bound to `eglot-connect-timeout' as well as used by
+`lean4-e2e--wait-until'.  Eglot's own default is 30 seconds and applies to
+the connection rather than to anything after it, so a cold toolchain
+failed the connection long before this allowance was ever consulted.")
 
 (defun lean4-e2e--wait-until (description predicate)
   "Pump process output until PREDICATE returns non-nil.
@@ -82,7 +91,8 @@ Point starts at `point-min'.  The server is shut down afterwards."
            (should (derived-mode-p 'lean4-mode))
            ;; Not `eglot-ensure': it defers the connection to
            ;; `post-command-hook', which never runs under --batch.
-           (let ((eglot-sync-connect t))
+           (let ((eglot-sync-connect t)
+                 (eglot-connect-timeout lean4-e2e--timeout))
              (apply #'eglot--connect (eglot--guess-contact)))
            (should (eglot-current-server))
            ;; Diagnostics arrive incrementally while Lean elaborates, and
@@ -711,7 +721,12 @@ files, and so should this."
             (should-not (lean4--workspace-root))
             (should (equal (lean4--server-command nil)
                            (list lean4-executable-name "--server")))
-            (let ((eglot-sync-connect t))
+            ;; A loose file is served by whatever elan's default toolchain
+            ;; resolves to, which goes stale on every Lean release -- and
+            ;; the first use of a version that is not installed downloads
+            ;; it.  Eglot's 30-second default is not enough for that.
+            (let ((eglot-sync-connect t)
+                  (eglot-connect-timeout lean4-e2e--timeout))
               (apply #'eglot--connect (eglot--guess-contact)))
             (should (eglot-managed-p))
             ;; And it answers Lean's own requests, not just standard LSP.
