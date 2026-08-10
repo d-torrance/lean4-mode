@@ -262,10 +262,13 @@ mismatch between two large terms -- folds away without folding the rest.
 Sections are set in with spaces and their fold indicators drawn by
 ~magit-section~, in the fringe, the way a Magit buffer does both.
 Its heading names the file, line and column, and carries an =↪= control,
-right-aligned, that sends point there.  Clicking does what =RET= does in the same
-spot, as =mouse-1= does throughout Emacs: on a control or a subterm it
-acts, and anywhere else it moves point -- which is how a subterm is put
-under ElDoc.  Folding is =TAB=, and by mouse whatever
+right-aligned, that sends point there.  Clicking works as =mouse-1= does
+throughout Emacs: on a control it acts, and anywhere else it moves
+point -- which is how a subterm is put under ElDoc, and how VS Code
+reads a plain click too.  =RET= reaches further, having no control under
+a pointer to press: on a message heading it goes to the place the
+message was reported for, and on a subterm to its definition.
+Folding is =TAB=, and by mouse whatever
 ~magit-section~ itself offers -- a double click, or a click on the
 fringe or margin, from version 4; nothing in 3.3.0 -- so this display
 folds the way your Magit does.  The same control appears in the

@@ -283,36 +283,73 @@ position and the one for the file."
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
-(ert-deftest lean4-info-a-click-does-what-return-does ()
-  "`mouse-1' and RET ask the same question of the same spot.
+(defun lean4-info-test--click (position)
+  "Click POSITION in the window showing the info buffer.
+Drives `lean4-info-mouse-1' with the event a real click makes."
+  (let ((window (get-buffer-window lean4-info-buffer-name)))
+    (should window)
+    (lean4-info-mouse-1 (list 'mouse-1 (list window position '(0 . 0) 0)))))
 
-That is how `mouse-1' behaves throughout Emacs -- on a button or a link
-it acts, anywhere else it sets point -- and it is why folding is not
-bound to it.  The goals are trees of subterms, and clicking one is how
-the reader puts it under ElDoc; folding on a click took that away and
-folded the subterm out of sight as well."
+(ert-deftest lean4-info-a-click-presses-controls-and-nothing-else ()
+  "`mouse-1' presses a control, and anywhere else only moves point.
+
+That is how `mouse-1' behaves throughout Emacs, and point on a subterm
+is what puts it under ElDoc.  RET reaches further, having no control
+under a pointer to press."
   (let ((source (get-buffer-create "Named.lean")))
     (unwind-protect
         (progn
           (with-current-buffer source
             (erase-buffer)
-            (insert "line one\nline two\n"))
+            (insert "line one\nline two\n")
+            (goto-char (point-min)))
           (lean4-info-test--insert-message
            '(:range (:start (:line 1 :character 0)) :message "boom") source)
+          ;; The arrangement a click really happens in: the Lean buffer in
+          ;; one window and the info buffer in another.
+          (delete-other-windows)
+          (set-window-buffer (selected-window) source)
+          (select-window (split-window))
+          (set-window-buffer (selected-window) lean4-info-buffer-name)
           (with-current-buffer lean4-info-buffer-name
-            (setq lean4-info--source-buffer source)
-            ;; A message heading: both go to the position it reports.
-            (goto-char (point-min))
-            (should (search-forward "Named.lean:2:0" nil t))
-            (should (lean4-info--act-at (match-beginning 0)))
+            (setq lean4-info--source-buffer source))
+          ;; The control beside the message is what goes there by mouse,
+          ;; and it hands the focus back to the Lean window.
+          (let ((glyph (with-current-buffer lean4-info-buffer-name
+                         (goto-char (point-min))
+                         (should (search-forward (lean4-info-goto-glyph) nil t))
+                         (match-beginning 0))))
+            (lean4-info-test--click glyph))
+          (should (eq (selected-window) (get-buffer-window source)))
+          (with-current-buffer source
+            (should (= (line-number-at-pos) 2))
+            (goto-char (point-min)))
+          ;; The label saying the same position is not a control: a click
+          ;; there moves point in the display and nothing else.
+          (let ((label (with-current-buffer lean4-info-buffer-name
+                         (goto-char (point-min))
+                         (should (search-forward "Named.lean:2:0" nil t))
+                         (match-beginning 0))))
+            (lean4-info-test--click label)
+            (with-current-buffer lean4-info-buffer-name
+              (should (= (point) label)))
+            (should (= (with-current-buffer source (point)) 1))
+            ;; And the click leaves its window selected, which is the
+            ;; window ElDoc describes point in.
+            (should (eq (selected-window)
+                        (get-buffer-window lean4-info-buffer-name)))
+            ;; RET, with no control to press, does go there.
+            (with-current-buffer lean4-info-buffer-name
+              (should (lean4-info--act-at label)))
+            (should (= (with-current-buffer source (line-number-at-pos)) 2)))
+          (with-current-buffer lean4-info-buffer-name
             ;; Nothing to act on: RET says so, and a click just moves.
             (goto-char (point-min))
             (should-not (lean4-info--act-at (point)))
             (should-error (lean4-info-return) :type 'user-error))
-          ;; Folding is not among the things a click does, and not
-          ;; something this binds at all: it is left to whatever
-          ;; `magit-section' offers, so the display folds the way the
-          ;; reader's Magit does.
+          ;; `mouse-1' is the one thing this binds; folding is left to
+          ;; whatever `magit-section' offers, so the display folds the
+          ;; way the reader's Magit does.
           (should (eq (keymap-lookup lean4-info-section-map "<mouse-1>")
                       'lean4-info-mouse-1))
           (dolist (key '("<double-mouse-1>" "<left-fringe> <mouse-1>"
@@ -321,8 +358,38 @@ folded the subterm out of sight as well."
             ;; sequence runs past what the keymap defines.
             (should-not (commandp (keymap-lookup lean4-info-section-map
                                                  key)))))
+      (delete-other-windows)
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
+
+(ert-deftest lean4-info-a-click-on-a-subterm-stays-in-the-display ()
+  "Clicking a subterm leaves point on it, which puts it under ElDoc.
+
+VS Code draws the line in the same place: a plain click on a subterm
+stays put, and Ctrl-click jumps.  RET is how the keyboard asks for the
+definition, and it goes."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (progn
+        (delete-other-windows)
+        (set-window-buffer (selected-window) lean4-info-buffer-name)
+        (with-current-buffer lean4-info-buffer-name
+          (let ((inhibit-read-only t))
+            (erase-buffer)
+            (magit-insert-section (lean4-info-section 'root)
+              (insert (propertize "Nat.succ" 'lean4-info '(:p 1)) "\n")))
+          (let ((jumps 0))
+            (cl-letf (((symbol-function 'xref-find-definitions)
+                       (lambda (&rest _) (interactive) (cl-incf jumps))))
+              (goto-char (point-max))
+              (lean4-info-test--click (point-min))
+              (should (= (point) (point-min)))
+              (should (= jumps 0))
+              ;; RET on the same spot does go.
+              (should (lean4-info--act-at (point-min)))
+              (should (= jumps 1))))))
+    (delete-other-windows)
+    (kill-buffer lean4-info-buffer-name)))
 
 
 (ert-deftest lean4-info-a-childless-trace-does-not-look-foldable ()

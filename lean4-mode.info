@@ -103,6 +103,12 @@ Emacs 29 and later, so nothing needs installing for it.  See *note
 Semantic highlighting:: for one feature that a newer Eglot than the
 bundled one provides.
 
+   magit-section 3.3.0 is enough, and is what Debian and Ubuntu ship as
+‘elpa-magit-section’.  If you have it, do not install a newer one on
+this package's account: Magit depends on the matching version of
+magit-section, so upgrading only that one breaks Magit.  Both versions
+are tested, including against a live Lean server.
+
 
 File: lean4-mode.info,  Node: From source,  Next: With a source-based package manager,  Prev: Requirements,  Up: Installation
 
@@ -262,24 +268,60 @@ File: lean4-mode.info,  Node: Keys in the goal display,  Next: Errors and warnin
 Goals arrive as trees in which every subterm is labelled, so point can
 rest on any part of a goal and ask about it.
 
-Key              Description                                      Command
-------------------------------------------------------------------------------------------------------
-‘M-.’ or ‘RET’   Jump to the definition of the subterm at point   ‘xref-find-definitions’
-‘C-c C-t’        Jump to the definition of its type               ‘lean4-info-goto-type-definition’
-‘TAB’            Fold or unfold the trace or section at point     ‘lean4-info-toggle-fold’
-‘C-c C-s’        Pin the display to point, or unpin it            ‘lean4-info-toggle-pin’
-‘C-c C-SPC’      Pause or unpause the display                     ‘lean4-info-toggle-pause’
+Key              Description                                           Command
+----------------------------------------------------------------------------------------------------------------
+‘M-.’ or ‘RET’   Act on the thing at point                             ‘lean4-info-return’
+‘C-c C-t’        Jump to the definition of its type                    ‘lean4-info-goto-type-definition’
+‘TAB’            Fold or unfold the trace or section at point          ‘lean4-info-toggle-fold’
+‘C-c C-s’        Pin this position, or unpin the section point is in   ‘lean4-info-toggle-pin’
+‘C-c C-SPC’      Pause or unpause the display                          ‘lean4-info-toggle-pause’
+‘C-c C-g’        Bring a paused display up to date                     ‘lean4-info-refresh-paused’
+‘C-c C-a’        Pause or unpause the file's message list              ‘lean4-info-toggle-all-messages-pause’
+‘C-c C-o’        Order that list by position or by nearness            ‘lean4-info-toggle-message-order’
+
+   Pinning a position keeps it on display as a section of its own, above
+the section following point, and any number of positions can be pinned.
+Each keeps updating: a pin is a marker, so it follows its declaration as
+the file is edited, and it stays on display after moving to another
+file.  Each pinned section has its own controls - one back to the
+position, one to pause it, one to bring it up to date while paused, and
+one to unpin it.  Pausing a pin is separate from pinning it: a pinned
+goal follows its declaration through an edit unless told otherwise.
+Pinning happens at point, so the followed section is left out until
+point moves, rather than showing the same position twice; returning to a
+pinned position later does show both.
+
+   Every control has a key and a menu entry as well, so none of them
+needs a mouse.  With several pins there is no one pin for a key to mean,
+so ‘C-c C-s’ means the section point is standing in: inside a pinned
+section it unpins that one, and anywhere else it pins or unpins the
+position point is on in the Lean buffer.  ‘C-c C-SPC’ and ‘C-c C-g’ read
+the same way: inside a pinned section they pause and refresh that
+section, anywhere else the one following point.  ‘RET’ acts on whatever
+is under point: a control does what clicking it would, a message heading
+goes to the place it was reported for, and a term goes to its
+definition.  Every control is therefore reachable without a mouse.
 
    The last two are bound here as well as in the Lean buffer, so the
-display can be pinned or paused without leaving it.
+display can be pinned or paused without leaving it.  Clicking their
+controls does the same, and leaves the keyboard in the Lean buffer
+rather than taking focus, as VS Code does.  Both states can hold at
+once, and the heading says so: pinned means the display has stopped
+following point, paused that it has stopped updating at all.
+
+   Where there is nothing at point to report - outside a proof, say -
+the display says ‘No info found.’ rather than going blank, which would
+read like a display that had stopped working.  Messages from elsewhere
+in the file are still listed below it.
 
    The type and docstring of the subterm at point are reported through
 ElDoc, so they appear wherever ElDoc is configured to put them: the echo
 area by default, or a child frame with a package such as ‘eldoc-box’.
 
-   Traces fold.  Lean does not send the children of a trace node until
-something asks for them - a ‘simp’ trace on a real proof is enormous -
-so unfolding one fetches it.
+   Traces fold like everything else, being sections themselves: ‘TAB’ or
+the mouse, with the same indicator.  Lean does not send the children of
+a trace node until something asks - a ‘simp’ trace on a real proof is
+enormous - so opening one fetches them, once.
 
 
 File: lean4-mode.info,  Node: Errors and warnings,  Next: Completion,  Prev: Keys in the goal display,  Up: Usage
@@ -291,10 +333,60 @@ Diagnostics are reported through Flymake, which Eglot drives.  ‘C-c ! n’
 and ‘C-c ! p’ move between them, and ‘flymake-show-buffer-diagnostics’
 lists them.
 
+   Not everything Lean sends is a problem.  It reports a completed
+proof, trace output and whatever a project's own tactics emit at note
+severity, all of which is meant for the goal display; flagging it in the
+editor buries the errors among it.  So Flymake is shown errors and
+warnings, and the rest goes to the goal display only.  Set
+‘lean4-flymake-minimum-severity’ to ‘note’ to be shown everything, as VS
+Code's Problems view does, or to ‘error’ for less.
+
    Messages appear in the goal display placed by Lean's own notion of
 which declaration they belong to, so a message about a multi-line
 declaration stays visible while point moves through it.  Terms inside a
 message are as interactive as terms inside a goal.
+
+   Those covering point are listed under ‘Messages’, set in under the
+heading naming the position, along with the goals and the expected type.
+Every message in the file is listed under ‘All messages’, at the outer
+level, with two controls of its own: one orders the list by nearness to
+point or by position in the file - nearness first by default, as in VS
+Code, whose manual has All Messages "sorted by their proximity to the
+text cursor by default" - and one holds the list as it is, separately
+from the pause in the position heading.  While the display is paused a
+third control appears in the position heading, between the way back to
+the pinned position and the pin, which brings it up to date without
+unpausing it.  Both headings count what is in them by severity, the way
+VS Code's do - ‘All messages (1 ⊗ 5 ⓘ)’ for a file with one error and
+five notes.
+
+   Messages Lean marks as being for the goal display rather than the
+editor - that is what ‘isSilent’ means, the completed-proof report among
+them - are shown against the position they belong to and kept out of
+both Flymake and ‘All messages’, as VS Code does with them.
+
+   Lean emits three severities: error ‘⊗’, warning ‘⚠’ and information
+‘ⓘ’.  LSP defines a fourth, hint, which this package draws as ‘ⓗ’, but
+Lean's own ‘MessageSeverity’ has no such value and its server never
+sends one.  The glyphs are picked for the frame, falling back to ‘E W I
+H’ where none can be displayed.
+
+   Each message is a section of its own, so a long one - a ‘simp’ trace,
+a mismatch between two large terms - folds away without folding the
+rest.  Sections are set in with spaces and their fold indicators drawn
+by ‘magit-section’, in the fringe, the way a Magit buffer does both.
+Its heading names the file, line and column, and carries an ‘↪’ control,
+right-aligned, that sends point there.  Clicking works as ‘mouse-1’ does
+throughout Emacs: on a control it acts, and anywhere else it moves point
+- which is how a subterm is put under ElDoc, and how VS Code reads a
+plain click too.  ‘RET’ reaches further, having no control under a
+pointer to press: on a message heading it goes to the place the message
+was reported for, and on a subterm to its definition.  Folding is ‘TAB’,
+and by mouse whatever ‘magit-section’ itself offers - a double click, or
+a click on the fringe or margin, from version 4; nothing in 3.3.0 - so
+this display folds the way your Magit does.  The same control appears in
+the top heading, but only while pinned: unpinned, the display is
+following point and it would only lead where point already is.
 
 
 File: lean4-mode.info,  Node: Completion,  Prev: Errors and warnings,  Up: Usage
@@ -363,13 +455,23 @@ File: lean4-mode.info,  Node: The goal display's controls,  Next: Older Lean ver
 3.2 The goal display's controls
 ===============================
 
-The pin and pause controls are drawn with whichever glyphs the frame can
-display, decided each time they are drawn rather than once at startup,
-so one Emacs serving both a graphical frame and a terminal gets the
-right thing in each.  A graphical frame usually gets ‘📌 ⏸ ⏵’, a
-terminal ‘⌖ ⏸ ⏵’, and a display with nothing but ASCII gets ‘P || >’.
-Set ‘lean4-info-pin-icon’, ‘lean4-info-pause-icon’ or
-‘lean4-info-resume-icon’ to override.
+Each control says what clicking it will do rather than what the state
+is, so both swap glyph when engaged: ‘📌’ becomes ‘📍’ once pinned, and
+‘⏸’ becomes ‘⏵’ once paused.  The pin is the same pin seen head-on
+instead of from the side - pushed in rather than held ready.  VS Code
+turns its pin from upright to flat to say the same thing, but that is a
+codicon font; Unicode's one upright/slanted pin pair needs U+1F588,
+which too many fonts draw as a box to rest the difference on.  The
+engaged control is faced differently too, which is what carries the
+state on a frame with no second glyph to swap to.
+
+   The glyphs are chosen for whichever frame they are drawn in, decided
+each time rather than once at startup, so one Emacs serving both a
+graphical frame and a terminal gets the right thing in each.  A
+graphical frame usually gets ‘📌 📍 ⏸ ⏵’, a terminal ‘⌖ ⌾ ⏸ ⏵’, and a
+display with nothing but ASCII gets ‘P [P] || >’.  Set
+‘lean4-info-pin-icon’, ‘lean4-info-unpin-icon’, ‘lean4-info-pause-icon’
+or ‘lean4-info-resume-icon’ to override.
 
 
 File: lean4-mode.info,  Node: Older Lean versions,  Next: Semantic highlighting,  Prev: The goal display's controls,  Up: Configuration
@@ -380,13 +482,13 @@ File: lean4-mode.info,  Node: Older Lean versions,  Next: Semantic highlighting,
 Some of what this package reads was added to the Lean server over time,
 and it degrades quietly where a field is absent.
 
-   Lean marks its completed-proof report as being for the goal display
-rather than for the editor, and marks a finished declaration with a tag.
-Servers older than those fields - 4.26 sets neither, even when asked -
-send the report as an ordinary note, where it would appear as a problem
-against every finished proof.  For those, the message is recognised by
-its wording instead; set ‘lean4-hide-goals-accomplished’ to nil to see
-it as sent.
+   Lean marks messages meant for the goal display rather than the
+editor, and marks a finished declaration with a tag.  Servers older than
+those fields - 4.26 sets neither, even when asked - send the
+completed-proof report as an ordinary note, so it is the severity filter
+above rather than the tag that keeps it out of the editor there.  The
+marker in the goal display needs the tag, and is simply absent without
+it.
 
    Interactive references are encoded in a format negotiated with the
 server; version 1 arrived in Lean 4.30.  Older servers keep to version
@@ -482,26 +584,26 @@ Tag Table:
 Node: Top223
 Node: Installation1819
 Node: Requirements2044
-Node: From source2792
-Node: With a source-based package manager3280
-Node: Native vc (Emacs 30 or later)3791
-Node: Doom-Emacs4236
-Node: Straight4555
-Node: Upgrading from version 14912
-Node: Usage6209
-Node: Keys in a Lean buffer7493
-Node: Keys in the goal display8918
-Node: Errors and warnings10424
-Node: Completion11019
-Node: Configuration11621
-Node: Frequently used options12060
-Node: The goal display's controls13540
-Node: Older Lean versions14222
-Node: Semantic highlighting15231
-Node: Optional packages15813
-Node: Troubleshooting16306
-Node: Common Pitfalls16956
-Node: Acknowledgements17557
+Node: From source3124
+Node: With a source-based package manager3612
+Node: Native vc (Emacs 30 or later)4123
+Node: Doom-Emacs4568
+Node: Straight4887
+Node: Upgrading from version 15244
+Node: Usage6541
+Node: Keys in a Lean buffer7825
+Node: Keys in the goal display9250
+Node: Errors and warnings13211
+Node: Completion16941
+Node: Configuration17543
+Node: Frequently used options17982
+Node: The goal display's controls19462
+Node: Older Lean versions20783
+Node: Semantic highlighting21765
+Node: Optional packages22347
+Node: Troubleshooting22840
+Node: Common Pitfalls23490
+Node: Acknowledgements24091
 
 End Tag Table
 

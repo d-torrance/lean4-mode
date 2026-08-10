@@ -210,8 +210,8 @@ it was reported for; on a term, go to the definition of that term.  TAB
 folds and RET acts on the thing at point, which is the division
 `magit-section' uses.
 
-`mouse-1' does the same, in the same places: `lean4-info--act-at' is
-what both of them ask."
+`mouse-1' presses a control and otherwise only moves point; see
+`lean4-info--act-at' for why the keyboard reaches further."
   (interactive)
   (unless (lean4-info--act-at (point))
     (user-error "Nothing at point to go to")))
@@ -470,8 +470,8 @@ BUFFER is the Lean buffer the messages belong to."
 A section rather than plain text so that one long message -- a `simp'
 trace, a type mismatch between two large terms -- can be folded away
 without folding the rest, and so that it gets a chevron saying it can
-be.  The heading names the file as well as the line and column: the
-position alone read as a bare pair of numbers."
+be.  The heading names the file as well as the line and column, so that
+the position reads as a place rather than as a bare pair of numbers."
   (let* ((start (plist-get (plist-get diagnostic :range) :start))
          (line (1+ (or (plist-get start :line) 0)))
          (column (or (plist-get start :character) 0))
@@ -481,8 +481,8 @@ position alone read as a bare pair of numbers."
       (magit-insert-heading
         ;; The place is on the whole heading, not just the label: RET goes
         ;; there from anywhere on the line.  The label itself is plain
-        ;; text, since clicking a heading folds it, so the one thing that
-        ;; goes there by mouse is the one control that says so.
+        ;; text, so that the one thing which goes there by mouse is the
+        ;; one control that says so.
         (lean4-info--heading-text
          (propertize
          (lean4-info--align-right
@@ -767,42 +767,58 @@ still had none."
     (lean4-info--map-sections
      #'magit-section-maybe-update-visibility-indicator)))
 
+(defun lean4-info--press-at (position)
+  "Press the control at POSITION; return non-nil if there was one.
+
+Everything a click does beyond moving point, and the first thing RET
+tries; `lean4-info--act-at' is the rest of what RET does."
+  ;; Asked at the click position rather than left to the button's own
+  ;; keymap: `magit-section' overwrites the keymap property on a heading
+  ;; whenever the section is folded, taking the button's bindings with it.
+  (when-let* ((button (button-at position)))
+    (button-activate button)
+    t))
+
 (defun lean4-info--act-at (position)
   "Do whatever POSITION is on; return non-nil if there was anything.
 
-The one place that says what a spot in the display means, so that RET
-and `mouse-1' cannot come to disagree about it."
-  (cond
-   ;; A control: whatever its button says to do.
-   ((button-at position)
-    (button-activate (button-at position))
-    t)
-   ((get-text-property position 'lean4-info-position)
-    (lean4-info--error-button-action
-     (get-text-property position 'lean4-info-position))
-    t)
-   ;; Only where the server labelled a subterm.  Handing anything else to
-   ;; xref sent it off to look for a tags table, which is neither here nor
-   ;; anything the reader asked for.
-   ((get-text-property position 'lean4-info)
-    (save-excursion
-      (goto-char position)
-      (call-interactively #'xref-find-definitions))
-    t)))
+What RET does: press a control, go to the place a message was reported
+for, or go to the definition of a term, whichever point is on.  The
+keyboard reaches all three from the text itself, having no control
+under a pointer to press."
+  (or
+   (lean4-info--press-at position)
+   (cond
+    ((get-text-property position 'lean4-info-position)
+     (lean4-info--error-button-action
+      (get-text-property position 'lean4-info-position))
+     t)
+    ;; Only where the server labelled a subterm: xref falls back to a tags
+    ;; table for anything else, which has nothing to do with the goals.
+    ((get-text-property position 'lean4-info)
+     (save-excursion
+       (goto-char position)
+       (call-interactively #'xref-find-definitions))
+     t))))
 
 (defun lean4-info-mouse-1 (event)
-  "Do whatever EVENT was clicked on, or move point there.
+  "Press the control EVENT was clicked on, or move point there.
 
-What RET would do in the same spot, which is what `mouse-1' does
-throughout Emacs -- on a button or a link it acts, and anywhere else it
-sets point.  Notably it does not fold: the goals are trees of subterms,
-and clicking one is how the reader puts it under ElDoc."
+What `mouse-1' does throughout Emacs: on a button it acts, and anywhere
+else it sets point.  Point on a subterm is what puts that subterm under
+ElDoc, so a click is how the reader asks what a term is.  The go-to
+control beside a message is what goes to the place it was reported for,
+and \\[xref-find-definitions] is what goes to a definition.
+
+The window the click landed in is selected, not merely made current for
+the call: ElDoc describes point in the selected window, from
+`post-command-hook'."
   (interactive "e")
-  (let ((posn (event-start event)))
-    (with-selected-window (posn-window posn)
-      (let ((position (posn-point posn)))
-        (unless (lean4-info--act-at position)
-          (goto-char position))))))
+  (let* ((posn (event-start event))
+         (position (posn-point posn)))
+    (select-window (posn-window posn))
+    (unless (lean4-info--press-at position)
+      (goto-char position))))
 
 (defvar-keymap lean4-info-section-map
   :doc "Keymap over every section of the goal display.
