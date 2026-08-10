@@ -272,6 +272,117 @@ Code stops here too."
             (setq buffer-file-name nil))
           (kill-buffer buffer))))))
 
+;;;; Creating and downloading projects
+
+(defmacro lean4-lake-test--capture-in (&rest body)
+  "Evaluate BODY, returning what `compile' was called with and where.
+Also returns `ELAN_TOOLCHAIN' as it was set for the run, as a list of
+command, directory and toolchain."
+  (declare (indent 0) (debug (body)))
+  `(let (captured)
+     (cl-letf (((symbol-function 'compile)
+                (lambda (command &rest _)
+                  (setq captured
+                        (list command default-directory
+                              (getenv "ELAN_TOOLCHAIN")))
+                  ;; `lean4-lake--run-in' sets a finish function on this.
+                  (generate-new-buffer " *lean4-lake-test-compile*")))
+               ((symbol-function 'dired) #'ignore)
+               ((symbol-function 'message) #'ignore))
+       ,@body)
+     captured))
+
+(ert-deftest lean4-lake-new-project-runs-the-four-steps ()
+  "Init, update, build, commit -- each waiting on the one before."
+  (lean4-lake-test--with-tree '()
+    (let* ((directory (expand-file-name "MyPkg" root))
+           (captured (lean4-lake-test--capture-in
+                       (lean4-new-project directory)))
+           (command (nth 0 captured)))
+      (should (string-search "init MyPkg" command))
+      (should (string-search "update" command))
+      (should (string-search "build" command))
+      (should (string-search "git add --all" command))
+      (should (string-search "commit" command))
+      ;; The package name is the directory's last component.
+      (should-not (string-search "init MyPkg math" command))
+      ;; Ordering, and a failure stopping the rest.
+      (should (< (string-search "init" command)
+                 (string-search "update" command)
+                 (string-search "build" command)
+                 (string-search "git add" command)))
+      (should (string-search " && " command))
+      (should (equal (file-truename (nth 1 captured))
+                     (file-truename (file-name-as-directory directory))))
+      (should (equal (nth 2 captured) "leanprover/lean4:stable"))
+      (should (file-directory-p directory)))))
+
+(ert-deftest lean4-lake-new-mathlib-project-uses-the-math-template ()
+  "The `math' template, Mathlib's own toolchain, and the cache first."
+  (lean4-lake-test--with-tree '()
+    (let* ((directory (expand-file-name "MyMath" root))
+           (captured (lean4-lake-test--capture-in
+                       (lean4-new-mathlib-project directory)))
+           (command (nth 0 captured)))
+      (should (string-search "init MyMath math" command))
+      (should (string-search "exe cache get" command))
+      ;; Without the cache the first build compiles Mathlib from source.
+      (should (< (string-search "exe cache get" command)
+                 (string-search "build" command)))
+      (should (equal (nth 2 captured) lean4-lake-mathlib-toolchain)))))
+
+(ert-deftest lean4-lake-download-project-clones-then-builds ()
+  "Clone, then exactly what `lean4-lake-build' does."
+  (lean4-lake-test--with-tree '()
+    (let* ((directory (expand-file-name "Cloned" root))
+           (captured (lean4-lake-test--capture-in
+                       (lean4-download-project
+                        "https://example.invalid/pkg" directory)))
+           (command (nth 0 captured)))
+      ;; `shell-quote-argument' escapes the URL's colon, which the shell
+      ;; undoes; compare against what it actually emits.
+      (should (string-search (concat "git clone "
+                                     (shell-quote-argument
+                                      "https://example.invalid/pkg"))
+                             command))
+      (should (string-search (lean4-lake--build-command) command))
+      (should (< (string-search "git clone" command)
+                 (string-search "resolve-deps" command))))))
+
+(ert-deftest lean4-lake-project-presets-are-the-two-vs-code-offers ()
+  "Mathlib and the book that introduces it, each a real URL."
+  (should (equal (mapcar #'car lean4-lake-project-presets)
+                 '("Mathlib" "Mathematics in Lean")))
+  (dolist (preset lean4-lake-project-presets)
+    (should (string-prefix-p "https://github.com/leanprover-community/"
+                             (cdr preset)))))
+
+(ert-deftest lean4-lake-new-project-refuses-a-used-directory ()
+  "`lake init' expects to be what fills the directory."
+  (lean4-lake-test--with-tree '("Occupied/something.txt")
+    (cl-letf (((symbol-function 'read-directory-name)
+               (lambda (&rest _) (expand-file-name "Occupied" root))))
+      (should-error (call-interactively #'lean4-new-project)
+                    :type 'user-error))
+    ;; An absent directory is fine: it is about to be created.
+    (cl-letf (((symbol-function 'read-directory-name)
+               (lambda (&rest _) (expand-file-name "Fresh" root))))
+      (should (equal (lean4-lake--read-new-directory "x: ")
+                     (expand-file-name "Fresh" root))))))
+
+(ert-deftest lean4-lake-initial-commit-always-has-an-identity ()
+  "A machine with no `user.name' must not fail the whole creation."
+  (cl-letf (((symbol-function 'shell-command-to-string) (lambda (&rest _) "")))
+    (let ((command (lean4-lake--initial-commit-command)))
+      (should (string-search (shell-quote-argument "user.name=Lean 4 project")
+                             command))
+      (should (string-search "commit" command))))
+  ;; With one configured, it is used rather than overridden.
+  (cl-letf (((symbol-function 'shell-command-to-string)
+             (lambda (&rest _) "Ada\n")))
+    (should-not (string-search (shell-quote-argument "user.name=")
+                               (lean4-lake--initial-commit-command)))))
+
 ;;;; Cleaning
 
 (ert-deftest lean4-lake-clean-asks-before-deleting ()

@@ -21,6 +21,8 @@
 
 ;;; Code:
 
+(require 'compile)
+(require 'dired)
 (require 'lean4-util)
 (require 'lean4-settings)
 
@@ -181,6 +183,161 @@ elan both read, and is better made deliberately."
                    name))
     (user-error "Not updating %s" name))
   (lean4-lake--run "update" name))
+
+;;;; Creating and downloading projects
+
+(defconst lean4-lake-mathlib-toolchain
+  "leanprover-community/mathlib4:lean-toolchain"
+  "The toolchain a new Mathlib project is created with.
+Not a version but a reference to Mathlib\\='s own \"lean-toolchain\", so
+that the project starts on whatever Mathlib currently wants.")
+
+(defconst lean4-lake-project-presets
+  '(("Mathlib" . "https://github.com/leanprover-community/mathlib4")
+    ("Mathematics in Lean"
+     . "https://github.com/leanprover-community/mathematics_in_lean"))
+  "Projects offered by name when downloading one.
+The two VS Code offers: Lean\\='s mathematics library, and the book that
+introduces it.")
+
+(defun lean4-lake--run-in (directory command &optional toolchain then)
+  "Run COMMAND in DIRECTORY through `compile'.
+
+TOOLCHAIN, if given, is the Lean version to run under, passed as
+`ELAN_TOOLCHAIN' so that elan installs it where it is missing -- which is
+how VS Code creates a project on a toolchain that is not there yet.
+
+THEN, if given, is called with no arguments once the command has
+succeeded.  `compile' is asynchronous, so anything that should follow a
+project being created has to wait for it like this."
+  (let* ((default-directory (file-name-as-directory directory))
+         (process-environment
+          (if toolchain
+              (cons (format "ELAN_TOOLCHAIN=%s" toolchain) process-environment)
+            process-environment))
+         (buffer (compile command)))
+    (when then
+      (with-current-buffer buffer
+        (setq-local compilation-finish-functions
+                    (list (lambda (_buffer status)
+                            (when (string-prefix-p "finished" status)
+                              (funcall then)))))))
+    buffer))
+
+(defun lean4-lake--read-new-directory (prompt)
+  "Read the directory to make a project in, with PROMPT.
+Refuses one that already has anything in it: `lake init' expects to be
+the thing that fills it."
+  (let ((directory (expand-file-name (read-directory-name prompt))))
+    (when (and (file-exists-p directory)
+               (not (file-directory-p directory)))
+      (user-error "%s is not a directory" directory))
+    (when (and (file-directory-p directory)
+               (directory-files directory nil
+                                directory-files-no-dot-files-regexp t))
+      (user-error "%s is not empty" directory))
+    directory))
+
+(defun lean4-lake--initial-commit-command ()
+  "Return the command that commits a newly created project.
+
+Git is configured on the command line rather than relied on: a machine
+with no `user.name' set would otherwise fail the commit and report the
+whole creation as failed, when all that went wrong was the last step.  VS
+Code sidesteps the same problem by committing as itself; this prefers
+whatever identity is configured and only falls back."
+  (let* ((name (string-trim (shell-command-to-string
+                             "git config --get user.name 2>/dev/null")))
+         (email (string-trim (shell-command-to-string
+                              "git config --get user.email 2>/dev/null")))
+         (identity (if (and (not (string-empty-p name))
+                            (not (string-empty-p email)))
+                       nil
+                     (list "-c" "user.name=Lean 4 project"
+                           "-c" "user.email=<>"))))
+    (concat "git add --all && "
+            (mapconcat #'shell-quote-argument
+                       (append '("git") identity
+                               '("commit" "-m" "Initial commit"))
+                       " "))))
+
+(defun lean4-lake--create-project (directory kind toolchain)
+  "Create a Lean project of KIND in DIRECTORY, on TOOLCHAIN.
+
+KIND is what `lake init' calls a template -- nil for a plain project,
+\"math\" for one depending on Mathlib.  The steps are VS Code\\='s: `lake
+init', then `lake update' to resolve what the template asked for, then
+Mathlib\\='s cache where there is one to fetch, then `lake build', then an
+initial commit.  Each waits on the one before, and the whole thing reports
+into a single compilation buffer."
+  (make-directory directory 'parents)
+  (let* ((name (file-name-nondirectory (directory-file-name directory)))
+         (steps (delq nil
+                      (list (apply #'lean4-lake--command
+                                   (append '("init") (list name)
+                                           (when kind (list kind))))
+                            (lean4-lake--command "update")
+                            (when (equal kind "math")
+                              (lean4-lake--command "exe" "cache" "get"))
+                            (lean4-lake--command "build")
+                            (lean4-lake--initial-commit-command)))))
+    (lean4-lake--run-in directory (string-join steps " && ") toolchain
+                        (lambda () (dired directory)))
+    (message "Creating %s in %s..." name directory)))
+
+;;;###autoload
+(defun lean4-new-project (directory)
+  "Create a new Lean project in DIRECTORY.
+
+The counterpart of VS Code\\='s \"Create Standalone Project\": `lake init'
+on the current stable Lean, then `lake update' and `lake build', then an
+initial commit.  DIRECTORY has to be empty or absent, and its last
+component becomes the package name, so it wants to be something Lean will
+accept as a module name.
+
+Dired opens on the project once it has been built."
+  (interactive
+   (list (lean4-lake--read-new-directory "Create a Lean project in: ")))
+  (lean4-lake--create-project directory nil "leanprover/lean4:stable"))
+
+;;;###autoload
+(defun lean4-new-mathlib-project (directory)
+  "Create a new Lean project in DIRECTORY that depends on Mathlib.
+
+The counterpart of VS Code\\='s \"Create Project Using Mathlib\": as
+`lean4-new-project', but with `lake init'\\='s \"math\" template, on
+Mathlib\\='s own toolchain, and fetching Mathlib\\='s build cache before
+building -- without which the first build compiles Mathlib from source."
+  (interactive
+   (list (lean4-lake--read-new-directory
+          "Create a Mathlib project in: ")))
+  (lean4-lake--create-project directory "math" lean4-lake-mathlib-toolchain))
+
+;;;###autoload
+(defun lean4-download-project (url directory)
+  "Clone the Lean project at URL into DIRECTORY and build it.
+
+The counterpart of VS Code\\='s \"Download Project\", and it offers the same
+two by name -- Mathlib and Mathematics in Lean -- as well as taking any
+Git URL.  After cloning it resolves dependencies, fetches Mathlib\\='s cache
+where there is one, and builds, which is what `lean4-lake-build' does.
+
+Dired opens on the project once it has been built."
+  (interactive
+   (let* ((choice (completing-read
+                   "Download project (name or Git URL): "
+                   (mapcar #'car lean4-lake-project-presets)))
+          (url (or (cdr (assoc choice lean4-lake-project-presets))
+                   choice)))
+     (when (string-empty-p (string-trim url))
+       (user-error "No project named"))
+     (list url (lean4-lake--read-new-directory "Clone it into: "))))
+  (make-directory directory 'parents)
+  (let ((command (concat (mapconcat #'shell-quote-argument
+                                    (list "git" "clone" url directory) " ")
+                         " && " (lean4-lake--build-command))))
+    (lean4-lake--run-in directory command nil (lambda () (dired directory)))
+    (message "Downloading %s into %s..." url directory)))
 
 ;;;; Mathlib's build cache
 

@@ -400,6 +400,37 @@ opening one file to read it should not commit you to building everything
 beneath it.  =C-c C-p C-l= (~lean4-lake-build~) builds the package
 outright.
 
+** Starting a project
+
+Three commands, in the =Lean= menu under =Project=.
+
+| Command                     | Creates                                  |
+|-----------------------------+------------------------------------------|
+| ~lean4-new-project~         | a new project on the current stable Lean |
+| ~lean4-new-mathlib-project~ | a new project depending on Mathlib       |
+| ~lean4-download-project~    | a clone of an existing project           |
+
+Each asks for a directory, which has to be empty or absent -- =lake init=
+expects to be what fills it -- and for a new project its last component
+becomes the package name, so it wants to be something Lean will accept as
+a module name.  Dired opens on the project once it has been built.
+
+~lean4-new-project~ runs =lake init=, then =lake update=, then =lake
+build=, then commits the result; ~lean4-new-mathlib-project~ adds =lake
+init='s =math= template and fetches Mathlib's cache before building,
+without which the first build compiles Mathlib from source.  These are the
+steps VS Code's "Create Standalone Project" and "Create Project Using
+Mathlib" take.
+
+~lean4-download-project~ offers Mathlib and [[https://github.com/leanprover-community/mathematics_in_lean][Mathematics in Lean]] by name, as
+VS Code does, and takes any Git URL besides.  After cloning it does what
+=C-c C-p C-l= does: resolve dependencies, fetch the cache, build.
+
+The initial commit uses your own Git identity where one is configured, and
+falls back to a placeholder where none is, so that a machine without
+=user.name= set does not fail the whole creation on its last step.  VS Code
+commits as itself for the same reason.
+
 ** Building
 
 =C-c C-p C-l= (~lean4-lake-build~) builds the package the way VS Code's

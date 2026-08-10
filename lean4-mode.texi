@@ -71,6 +71,7 @@ Usage
 * How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
+* Starting a project::
 * Building::
 * Mathlib's build cache::
 * Choosing which Lean to use::
@@ -268,6 +269,7 @@ buffer.  To put it in a side window on the right:
 * How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
+* Starting a project::
 * Building::
 * Mathlib's build cache::
 * Choosing which Lean to use::
@@ -623,6 +625,43 @@ Both default off for the same reason: on a project the size of Mathlib,
 opening one file to read it should not commit you to building everything
 beneath it.  @samp{C-c C-p C-l} (@code{lean4-lake-build}) builds the package
 outright.
+
+@node Starting a project
+@section Starting a project
+
+Three commands, in the @samp{Lean} menu under @samp{Project}.
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@headitem Command
+@tab Creates
+@item @code{lean4-new-project}
+@tab a new project on the current stable Lean
+@item @code{lean4-new-mathlib-project}
+@tab a new project depending on Mathlib
+@item @code{lean4-download-project}
+@tab a clone of an existing project
+@end multitable
+
+Each asks for a directory, which has to be empty or absent -- @samp{lake init}
+expects to be what fills it -- and for a new project its last component
+becomes the package name, so it wants to be something Lean will accept as
+a module name.  Dired opens on the project once it has been built.
+
+@code{lean4-new-project} runs @samp{lake init}, then @samp{lake update}, then @samp{lake
+build}, then commits the result; @code{lean4-new-mathlib-project} adds @samp{lake
+init}'s @samp{math} template and fetches Mathlib's cache before building,
+without which the first build compiles Mathlib from source.  These are the
+steps VS Code's "Create Standalone Project" and "Create Project Using
+Mathlib" take.
+
+@code{lean4-download-project} offers Mathlib and @uref{https://github.com/leanprover-community/mathematics_in_lean, Mathematics in Lean} by name, as
+VS Code does, and takes any Git URL besides.  After cloning it does what
+@samp{C-c C-p C-l} does: resolve dependencies, fetch the cache, build.
+
+The initial commit uses your own Git identity where one is configured, and
+falls back to a placeholder where none is, so that a machine without
+@samp{user.name} set does not fail the whole creation on its last step.  VS Code
+commits as itself for the same reason.
 
 @node Building
 @section Building

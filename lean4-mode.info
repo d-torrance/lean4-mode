@@ -63,6 +63,7 @@ Usage
 * How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
+* Starting a project::
 * Building::
 * Mathlib's build cache::
 * Choosing which Lean to use::
@@ -267,6 +268,7 @@ buffer.  To put it in a side window on the right:
 * How much of a goal to show::
 * Errors and warnings::
 * Building dependencies::
+* Starting a project::
 * Building::
 * Mathlib's build cache::
 * Choosing which Lean to use::
@@ -539,7 +541,7 @@ appears in the top heading, but only while pinned: unpinned, the display
 is following point and it would only lead where point already is.
 
 
-File: lean4-mode.info,  Node: Building dependencies,  Next: Building,  Prev: Errors and warnings,  Up: Usage
+File: lean4-mode.info,  Node: Building dependencies,  Next: Starting a project,  Prev: Errors and warnings,  Up: Usage
 
 2.7 Building dependencies
 =========================
@@ -565,9 +567,46 @@ beneath it.  ‘C-c C-p C-l’ (‘lean4-lake-build’) builds the package
 outright.
 
 
-File: lean4-mode.info,  Node: Building,  Next: Mathlib's build cache,  Prev: Building dependencies,  Up: Usage
+File: lean4-mode.info,  Node: Starting a project,  Next: Building,  Prev: Building dependencies,  Up: Usage
 
-2.8 Building
+2.8 Starting a project
+======================
+
+Three commands, in the ‘Lean’ menu under ‘Project’.
+
+Command                       Creates
+-------------------------------------------------------------------------
+‘lean4-new-project’           a new project on the current stable Lean
+‘lean4-new-mathlib-project’   a new project depending on Mathlib
+‘lean4-download-project’      a clone of an existing project
+
+   Each asks for a directory, which has to be empty or absent - ‘lake
+init’ expects to be what fills it - and for a new project its last
+component becomes the package name, so it wants to be something Lean
+will accept as a module name.  Dired opens on the project once it has
+been built.
+
+   ‘lean4-new-project’ runs ‘lake init’, then ‘lake update’, then ‘lake
+build’, then commits the result; ‘lean4-new-mathlib-project’ adds ‘lake
+init’'s ‘math’ template and fetches Mathlib's cache before building,
+without which the first build compiles Mathlib from source.  These are
+the steps VS Code's "Create Standalone Project" and "Create Project
+Using Mathlib" take.
+
+   ‘lean4-download-project’ offers Mathlib and Mathematics in Lean
+(https://github.com/leanprover-community/mathematics_in_lean) by name,
+as VS Code does, and takes any Git URL besides.  After cloning it does
+what ‘C-c C-p C-l’ does: resolve dependencies, fetch the cache, build.
+
+   The initial commit uses your own Git identity where one is
+configured, and falls back to a placeholder where none is, so that a
+machine without ‘user.name’ set does not fail the whole creation on its
+last step.  VS Code commits as itself for the same reason.
+
+
+File: lean4-mode.info,  Node: Building,  Next: Mathlib's build cache,  Prev: Starting a project,  Up: Usage
+
+2.9 Building
 ============
 
 ‘C-c C-p C-l’ (‘lean4-lake-build’) builds the package the way VS Code's
@@ -596,8 +635,8 @@ resolution, ‘M-x compile’ is the thing.
 
 File: lean4-mode.info,  Node: Mathlib's build cache,  Next: Choosing which Lean to use,  Prev: Building,  Up: Usage
 
-2.9 Mathlib's build cache
-=========================
+2.10 Mathlib's build cache
+==========================
 
 Mathlib is far too large to build locally, and does not need to be: its
 artifacts are built upstream and can be downloaded.  Three commands ask
@@ -623,7 +662,7 @@ whatever Lake reports, as with any other build.
 
 File: lean4-mode.info,  Node: Choosing which Lean to use,  Next: Searching Mathlib with Loogle,  Prev: Mathlib's build cache,  Up: Usage
 
-2.10 Choosing which Lean to use
+2.11 Choosing which Lean to use
 ===============================
 
 Four commands, in the ‘Lean’ menu under ‘Lean version’.
@@ -673,7 +712,7 @@ instead, in order to stay compatible with it,
 
 File: lean4-mode.info,  Node: Elan itself,  Next: Git and curl,  Up: Choosing which Lean to use
 
-2.10.1 Elan itself
+2.11.1 Elan itself
 ------------------
 
 Three more commands manage the tool rather than the versions.
@@ -701,7 +740,7 @@ installed)’ version in any of the other commands fetches it anyway.
 
 File: lean4-mode.info,  Node: Git and curl,  Prev: Elan itself,  Up: Choosing which Lean to use
 
-2.10.2 Git and curl
+2.11.2 Git and curl
 -------------------
 
 Elan downloads toolchains with curl and Lake clones dependencies with
@@ -737,7 +776,7 @@ environment it was started with is refreshed.
 
 File: lean4-mode.info,  Node: Searching Mathlib with Loogle,  Next: The module hierarchy,  Prev: Choosing which Lean to use,  Up: Usage
 
-2.11 Searching Mathlib with Loogle
+2.12 Searching Mathlib with Loogle
 ==================================
 
 ‘M-x lean4-loogle-search’ asks Loogle (https://loogle.lean-lang.org),
@@ -778,7 +817,7 @@ and it answers about Mathlib rather than about the code in hand.
 
 File: lean4-mode.info,  Node: The module hierarchy,  Next: Other Lake operations,  Prev: Searching Mathlib with Loogle,  Up: Usage
 
-2.12 The module hierarchy
+2.13 The module hierarchy
 =========================
 
 What a module imports, and what imports it, as a tree in a ‘*Lean Module
@@ -823,7 +862,7 @@ and non-meta’ for one imported both ways.
 
 File: lean4-mode.info,  Node: It needs a built project,  Up: The module hierarchy
 
-2.12.1 It needs a built project
+2.13.1 It needs a built project
 -------------------------------
 
 The server answers these from its reference data, which it builds from
@@ -838,7 +877,7 @@ after a rebuild may be the one from before it; ‘g’ asks again.
 
 File: lean4-mode.info,  Node: Other Lake operations,  Next: Completion,  Prev: The module hierarchy,  Up: Usage
 
-2.13 Other Lake operations
+2.14 Other Lake operations
 ==========================
 
 Two more commands live in the same ‘Project’ menu.
@@ -868,7 +907,7 @@ has a window to point at a folder.
 
 File: lean4-mode.info,  Node: Completion,  Prev: Other Lake operations,  Up: Usage
 
-2.14 Completion
+2.15 Completion
 ===============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -1137,42 +1176,43 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2265
-Node: Requirements2490
-Node: From source3570
-Node: With a source-based package manager4058
-Node: Native vc (Emacs 30 or later)4569
-Node: Doom-Emacs5014
-Node: Straight5333
-Node: Upgrading from version 15690
-Node: Usage6987
-Node: Keys in a Lean buffer8612
-Node: Keys in the goal display10394
-Node: The tactic state14914
-Node: Copying what is on display15706
-Node: How much of a goal to show16733
-Node: Errors and warnings20244
-Node: Building dependencies24339
-Node: Building25599
-Node: Mathlib's build cache26794
-Node: Choosing which Lean to use28149
-Node: Elan itself30484
-Node: Git and curl31700
-Node: Searching Mathlib with Loogle33447
-Node: The module hierarchy35462
-Node: It needs a built project37505
-Node: Other Lake operations38155
-Node: Completion39580
-Node: Configuration40702
-Node: Frequently used options41141
-Node: The goal display's controls42804
-Node: Older Lean versions44125
-Node: Semantic highlighting45107
-Node: Optional packages46426
-Node: Troubleshooting46919
-Node: "Imports are out of date and must be rebuilt"48406
-Node: Common Pitfalls49859
-Node: Acknowledgements50460
+Node: Installation2288
+Node: Requirements2513
+Node: From source3593
+Node: With a source-based package manager4081
+Node: Native vc (Emacs 30 or later)4592
+Node: Doom-Emacs5037
+Node: Straight5356
+Node: Upgrading from version 15713
+Node: Usage7010
+Node: Keys in a Lean buffer8658
+Node: Keys in the goal display10440
+Node: The tactic state14960
+Node: Copying what is on display15752
+Node: How much of a goal to show16779
+Node: Errors and warnings20290
+Node: Building dependencies24385
+Node: Starting a project25655
+Node: Building27447
+Node: Mathlib's build cache28639
+Node: Choosing which Lean to use29996
+Node: Elan itself32331
+Node: Git and curl33547
+Node: Searching Mathlib with Loogle35294
+Node: The module hierarchy37309
+Node: It needs a built project39352
+Node: Other Lake operations40002
+Node: Completion41427
+Node: Configuration42549
+Node: Frequently used options42988
+Node: The goal display's controls44651
+Node: Older Lean versions45972
+Node: Semantic highlighting46954
+Node: Optional packages48273
+Node: Troubleshooting48766
+Node: "Imports are out of date and must be rebuilt"50253
+Node: Common Pitfalls51706
+Node: Acknowledgements52307
 
 End Tag Table
 

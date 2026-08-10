@@ -171,6 +171,14 @@ xref, project roots through =project.el=.
   accomplished=, where VS Code counts nothing either.  The expected type
   is headed =Expected type= rather than =Expected type:=, neither heading
   taking a colon in VS Code.
+- Projects can be started from Emacs: ~lean4-new-project~,
+  ~lean4-new-mathlib-project~ and ~lean4-download-project~, the
+  counterparts of VS Code's "Create Standalone Project", "Create Project
+  Using Mathlib" and "Download Project".  Each takes the same steps VS Code
+  does -- =lake init=, =lake update=, the Mathlib cache where it applies,
+  =lake build=, an initial commit -- reporting into one compilation buffer,
+  and opens Dired on the project once it has built.  The download command
+  offers Mathlib and Mathematics in Lean by name and takes any Git URL.
 - ~lean4-lake-clean~ deletes the package's build artefacts and
   ~lean4-lake-update-dependency~ updates one dependency, offering the
   package's direct Git dependencies for completion from
@@ -234,7 +242,7 @@ xref, project roots through =project.el=.
   package manager is not recognised it says what to install and stops; on
   Windows without winget it points at git-scm.com rather than downloading a
   pinned installer as VS Code does.
-- A test suite: 310 unit tests, and 37 end-to-end tests that run against
+- A test suite: 316 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 
 ** Fixed

@@ -175,6 +175,10 @@ and which is what this mode did before."
     ["Restart lean process" eglot-reconnect                   t]
     "--"
     ("Project"
+     ["New project..."                 lean4-new-project             t]
+     ["New Mathlib project..."         lean4-new-mathlib-project     t]
+     ["Download a project..."          lean4-download-project        t]
+     "--"
      ["Build with Lake"                lean4-lake-build              t]
      ["Clean build artefacts"          lean4-lake-clean              t]
      ["Update a dependency..."         lean4-lake-update-dependency  t]
