@@ -186,24 +186,14 @@ and will hold the memory until told otherwise.")
 On a control, what clicking it would do; on a message, go to the place
 it was reported for; on a term, go to the definition of that term.  TAB
 folds and RET acts on the thing at point, which is the division
-`magit-section' uses, and the reason folding is not bound here as well.
+`magit-section' uses.
 
-Every control is reachable this way, so none of them needs the mouse,
-and the file and position in a message heading can stay a label -- what
-clicking a heading does is fold it."
+`mouse-1' does the same, in the same places: `lean4-info--act-at' is
+what both of them ask."
   (interactive)
-  (cond
-   ((get-text-property (point) 'lean4-info-command)
-    (lean4-info--run-control (get-text-property (point) 'lean4-info-command)))
-   ((get-text-property (point) 'lean4-info-position)
-    (lean4-info--error-button-action
-     (get-text-property (point) 'lean4-info-position)))
-   ;; Only where the server labelled a subterm.  Handing anything else to
-   ;; xref sent it off to look for a tags table, which is neither here nor
-   ;; anything the reader asked for.
-   ((get-text-property (point) 'lean4-info)
-    (call-interactively #'xref-find-definitions))
-   (t (user-error "Nothing at point to go to"))))
+  (unless (lean4-info--act-at (point))
+    (user-error "Nothing at point to go to")))
+
 
 (defun lean4-info-toggle-fold ()
   "Fold or unfold whatever is at point.
@@ -680,43 +670,56 @@ still had none."
                      (mapc walk (oref section children)))))
       (funcall walk magit-root-section))))
 
+(defun lean4-info--act-at (position)
+  "Do whatever POSITION is on; return non-nil if there was anything.
+
+The one place that says what a spot in the display means, so that RET
+and `mouse-1' cannot come to disagree about it."
+  (cond
+   ((get-text-property position 'lean4-info-command)
+    (lean4-info--run-control
+     (get-text-property position 'lean4-info-command))
+    t)
+   ((get-text-property position 'lean4-info-position)
+    (lean4-info--error-button-action
+     (get-text-property position 'lean4-info-position))
+    t)
+   ;; Only where the server labelled a subterm.  Handing anything else to
+   ;; xref sent it off to look for a tags table, which is neither here nor
+   ;; anything the reader asked for.
+   ((get-text-property position 'lean4-info)
+    (save-excursion
+      (goto-char position)
+      (call-interactively #'xref-find-definitions))
+    t)))
+
 (defun lean4-info-mouse-1 (event)
-  "Do whatever EVENT was clicked on.
+  "Do whatever EVENT was clicked on, or move point there.
 
-A control does what it says, a heading folds, and anywhere else point
-simply moves there -- which is what most of this buffer is for: the
-goals are made of subterms, and clicking one is how the reader asks
-ElDoc what it is.  Folding on a click anywhere took that away, and
-folded the subterm out of sight into the bargain.
-
-One command rather than a binding per control: `magit-section' puts its
-own keymap over a section, and the way to be heard through that is its
-`keymap' slot, which is per section rather than per character.  Reading
-the click position tells us what was clicked, so the section-wide
-binding is enough."
+What RET would do in the same spot, which is what `mouse-1' does
+throughout Emacs -- on a button or a link it acts, and anywhere else it
+sets point.  Notably it does not fold: the goals are trees of subterms,
+and clicking one is how the reader puts it under ElDoc."
   (interactive "e")
   (let ((posn (event-start event)))
     (with-selected-window (posn-window posn)
       (let ((position (posn-point posn)))
-        (cond
-         ((get-text-property position 'lean4-info-command)
-          (lean4-info--run-control
-           (get-text-property position 'lean4-info-command)))
-         ((lean4-info--on-heading-p position)
-          (goto-char position)
-          (call-interactively #'magit-section-toggle))
-         (t (goto-char position)))))))
+        (unless (lean4-info--act-at position)
+          (goto-char position))))))
 
-(defun lean4-info--on-heading-p (&optional position)
-  "Return non-nil if POSITION, or point, is on a heading that folds."
-  (let ((position (or position (point))))
-    (when-let* ((section (save-excursion (goto-char position)
-                                         (magit-current-section)))
-                (start (oref section start)))
-      (and (oref section content)
-           (<= start position)
-           (<= position (save-excursion (goto-char start)
-                                        (line-end-position)))))))
+(defun lean4-info-mouse-toggle (event)
+  "Fold or unfold the section whose fold indicator EVENT clicked.
+
+The indicator is drawn by `magit-section' in the fringe, and clicking an
+indicator is what an indicator is for.  Magit binds the margin the same
+way from version 4."
+  (interactive "e")
+  (let ((posn (event-start event)))
+    (with-selected-window (posn-window posn)
+      (when-let* ((position (posn-point posn)))
+        (goto-char position)
+        (call-interactively #'magit-section-toggle)))))
+
 
 (defvar-keymap lean4-info-section-map
   :doc "Keymap over every section of the goal display.
@@ -726,7 +729,12 @@ it to -- composed with its own bindings rather than replacing them.
 Putting a keymap on the text directly does not survive: `magit-section'
 overwrites the property on a heading line whenever the section is
 folded."
-  "<mouse-1>" #'lean4-info-mouse-1)
+  "<mouse-1>" #'lean4-info-mouse-1
+  ;; Folding is TAB, and a click on the indicator that says a section
+  ;; folds.  Not `mouse-1' over the text: that is how point is moved, and
+  ;; here it is how a subterm is put under ElDoc.
+  "<left-fringe> <mouse-1>" #'lean4-info-mouse-toggle
+  "<left-margin> <mouse-1>" #'lean4-info-mouse-toggle)
 
 (defclass lean4-info-section (magit-section)
   ((keymap :initform 'lean4-info-section-map))

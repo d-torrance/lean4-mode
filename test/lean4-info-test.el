@@ -240,29 +240,41 @@ position and the one for the file."
       (kill-buffer source)
       (kill-buffer lean4-info-buffer-name))))
 
-(ert-deftest lean4-info-a-click-folds-only-on-a-heading ()
-  "Clicking a heading folds it; clicking its body only moves point.
+(ert-deftest lean4-info-a-click-does-what-return-does ()
+  "`mouse-1' and RET ask the same question of the same spot.
 
-Regression test.  Folding on a click anywhere meant the goals could not
-be clicked at all -- they are made of subterms, and clicking one is how
-the reader asks ElDoc what it is -- and the click folded the subterm out
-of sight as well."
-  (lean4-ensure-info-buffer lean4-info-buffer-name)
-  (unwind-protect
-      (with-current-buffer lean4-info-buffer-name
-        (let ((inhibit-read-only t))
-          (erase-buffer)
-          (magit-insert-section (lean4-info-section 'root)
-            (magit-insert-section (lean4-info-section 'goals)
-              (magit-insert-heading "Goals:")
-              (magit-insert-section-body (insert "⊢ n + 0 = n\n")))))
-        (let* ((section (car (oref magit-root-section children)))
-               (heading (oref section start))
-               (body (save-excursion (goto-char heading)
-                                     (line-beginning-position 2))))
-          (should (lean4-info--on-heading-p heading))
-          (should-not (lean4-info--on-heading-p body))))
-    (kill-buffer lean4-info-buffer-name)))
+That is how `mouse-1' behaves throughout Emacs -- on a button or a link
+it acts, anywhere else it sets point -- and it is why folding is not
+bound to it.  The goals are trees of subterms, and clicking one is how
+the reader puts it under ElDoc; folding on a click took that away and
+folded the subterm out of sight as well."
+  (let ((source (get-buffer-create "Named.lean")))
+    (unwind-protect
+        (progn
+          (with-current-buffer source
+            (erase-buffer)
+            (insert "line one\nline two\n"))
+          (lean4-info-test--insert-message
+           '(:range (:start (:line 1 :character 0)) :message "boom") source)
+          (with-current-buffer lean4-info-buffer-name
+            (setq lean4-info--source-buffer source)
+            ;; A message heading: both go to the position it reports.
+            (goto-char (point-min))
+            (should (search-forward "Named.lean:2:0" nil t))
+            (should (lean4-info--act-at (match-beginning 0)))
+            ;; Nothing to act on: RET says so, and a click just moves.
+            (goto-char (point-min))
+            (should-not (lean4-info--act-at (point)))
+            (should-error (lean4-info-return) :type 'user-error))
+          ;; Folding is not among the things a click does.
+          (should (eq (keymap-lookup lean4-info-section-map "<mouse-1>")
+                      'lean4-info-mouse-1))
+          (should (eq (keymap-lookup lean4-info-section-map
+                                     "<left-fringe> <mouse-1>")
+                      'lean4-info-mouse-toggle)))
+      (kill-buffer source)
+      (kill-buffer lean4-info-buffer-name))))
+
 
 (ert-deftest lean4-info-sections-are-told-apart-across-a-rebuild ()
   "Folding one section does not fold its siblings when the display rebuilds.
