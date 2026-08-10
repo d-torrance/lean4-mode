@@ -580,7 +580,7 @@ request it decides whether to make."
 Each message becomes a foldable section of its own, headed by the place
 in BUFFER it belongs to.  Nothing is inserted when MESSAGES is empty."
   (when messages
-    (magit-insert-section (magit-section value)
+    (magit-insert-section (lean4-info-section value)
       (magit-insert-heading (lean4-info--heading-text caption))
       (lean4-info--section-body
         (lean4-info--indented

@@ -623,6 +623,39 @@ order they start in."
     (should (string-prefix-p "All messages (" (substring-no-properties caption)))
     (should (string-suffix-p "XY" (substring-no-properties caption)))))
 
+(ert-deftest lean4-info-all-messages-controls-answer-to-the-mouse ()
+  "The controls on the file's message heading can be clicked.
+
+Regression test.  Every section of the display is a `lean4-info-section',
+which is what carries the `mouse-1' binding, but this one was left a
+plain `magit-section' -- so `magit-section' put its own heading keymap
+there instead and clicking the sort control did nothing."
+  (let ((source (get-buffer-create "Sorted.lean")))
+    (unwind-protect
+        (with-current-buffer (get-buffer-create lean4-info-buffer-name)
+          (let ((inhibit-read-only t))
+            (unless (derived-mode-p 'magit-section-mode) (magit-section-mode))
+            (erase-buffer)
+            (magit-insert-section (lean4-info-section 'root)
+              (lean4-info--mk-message-section
+               'all-messages
+               (lean4-info--messages-caption
+                "All messages" nil (lean4-info--all-messages-controls))
+               '((:range (:start (:line 0 :character 0)) :message "boom"))
+               source)))
+          (goto-char (point-min))
+          (let ((sort (string-search (lean4-info-sort-glyph) (buffer-string))))
+            (should sort)
+            ;; `string-search' counts from zero and buffer positions from one.
+            (let ((position (1+ sort)))
+              (should (eq (get-text-property position 'lean4-info-command)
+                          'lean4-info-toggle-message-order))
+              (should (eq (keymap-lookup (get-text-property position 'keymap)
+                                         "<mouse-1>")
+                          'lean4-info-mouse-1)))))
+      (kill-buffer source)
+      (kill-buffer lean4-info-buffer-name))))
+
 (ert-deftest lean4-info-goto-position-clamps-a-stale-column ()
   "A column past the end of its line does not signal.
 The file can have been edited since the message was made."
