@@ -143,6 +143,21 @@ the arguments to pass."
   ;; VS Code's `Ctrl+.', which offers the same code actions.  Most terminals
   ;; cannot send `C-.' at all, so rebind this where that matters.
   "C-c C-."     #'lean4-apply-suggestion
+  ;; Eglot announces an available code action through ElDoc, naming the key
+  ;; of `eglot-code-actions' -- which has none, so it names the command and
+  ;; sends the reader the long way round to a subset of what this key does.
+  ;; Remapping is what makes `substitute-command-keys' answer with this key
+  ;; in both reports, and it means a reader who has bound
+  ;; `eglot-code-actions' elsewhere, or who reaches it from Eglot's own
+  ;; menu, gets the suggestions and the inlay hint rather than only the
+  ;; former.  `M-x eglot-code-actions' still reaches Eglot's own command:
+  ;; remapping governs keys, not names.
+  "<remap> <eglot-code-actions>" #'lean4-apply-suggestion
+  ;; And by mouse, so that clicking the indicator Eglot draws where an
+  ;; action is available -- or clicking the error itself, which carries the
+  ;; same keymap -- offers what the key offers.  One of the two behaving
+  ;; differently from the other would be stranger than either behaviour.
+  "<remap> <eglot-code-actions-at-mouse>" #'lean4-apply-suggestion-at-mouse
   "C-c C-d"     #'lean4-refresh-file-dependencies
   "C-c C-r"     #'eglot-reconnect
   "C-c C-s"     #'lean4-info-toggle-pin

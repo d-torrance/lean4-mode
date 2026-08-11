@@ -72,6 +72,7 @@ Usage
 * Other Lake operations::
 * Moving by declaration::
 * Applying what Lean suggests::
+* Being told a suggestion is there::
 * What Lean filled in for you::
 * Completion::
 * Finding a symbol you cannot name::
@@ -316,6 +317,7 @@ buffer.  To put it in a side window on the right:
 * Other Lake operations::
 * Moving by declaration::
 * Applying what Lean suggests::
+* Being told a suggestion is there::
 * What Lean filled in for you::
 * Completion::
 * Finding a symbol you cannot name::
@@ -1025,7 +1027,7 @@ them flush with the ‘mutual’, so nothing short of counting ‘mutual’ and
 worth more than reporting the block as a unit.
 
 
-File: lean4-mode.info,  Node: Applying what Lean suggests,  Next: What Lean filled in for you,  Prev: Moving by declaration,  Up: Usage
+File: lean4-mode.info,  Node: Applying what Lean suggests,  Next: Being told a suggestion is there,  Prev: Moving by declaration,  Up: Usage
 
 2.16 Applying what Lean suggests
 ================================
@@ -1056,6 +1058,49 @@ diagnostic covering point, so that a fix offered for an error is found
 from anywhere within it, failing that the term at point, and failing
 that point itself.  Where Lean offers nothing it says so and stops.
 
+   Where it offers exactly one thing - which is the common case, a
+‘simp?’ having one answer - that one is applied without asking, and
+named in the echo area afterwards, since with no prompt there is
+otherwise nothing to show what changed.  VS Code shows its menu either
+way; a prompt offering a single answer is a keystroke spent on nothing.
+
+
+File: lean4-mode.info,  Node: Being told a suggestion is there,  Next: What Lean filled in for you,  Prev: Applying what Lean suggests,  Up: Usage
+
+2.17 Being told a suggestion is there
+=====================================
+
+ElDoc reports the inlay hint wherever there is one, as *note What Lean
+filled in for you:: describes.  Code actions are Eglot's to announce,
+and it does so from version 1.19 - newer than the Eglot bundled with
+Emacs 29 or 30 - through ‘eglot-code-action-suggestion’, an ElDoc
+function of its own which says ‘C-c C-.’ and the title of the first
+action available.  On an older Eglot nothing is said and ‘C-c C-.’ still
+works; ‘M-x package-install RET eglot RET’ is what changes that, as it
+is for *note Semantic highlighting::.
+
+   That report names the key of Eglot's own ‘eglot-code-actions’, which
+is bound to nothing - so left alone it would send you to ‘M-x’, for a
+subset of what ‘C-c C-.’ does, while this package's report named the
+key.  So ‘eglot-code-actions’ is remapped to ‘lean4-apply-suggestion’ in
+a Lean buffer.  Both reports then name the same key, and a key you have
+bound to ‘eglot-code-actions’ elsewhere offers the inlay hint here as
+well.  ‘M-x eglot-code-actions’ still reaches Eglot's own command:
+remapping governs keys, not names.
+
+   Eglot's mouse route is remapped with it.  Eglot puts the same keymap
+on the indicator and on the errors and warnings themselves, so ‘mouse-2’
+on either - or ‘mouse-1’ in the margin beside it - offers what ‘C-c C-.’
+offers, rather than the code actions without the inlay hint.  To undo
+both:
+
+     (keymap-unset lean4-mode-map "<remap> <eglot-code-actions>")
+     (keymap-unset lean4-mode-map "<remap> <eglot-code-actions-at-mouse>")
+
+   Eglot draws indicators as well as saying so, in the fringe and the
+margin; ‘eglot-code-action-indications’ chooses which of those, and
+whether ElDoc is one of them.
+
    Carrying out a code action is handed back to Eglot, which resolves
 it, applies its edit and runs its command; ‘M-x eglot-code-actions’ is
 the same thing without the inlay hint.
@@ -1069,9 +1114,9 @@ the newer keyboard protocols can - so in one of the others, rebind it:
 about the key follows the keymap.
 
 
-File: lean4-mode.info,  Node: What Lean filled in for you,  Next: Completion,  Prev: Applying what Lean suggests,  Up: Usage
+File: lean4-mode.info,  Node: What Lean filled in for you,  Next: Completion,  Prev: Being told a suggestion is there,  Up: Usage
 
-2.17 What Lean filled in for you
+2.18 What Lean filled in for you
 ================================
 
 A declaration whose type mentions a variable never bound still compiles:
@@ -1125,7 +1170,7 @@ though: whatever the server sends is what is shown and inserted.
 
 File: lean4-mode.info,  Node: Completion,  Next: Finding a symbol you cannot name,  Prev: What Lean filled in for you,  Up: Usage
 
-2.18 Completion
+2.19 Completion
 ===============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -1149,7 +1194,7 @@ Lean input method replaces it as soon as it is unambiguous.
 
 File: lean4-mode.info,  Node: Finding a symbol you cannot name,  Prev: Completion,  Up: Usage
 
-2.19 Finding a symbol you cannot name
+2.20 Finding a symbol you cannot name
 =====================================
 
 Completion goes from an abbreviation to a symbol, which is no help when
@@ -1526,51 +1571,52 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2553
-Node: Requirements2778
-Node: From source3858
-Node: With a source-based package manager4346
-Node: Native vc (Emacs 30 or later)4857
-Node: Doom-Emacs5302
-Node: Straight5621
-Node: Upgrading from version 15978
-Node: Usage9147
-Node: Keys in a Lean buffer11096
-Node: Keys in the goal display13594
-Node: The tactic state18129
-Node: Copying what is on display19858
-Node: How much of a goal to show20885
-Node: Errors and warnings24396
-Node: Building dependencies28491
-Node: Starting a project29761
-Node: Building31553
-Node: Mathlib's build cache32745
-Node: Choosing which Lean to use34102
-Node: Elan itself36536
-Node: Git and curl37752
-Node: Searching Mathlib with Loogle39499
-Node: The module hierarchy41755
-Node: It needs a built project43798
-Node: Other Lake operations44448
-Node: Moving by declaration45884
-Node: Applying what Lean suggests48416
-Node: What Lean filled in for you50457
-Node: Completion52857
-Node: Finding a symbol you cannot name54026
-Node: Configuration55277
-Node: Frequently used options55757
-Node: Finding the Lean programs57777
-Node: Tuning58719
-Node: The goal display's controls59521
-Node: Older Lean versions61376
-Node: Semantic highlighting62358
-Node: Optional packages63870
-Node: Troubleshooting64363
-Node: Where the documentation is65947
-Node: "Timed out after 30 seconds" opening a file outside a project67074
-Node: "Imports are out of date and must be rebuilt"68262
-Node: Common Pitfalls69785
-Node: Acknowledgements70386
+Node: Installation2590
+Node: Requirements2815
+Node: From source3895
+Node: With a source-based package manager4383
+Node: Native vc (Emacs 30 or later)4894
+Node: Doom-Emacs5339
+Node: Straight5658
+Node: Upgrading from version 16015
+Node: Usage9184
+Node: Keys in a Lean buffer11170
+Node: Keys in the goal display13668
+Node: The tactic state18203
+Node: Copying what is on display19932
+Node: How much of a goal to show20959
+Node: Errors and warnings24470
+Node: Building dependencies28565
+Node: Starting a project29835
+Node: Building31627
+Node: Mathlib's build cache32819
+Node: Choosing which Lean to use34176
+Node: Elan itself36610
+Node: Git and curl37826
+Node: Searching Mathlib with Loogle39573
+Node: The module hierarchy41829
+Node: It needs a built project43872
+Node: Other Lake operations44522
+Node: Moving by declaration45958
+Node: Applying what Lean suggests48490
+Node: Being told a suggestion is there50379
+Node: What Lean filled in for you52833
+Node: Completion55238
+Node: Finding a symbol you cannot name56407
+Node: Configuration57658
+Node: Frequently used options58138
+Node: Finding the Lean programs60158
+Node: Tuning61100
+Node: The goal display's controls61902
+Node: Older Lean versions63757
+Node: Semantic highlighting64739
+Node: Optional packages66251
+Node: Troubleshooting66744
+Node: Where the documentation is68328
+Node: "Timed out after 30 seconds" opening a file outside a project69455
+Node: "Imports are out of date and must be rebuilt"70643
+Node: Common Pitfalls72166
+Node: Acknowledgements72767
 
 End Tag Table
 

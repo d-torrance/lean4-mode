@@ -1250,6 +1250,24 @@ The fixture is left alone: the buffer is discarded unsaved."
       ;; The key of `lean4-apply-suggestion', that being the one bound.
       (should (string-search "C-c C-." report)))))
 
+(ert-deftest lean4-e2e-inlay-hint-eldoc-answers-with-nothing ()
+  "Where there is no hint, ElDoc is told so rather than left waiting.
+`eldoc-documentation-compose', which is the strategy Eglot sets, shows
+what it has collected only once every function has answered.  A function
+which promises an answer and never gives it silences the whole echo area
+-- the hover, the signature, and Eglot's own report of an available code
+action among it -- on every line without a hint, which is most of them."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--sorry-line)
+    (back-to-indentation)
+    (let ((reported 'never))
+      (should (lean4-hints-eldoc-function
+               (lambda (&rest arguments) (setq reported arguments))))
+      (lean4-e2e--wait-until "ElDoc to be answered at all"
+                             (lambda () (not (eq reported 'never))))
+      (should (equal reported '(nil))))))
+
 (ert-deftest lean4-e2e-inlay-hint-eldoc-function-is-installed ()
   "The report joins Eglot's own ElDoc functions rather than replacing them.
 Composed, and appended: what Lean inferred is a footnote to the type of
@@ -1309,7 +1327,10 @@ the thing under point."
     (should (string-search "simp" (lean4-e2e--current-line)))))
 
 (ert-deftest lean4-e2e-suggestion-offers-the-inlay-hint ()
-  "Where the only thing on offer is the hint, the same key inserts it."
+  "Where the only thing on offer is the hint, the same key inserts it.
+Without asking: a single suggestion is applied and named, since a prompt
+offering one answer is a keystroke spent on nothing.  The stub here
+signals rather than choosing, so a prompt would fail the test."
   :tags '(:e2e)
   (lean4-e2e--with-fixture
     (lean4-e2e--goto-line lean4-e2e--hint-line)
@@ -1319,7 +1340,9 @@ the thing under point."
                                   (lean4-suggest--code-actions)
                                   (lean4-suggest--hint)))
                    '("Insert \" {α}\"")))
-    (lean4-e2e--pick-first-suggestion)
+    (cl-letf (((symbol-function 'completing-read)
+               (lambda (&rest _) (error "Asked about a single suggestion"))))
+      (lean4-apply-suggestion))
     (should (equal (lean4-e2e--current-line)
                    "def autoBound {α} (a : α) : α := a"))))
 

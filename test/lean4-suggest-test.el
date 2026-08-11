@@ -14,6 +14,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'ert)
 (require 'lean4-mode)
 
@@ -103,6 +104,46 @@ it is still offered rather than dropped or crashed on."
                    nil))
                  "Import Foo.Bar")))
 
+;;;; Saying the same thing as Eglot
+
+(ert-deftest lean4-suggest-eglot-announces-the-same-key ()
+  "Eglot's report of an available code action names the key that applies it.
+Eglot writes the key of `eglot-code-actions', which is bound to nothing,
+so without the remapping in `lean4-mode-map' its report would name that
+command while ours named the key -- two ways of saying one thing."
+  (lean4-suggest-test--with-lean "theorem t : True := tri|vial\n"
+    (should (equal (substring-no-properties
+                    (substitute-command-keys "\\[eglot-code-actions]"))
+                   "C-c C-."))
+    (should (equal (substring-no-properties
+                    (substitute-command-keys "\\[eglot-code-actions]"))
+                   (substring-no-properties
+                    (substitute-command-keys
+                     "\\[lean4-apply-suggestion]"))))))
+
+(ert-deftest lean4-suggest-eglot-code-actions-are-remapped ()
+  "Eglot's command reaches ours, by key and by mouse alike.
+The mouse matters because Eglot puts `eglot-diagnostics-map' both on the
+indicator it draws where an action is available and on the errors
+themselves, so a click there would otherwise offer the code actions
+without the inlay hint the same key offers."
+  (lean4-suggest-test--with-lean "theorem t : True := tri|vial\n"
+    (should (eq (command-remapping 'eglot-code-actions)
+                #'lean4-apply-suggestion))
+    (should (eq (command-remapping 'eglot-code-actions-at-mouse)
+                #'lean4-apply-suggestion-at-mouse))))
+
+(ert-deftest lean4-suggest-eglot-follows-a-rebinding ()
+  "Rebinding the command moves both reports, the remapping being to it."
+  (lean4-suggest-test--with-lean "theorem t : True := tri|vial\n"
+    (let ((map (copy-keymap lean4-mode-map)))
+      (keymap-unset map "C-c C-.")
+      (keymap-set map "C-c C-y" #'lean4-apply-suggestion)
+      (use-local-map map)
+      (should (equal (substring-no-properties
+                      (substitute-command-keys "\\[eglot-code-actions]"))
+                     "C-c C-y")))))
+
 ;;;; What is asked about
 
 (ert-deftest lean4-suggest-bounds-are-the-region-when-there-is-one ()
@@ -130,6 +171,76 @@ here, and a blank line inside a proof is somewhere a reader really does
 press the key."
   (lean4-suggest-test--with-lean "theorem t : True := by\n|\n  trivial\n"
     (should (equal (lean4-suggest--bounds) (list (point) (point))))))
+
+;;;; Asking, or not
+
+(defmacro lean4-suggest-test--offering (actions hint &rest body)
+  "Evaluate BODY with ACTIONS and HINT on offer and a server pretended.
+`completing-read' records what it was asked in `asked' and answers with
+the last candidate; what gets carried out is recorded in `applied'."
+  (declare (indent 2) (debug (form form body)))
+  `(let (asked applied)
+     (cl-letf (((symbol-function 'eglot-current-server) (lambda () 'server))
+               ((symbol-function 'eglot--signal-textDocument/didChange)
+                #'ignore)
+               ((symbol-function 'lean4-suggest--code-actions)
+                (lambda () ,actions))
+               ((symbol-function 'lean4-suggest--hint) (lambda () ,hint))
+               ((symbol-function 'lean4-suggest--execute)
+                (lambda (action) (setq applied action)))
+               ((symbol-function 'lean4-hints--insert)
+                (lambda (hint) (setq applied hint)))
+               ((symbol-function 'completing-read)
+                (lambda (prompt collection &rest _)
+                  (setq asked prompt)
+                  (car (car (last collection))))))
+       ,@body)))
+
+(ert-deftest lean4-suggest-does-not-ask-about-one-suggestion ()
+  "A single suggestion is applied without a prompt offering one answer."
+  (lean4-suggest-test--offering (list lean4-suggest-test--action) nil
+    (lean4-apply-suggestion)
+    (should-not asked)
+    (should (equal applied lean4-suggest-test--action))))
+
+(ert-deftest lean4-suggest-says-what-it-applied-unasked ()
+  "And says which one, there being no prompt to have shown it."
+  (lean4-suggest-test--offering (list lean4-suggest-test--action) nil
+    (let (said)
+      (cl-letf (((symbol-function 'message)
+                 (lambda (format &rest arguments)
+                   (setq said (apply #'format format arguments)))))
+        (lean4-apply-suggestion))
+      (should (equal said "Try this: simp only")))))
+
+(ert-deftest lean4-suggest-asks-about-two ()
+  "With a choice to make, it is made by the reader."
+  (lean4-suggest-test--offering
+      (list lean4-suggest-test--action '(:title "Import Foo.Bar")) nil
+    (lean4-apply-suggestion)
+    (should asked)
+    (should (equal applied '(:title "Import Foo.Bar")))))
+
+(ert-deftest lean4-suggest-counts-the-hint-as-a-suggestion ()
+  "An action and a hint are two things, so they are asked about."
+  (lean4-suggest-test--with-lean "def myId (a : α) : α := a\n"
+    (lean4-suggest-test--offering (list lean4-suggest-test--action)
+        lean4-suggest-test--hint
+      (lean4-apply-suggestion)
+      (should asked)
+      (should (equal applied lean4-suggest-test--hint)))))
+
+(ert-deftest lean4-suggest-says-so-when-there-is-nothing ()
+  "With nothing on offer, nothing is applied and nothing is asked."
+  (lean4-suggest-test--offering nil nil
+    (let (said)
+      (cl-letf (((symbol-function 'message)
+                 (lambda (format &rest arguments)
+                   (setq said (apply #'format format arguments)))))
+        (lean4-apply-suggestion))
+      (should (equal said "Lean suggests nothing here")))
+    (should-not asked)
+    (should-not applied)))
 
 ;;;; Refusing to act
 

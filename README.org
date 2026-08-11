@@ -813,6 +813,47 @@ diagnostic covering point, so that a fix offered for an error is found
 from anywhere within it, failing that the term at point, and failing
 that point itself.  Where Lean offers nothing it says so and stops.
 
+Where it offers exactly one thing -- which is the common case, a =simp?=
+having one answer -- that one is applied without asking, and named in the
+echo area afterwards, since with no prompt there is otherwise nothing to
+show what changed.  VS Code shows its menu either way; a prompt offering
+a single answer is a keystroke spent on nothing.
+
+** Being told a suggestion is there
+
+ElDoc reports the inlay hint wherever there is one, as [[*What Lean filled
+in for you]] describes.  Code actions are Eglot's to
+announce, and it does so from version 1.19 -- newer than the Eglot
+bundled with Emacs 29 or 30 -- through ~eglot-code-action-suggestion~,
+an ElDoc function of its own which says =C-c C-.= and the title of the
+first action available.  On an older Eglot nothing is said and =C-c C-.=
+still works; =M-x package-install RET eglot RET= is what changes that,
+as it is for [[*Semantic highlighting]].
+
+That report names the key of Eglot's own ~eglot-code-actions~, which is
+bound to nothing -- so left alone it would send you to =M-x=, for a
+subset of what =C-c C-.= does, while this package's report named the key.
+So ~eglot-code-actions~ is remapped to ~lean4-apply-suggestion~ in a Lean
+buffer.  Both reports then name the same key, and a key you have bound to
+~eglot-code-actions~ elsewhere offers the inlay hint here as well.  =M-x
+eglot-code-actions= still reaches Eglot's own command: remapping governs
+keys, not names.
+
+Eglot's mouse route is remapped with it.  Eglot puts the same keymap on
+the indicator and on the errors and warnings themselves, so =mouse-2= on
+either -- or =mouse-1= in the margin beside it -- offers what =C-c C-.=
+offers, rather than the code actions without the inlay hint.  To undo
+both:
+
+#+begin_src elisp
+(keymap-unset lean4-mode-map "<remap> <eglot-code-actions>")
+(keymap-unset lean4-mode-map "<remap> <eglot-code-actions-at-mouse>")
+#+end_src
+
+Eglot draws indicators as well as saying so, in the fringe and the
+margin; ~eglot-code-action-indications~ chooses which of those, and
+whether ElDoc is one of them.
+
 Carrying out a code action is handed back to Eglot, which resolves it,
 applies its edit and runs its command; =M-x eglot-code-actions= is the
 same thing without the inlay hint.

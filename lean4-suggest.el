@@ -129,6 +129,12 @@ called with the one action the reader picked."
    (list action) (eglot-current-server)
    (or (plist-get action :kind) t)))
 
+(defun lean4-suggest--apply (what)
+  "Carry out WHAT, one of the two things a candidate can be."
+  (pcase what
+    (`(action . ,action) (lean4-suggest--execute action))
+    (`(hint . ,hint) (lean4-hints--insert hint))))
+
 (defun lean4-apply-suggestion ()
   "Apply something Lean suggests at point, choosing from what it offers.
 That is every code action here -- the `Try this' of `simp?', `exact?',
@@ -139,6 +145,10 @@ declare them.
 
 VS Code offers the first group behind `Ctrl+.' and the second by
 double-clicking the hint.  Both are here, in one list.
+
+Where there is only one suggestion it is applied without asking, and
+named in the echo area afterwards; VS Code shows its menu either way,
+but a prompt offering a single answer is a keystroke spent on nothing.
 
 With an active region, the code actions are asked for over the region;
 otherwise over any diagnostic covering point, the term at point, or
@@ -152,16 +162,38 @@ point."
   (let* ((candidates (lean4-suggest--candidates (lean4-suggest--code-actions)
                                                 (lean4-suggest--hint)))
          (default (lean4-suggest--default candidates)))
-    (if (null candidates)
-        ;; Not an error: a key pressed hopefully and answered honestly.
-        (message "Lean suggests nothing here")
-      (let* ((title (completing-read
-                     (format-prompt "Apply which suggestion" default)
-                     candidates nil t nil nil default))
-             (what (cdr (assoc title candidates))))
-        (pcase what
-          (`(action . ,action) (lean4-suggest--execute action))
-          (`(hint . ,hint) (lean4-hints--insert hint)))))))
+    (cond
+     ;; Not an error: a key pressed hopefully and answered honestly.
+     ((null candidates) (message "Lean suggests nothing here"))
+     ;; Nothing to choose between, so nothing to ask.  What was done is said
+     ;; instead, since with no prompt there is otherwise nothing to show that
+     ;; the buffer changed and why.
+     ((null (cdr candidates))
+      (message "%s" (car (car candidates)))
+      (lean4-suggest--apply (cdr (car candidates))))
+     (t
+      (let ((title (completing-read
+                    (format-prompt "Apply which suggestion" default)
+                    candidates nil t nil nil default)))
+        (lean4-suggest--apply (cdr (assoc title candidates))))))))
+
+(defun lean4-apply-suggestion-at-mouse (event)
+  "Apply something Lean suggests where EVENT points.
+`lean4-apply-suggestion' acts at point; this acts where the mouse was
+clicked, which is what Eglot\\='s clickable things expect of the command
+they run -- the indicator it draws in the fringe or the margin where a
+code action is available, and the errors and warnings themselves, all of
+which carry `mouse-2' and a margin `mouse-1'.
+
+Written out rather than made with Eglot\\='s own `eglot--mouse-call',
+which does the same in the same way: eight lines are cheaper than another
+private function to keep watch over."
+  (interactive "e")
+  (let ((start (event-start event)))
+    (with-selected-window (posn-window start)
+      (save-excursion
+        (goto-char (or (posn-point start) (point)))
+        (call-interactively #'lean4-apply-suggestion)))))
 
 (provide 'lean4-suggest)
 ;;; lean4-suggest.el ends here

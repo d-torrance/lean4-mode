@@ -80,6 +80,7 @@ Usage
 * Other Lake operations::
 * Moving by declaration::
 * Applying what Lean suggests::
+* Being told a suggestion is there::
 * What Lean filled in for you::
 * Completion::
 * Finding a symbol you cannot name::
@@ -318,6 +319,7 @@ buffer.  To put it in a side window on the right:
 * Other Lake operations::
 * Moving by declaration::
 * Applying what Lean suggests::
+* Being told a suggestion is there::
 * What Lean filled in for you::
 * Completion::
 * Finding a symbol you cannot name::
@@ -1159,6 +1161,47 @@ Point decides what is asked about: an active region, failing that any
 diagnostic covering point, so that a fix offered for an error is found
 from anywhere within it, failing that the term at point, and failing
 that point itself.  Where Lean offers nothing it says so and stops.
+
+Where it offers exactly one thing -- which is the common case, a @samp{simp?}
+having one answer -- that one is applied without asking, and named in the
+echo area afterwards, since with no prompt there is otherwise nothing to
+show what changed.  VS Code shows its menu either way; a prompt offering
+a single answer is a keystroke spent on nothing.
+
+@node Being told a suggestion is there
+@section Being told a suggestion is there
+
+ElDoc reports the inlay hint wherever there is one, as @ref{What Lean filled in for you} describes.  Code actions are Eglot's to
+announce, and it does so from version 1.19 -- newer than the Eglot
+bundled with Emacs 29 or 30 -- through @code{eglot-code-action-suggestion},
+an ElDoc function of its own which says @samp{C-c C-.} and the title of the
+first action available.  On an older Eglot nothing is said and @samp{C-c C-.}
+still works; @samp{M-x package-install RET eglot RET} is what changes that,
+as it is for @ref{Semantic highlighting}.
+
+That report names the key of Eglot's own @code{eglot-code-actions}, which is
+bound to nothing -- so left alone it would send you to @samp{M-x}, for a
+subset of what @samp{C-c C-.} does, while this package's report named the key.
+So @code{eglot-code-actions} is remapped to @code{lean4-apply-suggestion} in a Lean
+buffer.  Both reports then name the same key, and a key you have bound to
+@code{eglot-code-actions} elsewhere offers the inlay hint here as well.  @samp{M-x
+eglot-code-actions} still reaches Eglot's own command: remapping governs
+keys, not names.
+
+Eglot's mouse route is remapped with it.  Eglot puts the same keymap on
+the indicator and on the errors and warnings themselves, so @samp{mouse-2} on
+either -- or @samp{mouse-1} in the margin beside it -- offers what @samp{C-c C-.}
+offers, rather than the code actions without the inlay hint.  To undo
+both:
+
+@lisp
+(keymap-unset lean4-mode-map "<remap> <eglot-code-actions>")
+(keymap-unset lean4-mode-map "<remap> <eglot-code-actions-at-mouse>")
+@end lisp
+
+Eglot draws indicators as well as saying so, in the fringe and the
+margin; @code{eglot-code-action-indications} chooses which of those, and
+whether ElDoc is one of them.
 
 Carrying out a code action is handed back to Eglot, which resolves it,
 applies its edit and runs its command; @samp{M-x eglot-code-actions} is the

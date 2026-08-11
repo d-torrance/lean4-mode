@@ -152,10 +152,20 @@ xref, project roots through =project.el=.
   one list, every code action at point -- the =Try this= of =simp?=,
   =exact?=, =apply?= and =rw?=, an import or a spelling for an unknown
   identifier, what =#guard_msgs= wants, and whatever a project's own code
-  actions provide -- and the inlay hint below.  Carrying out an action is
-  handed back to Eglot, which resolves it, applies its edit and runs its
-  command.  Version 1 offered none of this; =M-x eglot-code-actions= was
-  the only way to reach a =simp?= suggestion, and nothing said so.
+  actions provide -- and the inlay hint below.  Where there is only one,
+  it is applied without asking and named afterwards.  Carrying out an
+  action is handed back to Eglot, which resolves it, applies its edit and
+  runs its command.  Version 1 offered none of this; =M-x
+  eglot-code-actions= was the only way to reach a =simp?= suggestion, and
+  nothing said so.  Eglot announces the available actions through ElDoc
+  from its version 1.19, which is newer than the Eglot bundled with Emacs
+  29 or 30; the inlay hint is announced here whatever the Eglot.
+  ~eglot-code-actions~ is remapped to ~lean4-apply-suggestion~ in a Lean
+  buffer, so that Eglot's announcement names =C-c C-.= rather than a
+  command bound to nothing, and so that a key bound to it elsewhere offers
+  the inlay hint here too.  ~eglot-code-actions-at-mouse~ is remapped with
+  it, so that clicking the indicator Eglot draws -- or the error itself,
+  which carries the same keymap -- offers what the key offers.
 - What Lean filled in for you, from the inlay hints the server sends.
   Eglot draws the greyed-out = {α}= on a declaration whose type mentions
   a variable never bound, and discards the two things attached to it;
@@ -284,7 +294,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 398 unit tests, and 46 end-to-end tests that run against
+- A test suite: 410 unit tests, and 47 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual is published at [[https://d-torrance.github.io/lean4-mode/][d-torrance.github.io/lean4-mode]],
   exported from the same README the Info manual is made from, so the two
