@@ -92,10 +92,6 @@ jobs:
     name: End-to-end on Emacs ${{ matrix.emacs_version }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # 30.1 is not required to pass yet: Eglot tracks changes through
-    # track-changes there, and the suite tripped an assertion inside it
-    # the first time it ran.  Kept visible rather than dropped.
-    continue-on-error: ${{ matrix.emacs_version == '30.1' }}
     strategy:
       fail-fast: false
       matrix:

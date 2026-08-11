@@ -106,14 +106,17 @@ Point starts at `point-min'.  The server is shut down afterwards."
            (goto-char (point-min))
            ,@body)
        ;; Let Eglot take its own management off the buffer rather than
-       ;; preserving it and then killing the buffer ourselves.  On Emacs
-       ;; 30 Eglot tracks changes through track-changes, and unregistering
-       ;; a tracker twice -- once at shutdown, once as the buffer dies --
-       ;; trips an assertion inside it.
-       (when-let* ((server (with-current-buffer buffer (eglot-current-server))))
-         (eglot-shutdown server nil nil))
+       ;; preserving it and then killing the buffer ourselves.  The
+       ;; shutdown has to happen *in* the managed buffer: it is a request
+       ;; like any other, so Eglot first flushes the buffer's pending
+       ;; edits, and on Emacs 30 that means `track-changes-fetch' on the
+       ;; buffer-local tracker.  Called anywhere else the tracker is nil
+       ;; and track-changes asserts that it is one of its own.
        (when (buffer-live-p buffer)
-         (with-current-buffer buffer (set-buffer-modified-p nil))
+         (with-current-buffer buffer
+           (when-let* ((server (eglot-current-server)))
+             (eglot-shutdown server nil nil))
+           (set-buffer-modified-p nil))
          (kill-buffer buffer)))))
 
 (defun lean4-e2e--error-p (diagnostic)
@@ -740,10 +743,13 @@ files, and so should this."
                :error-fn (lambda (_) (setq answered t)))
               (lean4-e2e--wait-until "the server to answer"
                                      (lambda () answered)))))
-      (when buffer
-        (when-let* ((server (with-current-buffer buffer
-                              (eglot-current-server))))
-          (eglot-shutdown server nil nil 'preserve-buffers))
+      (when (buffer-live-p buffer)
+        ;; In the buffer, as in `lean4-e2e--with-fixture': shutting a
+        ;; server down flushes the buffer's changes first, and the
+        ;; tracker that does so on Emacs 30 is buffer-local.
+        (with-current-buffer buffer
+          (when-let* ((server (eglot-current-server)))
+            (eglot-shutdown server nil nil 'preserve-buffers)))
         (kill-buffer buffer))
       (delete-directory directory 'recursive))))
 
