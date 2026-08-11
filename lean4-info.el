@@ -961,6 +961,67 @@ in BUFFER it belongs to.  Nothing is inserted when MESSAGES is empty."
           (dolist (diagnostic messages)
             (lean4-info--insert-message diagnostic buffer)))))))
 
+(defun lean4-info--place ()
+  "Return where point is, as somewhere to come back to after a rebuild.
+
+A section and how far into it point sits, rather than a character
+position.  The buffer is written afresh from whatever the server last
+said, so the same offset is a different place in every rebuild: with
+point in the goal display kept by offset alone, moving through the Lean
+file made the display wander -- the cursor landing wherever the new
+text happened to reach that far, and the window scrolling to follow it.
+Sections keep their identity across a rebuild, so the reader stays in
+the part they were reading.
+
+Falls back to the offset where there are no sections to place point in,
+which is a display that has not been drawn yet."
+  (if-let* ((section (magit-current-section)))
+      (list section
+            (- (line-number-at-pos (point))
+               (line-number-at-pos (oref section start)))
+            (- (point) (line-beginning-position)))
+    (point)))
+
+(defun lean4-info--goto-place (place)
+  "Put point where PLACE says, as near as the rebuilt display allows.
+`magit-section' settles for a sibling or the parent where the section
+itself is gone, which is what happens to a goal that has been proved."
+  (if (consp place)
+      (magit-section-goto-successor (nth 0 place) (nth 1 place)
+                                    (nth 2 place) nil)
+    (goto-char (min place (point-max)))))
+
+(defun lean4-info--window-view (window)
+  "Return what WINDOW is showing, as somewhere to come back to.
+
+Where its point is, and how far down the window that line is drawn --
+not where the window starts.  The text above changes length on every
+rebuild, so a remembered start is no more meaningful than a remembered
+offset; what the reader wants is the line they were looking at left on
+the row they were looking at it."
+  (with-selected-window window
+    (list window
+          (lean4-info--place)
+          (if (< (window-point window) (window-start window))
+              0
+            (save-excursion
+              (goto-char (window-point window))
+              (vertical-motion 0)
+              (count-screen-lines (window-start window) (point) nil window))))))
+
+(defun lean4-info--restore-view (view)
+  "Show again in its window what VIEW says was on display there."
+  (pcase-let ((`(,window ,place ,rows) view))
+    (when (window-live-p window)
+      (with-selected-window window
+        (lean4-info--goto-place place)
+        ;; Start first, then point: setting the start can move point to
+        ;; keep it on screen, which is the opposite of what is wanted.
+        (set-window-start window
+                          (save-excursion (vertical-motion (- rows)) (point))
+                          t)
+        (set-window-point window (point))))))
+
 (defmacro lean4-info--keeping-position (&rest body)
   "Run BODY, which rebuilds the current buffer, without moving the view.
 
@@ -969,20 +1030,19 @@ and every window\\='s start at the end of the new text.  The buffer is
 rebuilt whenever the goal changes, so without this a reader part-way
 down a long goal would be thrown to the bottom, and clicking a control
 -- which rebuilds to redraw the control itself -- would scroll the
-display away from whatever prompted the click."
+display away from whatever prompted the click.
+
+Where the reader was is remembered as a place in the section tree; see
+`lean4-info--place'."
   (declare (indent 0) (debug t))
-  `(let* ((windows (get-buffer-window-list (current-buffer) nil t))
-          (starts (mapcar #'window-start windows))
-          (spot (point)))
+  `(let ((place (lean4-info--place))
+         (views (mapcar #'lean4-info--window-view
+                        (get-buffer-window-list (current-buffer) nil t))))
      (prog1 (progn ,@body)
-       (goto-char (min spot (point-max)))
-       (cl-mapc (lambda (window start)
-                  ;; Start first, then point: setting the start can move
-                  ;; point to keep it on screen, which is the opposite of
-                  ;; what is wanted here.
-                  (set-window-start window (min start (point-max)) t)
-                  (set-window-point window (min spot (point-max))))
-                windows starts))))
+       ;; The buffer's own point first: a window showing the buffer sets
+       ;; it again on the way out, and that is the one to keep.
+       (lean4-info--goto-place place)
+       (mapc #'lean4-info--restore-view views))))
 
 (defconst lean4-info--severity-badges
   '((1 ("⊗" "✖" "×") "E" error)

@@ -1071,6 +1071,60 @@ bottom, as did every refresh while reading a long goal."
         (should (= (window-start window) start))
         (should (= (window-point window) spot))))))
 
+(defun lean4-info-test--draw-display (goal-lines)
+  "Insert a display whose goal runs to GOAL-LINES lines.
+The messages below it are the same every time, so that what moves is
+only how much stands above them."
+  (magit-insert-section (lean4-info-section 'root)
+    (magit-insert-section (lean4-info-section 'goals)
+      (magit-insert-heading "Tactic state")
+      (dotimes (i goal-lines)
+        (insert (format "goal line %d\n" i))))
+    (magit-insert-section (lean4-info-section 'all-messages)
+      (magit-insert-heading "All messages")
+      (insert "first message\nsecond message\nthird message\n"))))
+
+(ert-deftest lean4-info-rebuilding-keeps-the-reader-in-the-same-section ()
+  "The reader stays in the section they were reading, not at an offset.
+
+Regression test.  Where the reader was is kept across a rebuild, but it
+was kept as a character position -- and the buffer is written afresh
+from whatever the server last said, so the same offset is a different
+place every time.  Moving through the Lean file changed how much goal
+stood above the messages, and the position in the goal display wandered
+off to wherever the new text happened to reach that far."
+  (lean4-ensure-info-buffer lean4-info-buffer-name)
+  (unwind-protect
+      (with-current-buffer lean4-info-buffer-name
+        (let ((inhibit-read-only t)
+              (window (selected-window)))
+          (set-window-buffer window (current-buffer))
+          (lean4-info-test--draw-display 1)
+          (goto-char (point-min))
+          (search-forward "second message")
+          (set-window-point window (point))
+          (let ((spot (point))
+                (rows (count-screen-lines (window-start window) (point)
+                                          nil window)))
+            (lean4-info--keeping-position
+              (erase-buffer)
+              (lean4-info-test--draw-display 40))
+            ;; Not where it was: thirty-nine lines of goal have appeared
+            ;; above, and the reader has not moved.
+            (should (> (point) spot))
+            (should (equal (buffer-substring-no-properties
+                            (line-beginning-position) (point))
+                           "second message"))
+            (should (equal (magit-section-ident (magit-current-section))
+                           '((lean4-info-section . all-messages)
+                             (lean4-info-section . root))))
+            (should (= (window-point window) (point)))
+            ;; And it is still being read on the row it was read on.
+            (should (= (count-screen-lines (window-start window) (point)
+                                           nil window)
+                       rows)))))
+    (kill-buffer lean4-info-buffer-name)))
+
 (ert-deftest lean4-info-keeping-position-survives-a-shorter-rebuild ()
   "Restoring is clamped: the new text can be shorter than the old."
   (with-temp-buffer
