@@ -132,6 +132,17 @@ xref, project roots through =project.el=.
   the alternatives when the guess is wrong.  ~lean4-indent-offset~ sets
   the width of a level, and ~lean4-indent-function~ restores the
   previous cycle-only behaviour.
+- The setup is checked when a Lean file is visited, and what looks wrong is
+  said through ~display-warning~ -- VS Code's setup diagnostics and its
+  =showSetupWarnings=.  Missing Git or curl, no =lean=, no =lake= and a
+  Lean 3 project are errors; a missing or ancient elan and a project
+  without a =lean-toolchain= are warnings.  Each names the command that
+  fixes it.  Twice only: the machine once a session, a project the first
+  time one of its files is opened, since a warning arriving on every file
+  is a nag and a nag gets turned off along with the warnings worth having.
+  ~lean4-show-setup-warnings~ turns them off; ~lean4-setup-forget~ makes
+  them run again after installing something.  Version 1 said nothing until
+  asked, and version 2 said it only through =M-x lean4-diagnose=.
 - Six smaller pieces of what VS Code has.  ~lean4-info-all-errors-on-line~
   lists every message on point's line, or only those after point, as its
   =allErrorsOnLine= does.  =M-x lean4-info-save-settings= writes the eight
@@ -318,7 +329,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 439 unit tests, and 48 end-to-end tests that run against
+- A test suite: 453 unit tests, and 48 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual says where VS Code's navigation commands went, none of which
   this package implements and all of which therefore appeared in no table

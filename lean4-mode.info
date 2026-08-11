@@ -100,6 +100,8 @@ Configuration
 
 Troubleshooting
 
+* What is checked before Lean starts::
+* Reporting on the setup::
 * Where the documentation is::
 * "Timed out after 30 seconds" opening a file outside a project::
 * "Imports are out of date and must be rebuilt"::
@@ -1544,6 +1546,60 @@ File: lean4-mode.info,  Node: Troubleshooting,  Next: Common Pitfalls,  Prev: Co
 4 Troubleshooting
 *****************
 
+* Menu:
+
+* What is checked before Lean starts::
+* Reporting on the setup::
+* Where the documentation is::
+* "Timed out after 30 seconds" opening a file outside a project::
+* "Imports are out of date and must be rebuilt"::
+
+
+File: lean4-mode.info,  Node: What is checked before Lean starts,  Next: Reporting on the setup,  Up: Troubleshooting
+
+4.1 What is checked before Lean starts
+======================================
+
+Visiting a Lean file looks at the setup and says so where something is
+wrong, which is VS Code's setup diagnostics and its ‘showSetupWarnings’.
+Two things are looked at, and each only once, since neither answer
+changes as you move between files: the machine, once a session, and the
+project, the first time one of its files is opened.
+
+Reported                                                                       As
+-----------------------------------------------------------------------------------------
+Git or curl missing, which elan and Lake need                                  error
+No ‘lean’ on ‘exec-path’                                                       error
+No ‘lake’, so a file in a package goes unserved                                error
+Elan missing, or older than 4                                                  warning
+A project with a ‘leanpkg.toml’ and no ‘lean-toolchain’, so a Lean 3 project   error
+A project with no ‘lean-toolchain’ at all                                      warning
+
+   Each says what to do about it, naming the command that does it - ‘M-x
+lean4-install-dependencies’, ‘M-x lean4-install-elan’, ‘M-x
+lean4-select-project-toolchain’ and so on.
+
+   They go through ‘display-warning’, so they land in a ‘*Warnings*’
+buffer that waits to be read rather than in an echo area that scrolls
+away, and ‘warning-minimum-level’ and its relatives govern them as they
+govern every other warning.  ‘lean4-show-setup-warnings’ set to ‘nil’
+turns the lot off; ‘M-x lean4-diagnose’ still reports the same and more,
+on request, and ‘M-x lean4-setup-forget’ makes the checks run again
+after you have installed something.
+
+   VS Code has one check more, for a file being edited which has not
+been saved anywhere, Lean having nothing to serve.  That one is left
+out: a buffer with no file behind it is an ordinary thing in Emacs
+rather than a setup gone wrong - editing a Lean block inside an Org or
+Markdown document gives one - and a warning arriving in all of those is
+a warning that gets turned off, taking the useful two with it.
+
+
+File: lean4-mode.info,  Node: Reporting on the setup,  Next: Where the documentation is,  Prev: What is checked before Lean starts,  Up: Troubleshooting
+
+4.2 Reporting on the setup
+==========================
+
 ‘M-x lean4-diagnose’ reports how things are set up: the versions of
 Emacs and of each dependency, the Lean and Lake executables it found,
 the workspace root and its toolchain, the command used to start the
@@ -1577,16 +1633,10 @@ starts a new one, unless ‘lean4-auto-start-server’ is off.  Neither is
 to be confused with ‘C-c C-d’, which restarts the _file_: see *note
 "Imports are out of date and must be rebuilt"::.
 
-* Menu:
-
-* Where the documentation is::
-* "Timed out after 30 seconds" opening a file outside a project::
-* "Imports are out of date and must be rebuilt"::
-
 
-File: lean4-mode.info,  Node: Where the documentation is,  Next: "Timed out after 30 seconds" opening a file outside a project,  Up: Troubleshooting
+File: lean4-mode.info,  Node: Where the documentation is,  Next: "Timed out after 30 seconds" opening a file outside a project,  Prev: Reporting on the setup,  Up: Troubleshooting
 
-4.1 Where the documentation is
+4.3 Where the documentation is
 ==============================
 
 Command                              Opens
@@ -1609,7 +1659,7 @@ rebuilt from this file whenever it changes.
 
 File: lean4-mode.info,  Node: "Timed out after 30 seconds" opening a file outside a project,  Next: "Imports are out of date and must be rebuilt",  Prev: Where the documentation is,  Up: Troubleshooting
 
-4.2 "Timed out after 30 seconds" opening a file outside a project
+4.4 "Timed out after 30 seconds" opening a file outside a project
 =================================================================
 
 A file in a Lake package is served by the Lean its "lean-toolchain"
@@ -1635,7 +1685,7 @@ which is the quickest way to tell a pinned version from the default.
 
 File: lean4-mode.info,  Node: "Imports are out of date and must be rebuilt",  Prev: "Timed out after 30 seconds" opening a file outside a project,  Up: Troubleshooting
 
-4.3 "Imports are out of date and must be rebuilt"
+4.5 "Imports are out of date and must be rebuilt"
 =================================================
 
 Lean says this, and adds _use the "Restart File" command in your
@@ -1705,54 +1755,56 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2651
-Node: Requirements2876
-Node: From source4321
-Node: With a source-based package manager4809
-Node: Native vc (Emacs 30 or later)5320
-Node: Doom-Emacs5765
-Node: Straight6084
-Node: Upgrading from version 16441
-Node: Usage9610
-Node: Keys in a Lean buffer11657
-Node: Keys in the goal display14155
-Node: The tactic state18690
-Node: Copying what is on display20419
-Node: How much of a goal to show21446
-Node: Errors and warnings25753
-Node: Building dependencies29848
-Node: Starting a project31118
-Node: Building32910
-Node: Mathlib's build cache34102
-Node: Choosing which Lean to use35714
-Node: Elan itself38148
-Node: Git and curl39364
-Node: Searching Mathlib with Loogle41111
-Node: Following a name through a project43381
-Node: The module hierarchy46168
-Node: It needs a built project48216
-Node: Other Lake operations48866
-Node: Moving by declaration50302
-Node: Folding a file up52824
-Node: Applying what Lean suggests55199
-Node: Being told a suggestion is there57084
-Node: What Lean filled in for you59538
-Node: Completion61943
-Node: Finding a symbol you cannot name63112
-Node: Configuration64363
-Node: Frequently used options64843
-Node: Finding the Lean programs66863
-Node: Tuning67805
-Node: The goal display's controls68607
-Node: Older Lean versions70881
-Node: Semantic highlighting71863
-Node: Optional packages73375
-Node: Troubleshooting73868
-Node: Where the documentation is75953
-Node: "Timed out after 30 seconds" opening a file outside a project77080
-Node: "Imports are out of date and must be rebuilt"78268
-Node: Common Pitfalls79791
-Node: Acknowledgements80392
+Node: Installation2717
+Node: Requirements2942
+Node: From source4387
+Node: With a source-based package manager4875
+Node: Native vc (Emacs 30 or later)5386
+Node: Doom-Emacs5831
+Node: Straight6150
+Node: Upgrading from version 16507
+Node: Usage9676
+Node: Keys in a Lean buffer11723
+Node: Keys in the goal display14221
+Node: The tactic state18756
+Node: Copying what is on display20485
+Node: How much of a goal to show21512
+Node: Errors and warnings25819
+Node: Building dependencies29914
+Node: Starting a project31184
+Node: Building32976
+Node: Mathlib's build cache34168
+Node: Choosing which Lean to use35780
+Node: Elan itself38214
+Node: Git and curl39430
+Node: Searching Mathlib with Loogle41177
+Node: Following a name through a project43447
+Node: The module hierarchy46234
+Node: It needs a built project48282
+Node: Other Lake operations48932
+Node: Moving by declaration50368
+Node: Folding a file up52890
+Node: Applying what Lean suggests55265
+Node: Being told a suggestion is there57150
+Node: What Lean filled in for you59604
+Node: Completion62009
+Node: Finding a symbol you cannot name63178
+Node: Configuration64429
+Node: Frequently used options64909
+Node: Finding the Lean programs66929
+Node: Tuning67871
+Node: The goal display's controls68673
+Node: Older Lean versions70947
+Node: Semantic highlighting71929
+Node: Optional packages73441
+Node: Troubleshooting73934
+Node: What is checked before Lean starts74299
+Node: Reporting on the setup76638
+Node: Where the documentation is78635
+Node: "Timed out after 30 seconds" opening a file outside a project79793
+Node: "Imports are out of date and must be rebuilt"80981
+Node: Common Pitfalls82504
+Node: Acknowledgements83105
 
 End Tag Table
 

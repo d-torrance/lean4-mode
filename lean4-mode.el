@@ -61,6 +61,7 @@
 (require 'lean4-suggest)
 (require 'lean4-util)
 (require 'lean4-settings)
+(require 'lean4-setup)
 (require 'lean4-syntax)
 (require 'lean4-eglot)
 (require 'lean4-diagnostics)
@@ -338,6 +339,9 @@ The page VS Code\='s \"Show Documentation Resources\" opens."
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-semantic-tokens nil 'local)
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-completion nil 'local)
   (add-hook 'eglot-managed-mode-hook #'lean4-hints--setup nil 'local)
+  ;; Before `eglot-ensure' below: what it says is about why a server may
+  ;; not start, which is worth saying before rather than after the attempt.
+  (lean4-setup-check)
   ;; Before `eglot-ensure' below, which is what asks project.el where
   ;; this file's root is.
   (lean4-register-project-backend)

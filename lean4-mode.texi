@@ -108,6 +108,8 @@ Configuration
 
 Troubleshooting
 
+* What is checked before Lean starts::
+* Reporting on the setup::
 * Where the documentation is::
 * "Timed out after 30 seconds" opening a file outside a project::
 * "Imports are out of date and must be rebuilt"::
@@ -1670,6 +1672,62 @@ echo area.
 @node Troubleshooting
 @chapter Troubleshooting
 
+@menu
+* What is checked before Lean starts::
+* Reporting on the setup::
+* Where the documentation is::
+* "Timed out after 30 seconds" opening a file outside a project::
+* "Imports are out of date and must be rebuilt"::
+@end menu
+
+@node What is checked before Lean starts
+@section What is checked before Lean starts
+
+Visiting a Lean file looks at the setup and says so where something is
+wrong, which is VS Code's setup diagnostics and its @samp{showSetupWarnings}.
+Two things are looked at, and each only once, since neither answer changes
+as you move between files: the machine, once a session, and the project,
+the first time one of its files is opened.
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaa}
+@headitem Reported
+@tab As
+@item Git or curl missing, which elan and Lake need
+@tab error
+@item No @samp{lean} on @code{exec-path}
+@tab error
+@item No @samp{lake}, so a file in a package goes unserved
+@tab error
+@item Elan missing, or older than 4
+@tab warning
+@item A project with a @samp{leanpkg.toml} and no @samp{lean-toolchain}, so a Lean 3 project
+@tab error
+@item A project with no @samp{lean-toolchain} at all
+@tab warning
+@end multitable
+
+Each says what to do about it, naming the command that does it -- @samp{M-x
+lean4-install-dependencies}, @samp{M-x lean4-install-elan}, @samp{M-x
+lean4-select-project-toolchain} and so on.
+
+They go through @code{display-warning}, so they land in a @samp{*Warnings*} buffer
+that waits to be read rather than in an echo area that scrolls away, and
+@code{warning-minimum-level} and its relatives govern them as they govern every
+other warning.  @code{lean4-show-setup-warnings} set to @samp{nil} turns the lot
+off; @samp{M-x lean4-diagnose} still reports the same and more, on request, and
+@samp{M-x lean4-setup-forget} makes the checks run again after you have
+installed something.
+
+VS Code has one check more, for a file being edited which has not been
+saved anywhere, Lean having nothing to serve.  That one is left out: a
+buffer with no file behind it is an ordinary thing in Emacs rather than a
+setup gone wrong -- editing a Lean block inside an Org or Markdown
+document gives one -- and a warning arriving in all of those is a warning
+that gets turned off, taking the useful two with it.
+
+@node Reporting on the setup
+@section Reporting on the setup
+
 @samp{M-x lean4-diagnose} reports how things are set up: the versions of
 Emacs and of each dependency, the Lean and Lake executables it found,
 the workspace root and its toolchain, the command used to start the
@@ -1702,12 +1760,6 @@ the Lean server} in the @samp{Lean} menu; and a Lean
 buffer visited afterwards starts a new one, unless
 @code{lean4-auto-start-server} is off.  Neither is to be confused with
 @samp{C-c C-d}, which restarts the @emph{file}: see @ref{"Imports are out of date and must be rebuilt"}.
-
-@menu
-* Where the documentation is::
-* "Timed out after 30 seconds" opening a file outside a project::
-* "Imports are out of date and must be rebuilt"::
-@end menu
 
 @node Where the documentation is
 @section Where the documentation is

@@ -1229,6 +1229,44 @@ None of these are required, and none are declared as dependencies.
 
 * Troubleshooting
 
+** What is checked before Lean starts
+
+Visiting a Lean file looks at the setup and says so where something is
+wrong, which is VS Code's setup diagnostics and its =showSetupWarnings=.
+Two things are looked at, and each only once, since neither answer changes
+as you move between files: the machine, once a session, and the project,
+the first time one of its files is opened.
+
+| Reported                                              | As        |
+|-------------------------------------------------------+-----------|
+| Git or curl missing, which elan and Lake need         | error     |
+| No =lean= on ~exec-path~                              | error     |
+| No =lake=, so a file in a package goes unserved       | error     |
+| Elan missing, or older than 4                         | warning   |
+| A project with a =leanpkg.toml= and no =lean-toolchain=, so a Lean 3 project | error |
+| A project with no =lean-toolchain= at all             | warning   |
+
+Each says what to do about it, naming the command that does it -- =M-x
+lean4-install-dependencies=, =M-x lean4-install-elan=, =M-x
+lean4-select-project-toolchain= and so on.
+
+They go through ~display-warning~, so they land in a =*Warnings*= buffer
+that waits to be read rather than in an echo area that scrolls away, and
+~warning-minimum-level~ and its relatives govern them as they govern every
+other warning.  ~lean4-show-setup-warnings~ set to =nil= turns the lot
+off; =M-x lean4-diagnose= still reports the same and more, on request, and
+=M-x lean4-setup-forget= makes the checks run again after you have
+installed something.
+
+VS Code has one check more, for a file being edited which has not been
+saved anywhere, Lean having nothing to serve.  That one is left out: a
+buffer with no file behind it is an ordinary thing in Emacs rather than a
+setup gone wrong -- editing a Lean block inside an Org or Markdown
+document gives one -- and a warning arriving in all of those is a warning
+that gets turned off, taking the useful two with it.
+
+** Reporting on the setup
+
 =M-x lean4-diagnose= reports how things are set up: the versions of
 Emacs and of each dependency, the Lean and Lake executables it found,
 the workspace root and its toolchain, the command used to start the
