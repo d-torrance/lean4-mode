@@ -16,6 +16,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'ert)
 (require 'lean4-mode)
 
@@ -156,6 +157,71 @@ true whatever the reader has bound."
   "The command says so rather than failing obscurely."
   (lean4-hints-test--with-lean "def myId (a : α) : α := |a\n"
     (should-error (lean4-insert-inlay-hint) :type 'user-error)))
+
+;;;; Answering ElDoc, even with nothing
+
+(defmacro lean4-hints-test--answering (hints &rest body)
+  "Evaluate BODY with a server pretended and HINTS its answer.
+What the ElDoc function reported is left in `reported', which stays
+`never' if it reported nothing at all -- which is the bug this guards
+against, `eldoc-documentation-compose' showing nothing until every
+function has answered."
+  (declare (indent 1) (debug (form body)))
+  `(let ((reported 'never))
+     (cl-letf (((symbol-function 'eglot-current-server) (lambda () 'server))
+               ((symbol-function 'lean4--server-capable) (lambda (_) t))
+               ;; The real one needs a file name, and these buffers visit
+               ;; nothing; what is in the request does not matter here.
+               ((symbol-function 'lean4-hints--params) (lambda () nil))
+               ((symbol-function 'jsonrpc-async-request)
+                (lambda (_server _method _params &rest args)
+                  (funcall (plist-get args :success-fn) ,hints))))
+       ,@body)))
+
+(ert-deftest lean4-hints-eldoc-reports-a-hint ()
+  "Where there is a hint, that is what is reported."
+  (lean4-hints-test--with-lean "def myId (a : α) : α := |a\n"
+    (lean4-hints-test--answering (vector lean4-hints-test--hint)
+      (should (lean4-hints-eldoc-function
+               (lambda (&rest args) (setq reported args))))
+      (should (string-search "α : Sort u_1" (car reported))))))
+
+(ert-deftest lean4-hints-eldoc-reports-nothing-rather-than-not-answering ()
+  "Where there is no hint, ElDoc is told so rather than left waiting."
+  (lean4-hints-test--with-lean "theorem t : True := tri|vial\n"
+    (lean4-hints-test--answering []
+      (should (lean4-hints-eldoc-function
+               (lambda (&rest args) (setq reported args))))
+      (should (equal reported '(nil))))))
+
+(ert-deftest lean4-hints-eldoc-answers-when-the-request-fails ()
+  "A rejected request is still an answer: the server routinely refuses a
+position it is still elaborating, and ElDoc must not wait for that."
+  (lean4-hints-test--with-lean "theorem t : True := tri|vial\n"
+    (let ((reported 'never))
+      (cl-letf (((symbol-function 'eglot-current-server) (lambda () 'server))
+                ((symbol-function 'lean4--server-capable) (lambda (_) t))
+                ((symbol-function 'lean4-hints--params) (lambda () nil))
+                ((symbol-function 'jsonrpc-async-request)
+                 (lambda (_server _method _params &rest args)
+                   (funcall (plist-get args :error-fn) '(:message "busy")))))
+        (should (lean4-hints-eldoc-function
+                 (lambda (&rest args) (setq reported args)))))
+      (should (equal reported '(nil))))))
+
+(ert-deftest lean4-hints-eldoc-answers-when-the-request-times-out ()
+  "So is a request that never comes back."
+  (lean4-hints-test--with-lean "theorem t : True := tri|vial\n"
+    (let ((reported 'never))
+      (cl-letf (((symbol-function 'eglot-current-server) (lambda () 'server))
+                ((symbol-function 'lean4--server-capable) (lambda (_) t))
+                ((symbol-function 'lean4-hints--params) (lambda () nil))
+                ((symbol-function 'jsonrpc-async-request)
+                 (lambda (_server _method _params &rest args)
+                   (funcall (plist-get args :timeout-fn)))))
+        (should (lean4-hints-eldoc-function
+                 (lambda (&rest args) (setq reported args)))))
+      (should (equal reported '(nil))))))
 
 (ert-deftest lean4-hints-eldoc-is-silent-without-a-server ()
   "And the ElDoc function declines, leaving the others to answer."

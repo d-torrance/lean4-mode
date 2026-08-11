@@ -159,7 +159,14 @@ markdown."
   "Report the inlay hint nearest point, and how to write it down.
 CALLBACK is called with the report, this being a member of
 `eldoc-documentation-functions'.  The request is deferred, so that
-moving through a file coalesces into one."
+moving through a file coalesces into one.
+
+CALLBACK is called even when there is nothing to say, which is most
+lines.  Saying nothing has to be said: `eldoc-documentation-compose',
+which is the strategy Eglot sets, shows what it has collected only once
+every function has answered, so one that promises an answer and never
+gives it silences the whole echo area -- the hover, the signature, and
+Eglot\\='s own report that a code action is available here among it."
   (when (and lean4-inlay-hints-in-eldoc (lean4-hints--available-p))
     (let ((buffer (current-buffer))
           (origin (point)))
@@ -167,18 +174,20 @@ moving through a file coalesces into one."
        (eglot-current-server) :textDocument/inlayHint (lean4-hints--params)
        :success-fn
        (lambda (hints)
-         (when (buffer-live-p buffer)
-           (with-current-buffer buffer
-             ;; Point has moved on: whatever this says is about somewhere
-             ;; else, and ElDoc has already asked again about here.
-             (when (eq origin (point))
-               (when-let* ((hint (lean4-hints--nearest hints origin))
-                           (documentation (lean4-hints--documentation hint)))
-                 (funcall callback documentation))))))
+         (funcall
+          callback
+          (and (buffer-live-p buffer)
+               (with-current-buffer buffer
+                 ;; Point has moved on: whatever this says is about somewhere
+                 ;; else, and ElDoc has already asked again about here.
+                 (and (eq origin (point))
+                      (when-let* ((hint (lean4-hints--nearest hints origin)))
+                        (lean4-hints--documentation hint)))))))
        ;; The server rejects position requests for a region it is still
-       ;; elaborating, which is routine and not worth reporting.
-       :error-fn #'ignore
-       :timeout-fn #'ignore
+       ;; elaborating, which is routine.  Nothing is reported about it, but
+       ;; that nothing is still reported.
+       :error-fn (lambda (&rest _) (funcall callback nil))
+       :timeout-fn (lambda () (funcall callback nil))
        :deferred 'lean4-hints-eldoc-function)
       ;; Non-nil and not a string: ElDoc waits for the callback.
       t)))
