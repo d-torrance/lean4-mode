@@ -273,5 +273,15 @@ what it means everywhere else."
     ;; It still indents, through `indent-line-function'.
     (should (eq indent-line-function #'lean4-indent-line-function))))
 
+(ert-deftest lean4-indent-asking-about-a-position-leaves-point-alone ()
+  "`syntax-ppss' moves point to the position it is asked about, which was
+waiting to surprise the first caller to pass one -- and did: a search loop
+in lean4-outline.el found point back at the match it had just left, and
+went round for ever."
+  (lean4-indent-test--with-lean "theorem t : True := trivial\n"
+    (let ((origin (point)))
+      (should-not (lean4-indent--in-string-or-comment-p (point-min)))
+      (should (= (point) origin)))))
+
 (provide 'lean4-indent-test)
 ;;; lean4-indent-test.el ends here

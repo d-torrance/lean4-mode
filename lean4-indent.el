@@ -102,9 +102,15 @@ Comments and strings are not stripped; callers that care check syntax."
      (line-end-position))))
 
 (defun lean4-indent--in-string-or-comment-p (&optional position)
-  "Return non-nil if POSITION, or point, is inside a string or comment."
-  (let ((state (syntax-ppss position)))
-    (or (nth 3 state) (nth 4 state))))
+  "Return non-nil if POSITION, or point, is inside a string or comment.
+Point is left where it was: `syntax-ppss' moves it to the position it was
+asked about, which is a surprise waiting for the first caller to pass one
+-- and did surprise the first one that did, in `lean4-outline.el', where
+a search loop passed a position and found point back at the match it had
+just left, for ever."
+  (save-excursion
+    (let ((state (syntax-ppss position)))
+      (or (nth 3 state) (nth 4 state)))))
 
 (defun lean4-indent--previous-code-line ()
   "Move to the previous line that is not blank or wholly a comment.
