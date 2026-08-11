@@ -128,25 +128,6 @@ the arguments to pass."
   (interactive)
   (lean4-execute))
 
-(defcustom lean4-indent-function #'lean4-indent-line
-  "How TAB indents a line in a Lean buffer.
-
-`lean4-indent-line' guesses from the layout and cycles through the
-alternatives when pressed again.  `eri-indent' does not guess at all: it
-cycles through the columns of the lines above, which some people prefer
-and which is what this mode did before."
-  :group 'lean4
-  :type '(choice (const :tag "Guess, then cycle" lean4-indent-line)
-                 (const :tag "Cycle only" eri-indent)
-                 function))
-
-(defun lean4-tab-indent ()
-  "Indent the current line, or complete, depending on where point is."
-  (interactive)
-  (cond ((looking-back (rx line-start (* white)) nil)
-         (call-interactively lean4-indent-function))
-        (t (indent-for-tab-command))))
-
 (defvar-keymap lean4-mode-map
   :doc "Keymap used in Lean 4 mode."
   "C-c C-x"     #'lean4-std-exe
@@ -162,8 +143,7 @@ and which is what this mode did before."
   "C-c C-SPC"   #'lean4-info-toggle-pause
   "C-c C-o"     #'lean4-info-toggle-message-order
   "C-c C-a"     #'lean4-info-toggle-all-messages-pause
-  "C-c C-g"     #'lean4-info-refresh-paused
-  "TAB"         #'lean4-tab-indent)
+  "C-c C-g"     #'lean4-info-refresh-paused)
 
 (easy-menu-define lean4-mode-menu lean4-mode-map
   "Menu for the Lean major mode."

@@ -216,5 +216,62 @@ A wrong guess should cost one keystroke, not a manual fix."
       ;; Every candidate is reachable, and it comes back around.
       (should (seq-set-equal-p (seq-uniq seen) candidates)))))
 
+(ert-deftest lean4-indent-line-function-does-not-cycle-for-indent-region ()
+  "Called as `indent-line-function', the guess is all that happens.
+
+`indent-region' and `newline-and-indent' come through here, and a cycle
+there would make bulk indentation depend on whatever ran before it."
+  (lean4-indent-test--with-lean
+      "theorem t : True := by\n  constructor\n    foo\n"
+    (goto-char (point-max))
+    (let ((this-command nil) (last-command nil))
+      (lean4-indent-line-function)
+      (let ((first (current-indentation)))
+        ;; Repeating it changes nothing: this is not a trigger command.
+        (let ((last-command 'lean4-indent-line-function))
+          (lean4-indent-line-function))
+        (should (= first (current-indentation)))))))
+
+(ert-deftest lean4-indent-line-function-cycles-for-a-repeated-tab ()
+  "A TAB the reader pressed twice steps to the next column.
+TAB reaches here through `indent-for-tab-command', as in every other
+mode, rather than through a binding of this mode's own."
+  (lean4-indent-test--with-lean
+      "theorem t : True := by\n  constructor\n    foo\n"
+    (goto-char (point-max))
+    (let ((this-command 'indent-for-tab-command) (last-command nil))
+      (lean4-indent-line-function))
+    (let ((first (current-indentation)))
+      (let ((this-command 'indent-for-tab-command)
+            (last-command 'indent-for-tab-command))
+        (lean4-indent-line-function))
+      (should-not (= first (current-indentation))))))
+
+(ert-deftest lean4-indent-line-function-honours-lean4-indent-function ()
+  "The option decides what a pressed TAB runs, and only that."
+  (lean4-indent-test--with-lean "theorem t : True := by\n"
+    (goto-char (point-max))
+    (let ((ran 0))
+      (let ((lean4-indent-function (lambda () (setq ran (1+ ran))))
+            (this-command 'indent-for-tab-command))
+        (lean4-indent-line-function))
+      (should (= ran 1))
+      ;; Not consulted when something else asked for the indentation.
+      (let ((lean4-indent-function (lambda () (setq ran (1+ ran))))
+            (this-command nil))
+        (lean4-indent-line-function))
+      (should (= ran 1)))))
+
+(ert-deftest lean4-indent-mode-leaves-tab-to-the-global-binding ()
+  "The mode binds no TAB of its own, so `tab-always-indent' still means
+what it means everywhere else."
+  (with-temp-buffer
+    (let ((lean4-auto-start-server nil)
+          (lean4-info-auto-open nil))
+      (lean4-mode))
+    (should-not (keymap-lookup lean4-mode-map "TAB"))
+    ;; It still indents, through `indent-line-function'.
+    (should (eq indent-line-function #'lean4-indent-line-function))))
+
 (provide 'lean4-indent-test)
 ;;; lean4-indent-test.el ends here

@@ -244,16 +244,6 @@ guess cost one keystroke rather than a manual fix."
       (indent-line-to column)
     (save-excursion (indent-line-to column))))
 
-(defun lean4-indent-line-function ()
-  "Indent the current line to the computed guess.
-
-This is what `indent-line-function' is set to, so it never cycles:
-`indent-region', `newline-and-indent' and every other caller of
-`indent-according-to-mode' go through here, and cycling there would make
-bulk indentation depend on what ran before it -- which is exactly how
-`indent-region' came to be non-idempotent."
-  (lean4-indent--to (lean4-indent-calculate)))
-
 (defun lean4-indent-line ()
   "Indent the current line, cycling on repeated invocation.
 
@@ -262,10 +252,10 @@ the next plausible column, wrapping around, in the manner of
 `python-indent-line'.  Lean's layout cannot always be inferred, so the
 cycle is the escape hatch rather than an afterthought.
 
-Only for interactive use; see `lean4-indent-line-function'."
+The default value of `lean4-indent-function', and so what a repeated TAB
+runs."
   (interactive)
-  (if (not (memq last-command '(indent-for-tab-command lean4-indent-line
-                                lean4-tab-indent)))
+  (if (not (memq last-command '(indent-for-tab-command lean4-indent-line)))
       (lean4-indent--to (lean4-indent-calculate))
     (let ((current (current-indentation))
           (candidates (lean4-indent--candidates)))
@@ -273,6 +263,48 @@ Only for interactive use; see `lean4-indent-line-function'."
       (lean4-indent--to
        (or (seq-find (lambda (column) (> column current)) candidates)
            (car candidates))))))
+
+(defcustom lean4-indent-function #'lean4-indent-line
+  "How an interactive TAB indents a line in a Lean buffer.
+
+`lean4-indent-line' guesses from the layout and cycles through the
+alternatives when pressed again.  `eri-indent' does not guess at all: it
+cycles through the columns of the lines above, which some people prefer
+and which is what this mode did before.
+
+Consulted only for a command the reader ran; see
+`lean4-indent-line-function' for why `indent-region' does not come
+through here."
+  :group 'lean4
+  :type '(choice (const :tag "Guess, then cycle" lean4-indent-line)
+                 (const :tag "Cycle only" eri-indent)
+                 function))
+
+(defconst lean4-indent--trigger-commands '(indent-for-tab-command)
+  "Commands that mean the reader asked for this line to be indented.
+The counterpart of `python-indent-trigger-commands'.  TAB reaches
+`indent-line-function' through `indent-for-tab-command' like any other
+mode\\='s, so there is one.")
+
+(defun lean4-indent-line-function ()
+  "Indent the current line; the `indent-line-function' for Lean.
+
+Every caller of `indent-according-to-mode' arrives here --
+`indent-region', `newline-and-indent', `electric-indent-mode' and the
+rest -- and every one of them gets the computed guess, once.  Cycling
+there would make bulk indentation depend on what ran before it, which is
+exactly how `indent-region' comes to be non-idempotent.
+
+A TAB the reader pressed is the exception, and is the one case
+`lean4-indent-function' governs.  Deciding it here, from `this-command',
+rather than from a binding of TAB is what lets `tab-always-indent' mean
+what it means in every other mode: a reader who sets it to `complete'
+gets completion after a symbol, which a mode that binds TAB itself takes
+away.  `python-indent-line-function' draws the same line in the same
+place."
+  (if (memq this-command lean4-indent--trigger-commands)
+      (funcall lean4-indent-function)
+    (lean4-indent--to (lean4-indent-calculate))))
 
 (provide 'lean4-indent)
 ;;; lean4-indent.el ends here

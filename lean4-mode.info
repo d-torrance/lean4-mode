@@ -305,7 +305,7 @@ Key                      Description                                            
 ‘C-c C-p C-l’            Build the package, fetching the cache first                   ‘lean4-lake-build’
 ‘C-c C-p C-c’            Fetch Mathlib's build cache for the package                   ‘lean4-lake-fetch-cache’
 ‘C-c C-p C-f’            Fetch Mathlib's build cache for this file                     ‘lean4-lake-fetch-file-cache’
-‘TAB’                    Indent, cycling through the alternatives when pressed again   ‘lean4-tab-indent’
+‘TAB’                    Indent, cycling through the alternatives when pressed again   ‘indent-for-tab-command’
 
    The five that act on the goal display - ‘C-c C-s’, ‘C-c C-SPC’, ‘C-c
 C-g’, ‘C-c C-a’ and ‘C-c C-o’ - are bound inside the display too, so it
@@ -1011,9 +1011,14 @@ File: lean4-mode.info,  Node: Frequently used options,  Next: The goal display's
      cannot be hovered or jumped from.
    • ‘lean4-indent-offset’ (default ‘2’) - columns per level of
      indentation.
-   • ‘lean4-indent-function’ - ‘lean4-indent-line’ guesses from the
-     layout and cycles when pressed again; ‘eri-indent’ does not guess
-     and only cycles, which is what this mode did before version 2.
+   • ‘lean4-indent-function’ - what a ‘TAB’ you pressed runs.
+     ‘lean4-indent-line’ guesses from the layout and cycles when pressed
+     again; ‘eri-indent’ does not guess and only cycles, which is what
+     this mode did before version 2.  Only a ‘TAB’ consults it:
+     ‘indent-region’ and ‘newline-and-indent’ always take the guess,
+     once, so that reindenting a region gives the same answer however
+     often it is done.  Since the mode binds no ‘TAB’ of its own,
+     ‘tab-always-indent’ means here what it means everywhere else.
    • ‘lean4-enable-file-watchers’ (default ‘nil’) - whether to honour
      the server's request to watch every ‘*.ilean’ file.  On a project
      the size of Mathlib that is tens of thousands of files.
@@ -1294,36 +1299,36 @@ Node: Straight5490
 Node: Upgrading from version 15847
 Node: Usage7144
 Node: Keys in a Lean buffer9003
-Node: Keys in the goal display11375
-Node: The tactic state15910
-Node: Copying what is on display17129
-Node: How much of a goal to show18156
-Node: Errors and warnings21667
-Node: Building dependencies25762
-Node: Starting a project27032
-Node: Building28824
-Node: Mathlib's build cache30016
-Node: Choosing which Lean to use31373
-Node: Elan itself33708
-Node: Git and curl34924
-Node: Searching Mathlib with Loogle36671
-Node: The module hierarchy38687
-Node: It needs a built project40730
-Node: Other Lake operations41380
-Node: Completion42805
-Node: Finding a symbol you cannot name43968
-Node: Configuration45219
-Node: Frequently used options45658
-Node: The goal display's controls47321
-Node: Older Lean versions49193
-Node: Semantic highlighting50175
-Node: Optional packages51494
-Node: Troubleshooting51987
-Node: Where the documentation is53571
-Node: "Timed out after 30 seconds" opening a file outside a project54698
-Node: "Imports are out of date and must be rebuilt"55886
-Node: Common Pitfalls57409
-Node: Acknowledgements58010
+Node: Keys in the goal display11381
+Node: The tactic state15916
+Node: Copying what is on display17135
+Node: How much of a goal to show18162
+Node: Errors and warnings21673
+Node: Building dependencies25768
+Node: Starting a project27038
+Node: Building28830
+Node: Mathlib's build cache30022
+Node: Choosing which Lean to use31379
+Node: Elan itself33714
+Node: Git and curl34930
+Node: Searching Mathlib with Loogle36677
+Node: The module hierarchy38693
+Node: It needs a built project40736
+Node: Other Lake operations41386
+Node: Completion42811
+Node: Finding a symbol you cannot name43974
+Node: Configuration45225
+Node: Frequently used options45664
+Node: The goal display's controls47686
+Node: Older Lean versions49558
+Node: Semantic highlighting50540
+Node: Optional packages51859
+Node: Troubleshooting52352
+Node: Where the documentation is53936
+Node: "Timed out after 30 seconds" opening a file outside a project55063
+Node: "Imports are out of date and must be rebuilt"56251
+Node: Common Pitfalls57774
+Node: Acknowledgements58375
 
 End Tag Table
 

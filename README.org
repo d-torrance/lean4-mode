@@ -161,7 +161,7 @@ buffer.  To put it in a side window on the right:
 | =C-c C-p C-l=          | Build the package, fetching the cache first              | ~lean4-lake-build~                     |
 | =C-c C-p C-c=          | Fetch Mathlib's build cache for the package              | ~lean4-lake-fetch-cache~               |
 | =C-c C-p C-f=          | Fetch Mathlib's build cache for this file                | ~lean4-lake-fetch-file-cache~          |
-| =TAB=                  | Indent, cycling through the alternatives when pressed again | ~lean4-tab-indent~                  |
+| =TAB=                  | Indent, cycling through the alternatives when pressed again | ~indent-for-tab-command~            |
 
 The five that act on the goal display -- =C-c C-s=, =C-c C-SPC=,
 =C-c C-g=, =C-c C-a= and =C-c C-o= -- are bound inside the display too,
@@ -763,9 +763,14 @@ Eglot's own configuration applies.
   be hovered or jumped from.
 - ~lean4-indent-offset~ (default =2=) -- columns per level of
   indentation.
-- ~lean4-indent-function~ -- ~lean4-indent-line~ guesses from the layout
-  and cycles when pressed again; ~eri-indent~ does not guess and only
-  cycles, which is what this mode did before version 2.
+- ~lean4-indent-function~ -- what a =TAB= you pressed runs.
+  ~lean4-indent-line~ guesses from the layout and cycles when pressed
+  again; ~eri-indent~ does not guess and only cycles, which is what this
+  mode did before version 2.  Only a =TAB= consults it: ~indent-region~
+  and ~newline-and-indent~ always take the guess, once, so that
+  reindenting a region gives the same answer however often it is done.
+  Since the mode binds no =TAB= of its own, ~tab-always-indent~ means
+  here what it means everywhere else.
 - ~lean4-enable-file-watchers~ (default =nil=) -- whether to honour the
   server's request to watch every =*.ilean= file.  On a project the size
   of Mathlib that is tens of thousands of files.

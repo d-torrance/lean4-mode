@@ -335,7 +335,7 @@ buffer.  To put it in a side window on the right:
 @tab @code{lean4-lake-fetch-file-cache}
 @item @samp{TAB}
 @tab Indent, cycling through the alternatives when pressed again
-@tab @code{lean4-tab-indent}
+@tab @code{indent-for-tab-command}
 @end multitable
 
 The five that act on the goal display -- @samp{C-c C-s}, @samp{C-c C-SPC},
@@ -1109,9 +1109,14 @@ be hovered or jumped from.
 @code{lean4-indent-offset} (default @samp{2}) -- columns per level of
 indentation.
 @item
-@code{lean4-indent-function} -- @code{lean4-indent-line} guesses from the layout
-and cycles when pressed again; @code{eri-indent} does not guess and only
-cycles, which is what this mode did before version 2.
+@code{lean4-indent-function} -- what a @samp{TAB} you pressed runs.
+@code{lean4-indent-line} guesses from the layout and cycles when pressed
+again; @code{eri-indent} does not guess and only cycles, which is what this
+mode did before version 2.  Only a @samp{TAB} consults it: @code{indent-region}
+and @code{newline-and-indent} always take the guess, once, so that
+reindenting a region gives the same answer however often it is done.
+Since the mode binds no @samp{TAB} of its own, @code{tab-always-indent} means
+here what it means everywhere else.
 @item
 @code{lean4-enable-file-watchers} (default @samp{nil}) -- whether to honour the
 server's request to watch every @samp{*.ilean} file.  On a project the size
