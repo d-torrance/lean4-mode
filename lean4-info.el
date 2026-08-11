@@ -56,6 +56,7 @@
 (require 'lean4-rpc)
 (require 'lean4-settings)
 (require 'lean4-syntax)
+(require 'lean4-util)
 
 (defgroup lean4-info nil
   "Lean4-Mode Info."
@@ -492,12 +493,7 @@ VS Code\\='s \"Copy Message\"."
 
 (defun lean4-info--message-section-at-point ()
   "Return the message section point is in, or nil."
-  (let ((section (magit-current-section)))
-    (while (and section
-                (not (let ((value (oref section value)))
-                       (and (consp value) (eq (car value) 'message)))))
-      (setq section (oref section parent)))
-    section))
+  (lean4--section-at-point 'message))
 
 ;;;###autoload
 (defun lean4-info-copy-to-comment ()
@@ -727,18 +723,10 @@ LINE counted from one and COLUMN from zero."
 
 (defmacro lean4-info--section-body (&rest body)
   "Insert BODY as a section\\='s body, remembering how far in it sits.
-
-`magit-section' puts the body of a section that starts folded aside and
-runs it when the reader opens the section.  How far in we were is a
-dynamic binding, and it has long unwound by then, so a body run that way
-came out at the outermost level -- nested trace children sat to the left
-of the node they hang under.  Captured here, and bound again when the
-body finally runs."
+See `lean4--section-body'; without it nested trace children sat to the
+left of the node they hang under."
   (declare (indent 0) (debug t))
-  `(let ((level lean4-info--level))
-     (magit-insert-section-body
-       (let ((lean4-info--level level))
-         ,@body))))
+  `(lean4--section-body lean4-info--level ,@body))
 
 (defmacro lean4-info--indented (&rest body)
   "Insert whatever BODY inserts one level further in."
@@ -928,19 +916,6 @@ the cost this whole arrangement exists to avoid."
              (propertize "...\n" 'face 'shadow)))))))))
 
 
-(defun lean4-info--map-sections (function)
-  "Call FUNCTION on every section of the display, the root included.
-Does nothing where there is no section tree yet.
-
-`magit-map-sections' does this, but only from magit-section 4, and 3.3.0
-is what Debian and Ubuntu still ship; this can give way to it when that
-stops mattering."
-  (when (bound-and-true-p magit-root-section)
-    (letrec ((walk (lambda (section)
-                     (funcall function section)
-                     (mapc walk (oref section children)))))
-      (funcall walk magit-root-section))))
-
 (defun lean4-info--fetch-open-traces ()
   "Fetch the children of any trace the reader has opened.
 
@@ -948,7 +923,7 @@ stops mattering."
 section and no hook that runs when one of them does, so notice it
 afterwards.  Walking a handful of sections costs nothing beside the
 request it decides whether to make."
-  (lean4-info--map-sections
+  (lean4--map-sections
    (lambda (section)
      (let ((value (oref section value)))
        (when (and (consp value) (eq (car value) 'trace)
@@ -1142,7 +1117,7 @@ none: the display looked as though nothing folded until something was
 folded, after which that one section gained an indicator and the rest
 still had none."
   (when (fboundp 'magit-section-maybe-update-visibility-indicator)
-    (lean4-info--map-sections
+    (lean4--map-sections
      #'magit-section-maybe-update-visibility-indicator)))
 
 (defun lean4-info--act-at (position)

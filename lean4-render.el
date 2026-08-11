@@ -39,7 +39,6 @@
 
 ;;; Code:
 
-(require 'cl-lib)
 (require 'seq)
 (require 'subr-x)
 
@@ -269,10 +268,14 @@ strings, so that \"/1\" is not treated as containing \"/10\"."
 (defconst lean4-render--inaccessible-suffix "✝"
   "Character Lean appends to a hypothesis name you may not refer to.")
 
+(defun lean4-render--inaccessible-p (name)
+  "Return non-nil if NAME is one Lean has made inaccessible."
+  (string-search lean4-render--inaccessible-suffix name))
+
 (defun lean4-render--name (name)
   "Render a hypothesis NAME, dimming it if it is inaccessible."
   (propertize name 'font-lock-face
-              (if (string-search lean4-render--inaccessible-suffix name)
+              (if (lean4-render--inaccessible-p name)
                   'lean4-inaccessible-name
                 'lean4-hypothesis-name)))
 
@@ -294,10 +297,6 @@ strings, so that \"/1\" is not treated as containing \"/10\"."
 Lean sends these as optional booleans, and a JSON `false' does not reach
 Emacs as nil, so an explicit comparison is needed."
   (eq (plist-get object key) t))
-
-(defun lean4-render--inaccessible-p (name)
-  "Return non-nil if NAME is one Lean has made inaccessible."
-  (string-search lean4-render--inaccessible-suffix name))
 
 (defun lean4-render--hypothesis-names (hypothesis settings)
   "Return the names of HYPOTHESIS that SETTINGS leave visible."
@@ -397,7 +396,7 @@ proof being finished rather than as an absence of information."
                               'lean4-unemphasized-goal text))
                            text))
                        goals)))
-        (mapconcat #'identity rendered "\n\n")))))
+        (string-join rendered "\n\n")))))
 
 (defun lean4-render-term-goal (term-goal &optional settings)
   "Render TERM-GOAL, an `InteractiveTermGoal'.

@@ -39,9 +39,7 @@
   "Face to highlight Lean file progress."
   :group 'lean4)
 
-(if (fboundp 'define-fringe-bitmap)
-    (define-fringe-bitmap 'lean4-fringe-fringe-bitmap
-      (vector) 16 8))
+(define-fringe-bitmap 'lean4-fringe-fringe-bitmap (vector) 16 8)
 
 (defface lean4-fringe-fringe-processing-face
   '((((class color) (background light))

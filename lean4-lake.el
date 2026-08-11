@@ -135,11 +135,7 @@ is a client that breaks on the next format."
         (with-temp-buffer
           (insert-file-contents file)
           (goto-char (point-min))
-          (plist-get (json-parse-buffer :object-type 'plist
-                                        :array-type 'list
-                                        :null-object nil
-                                        :false-object nil)
-                     :packages))))))
+          (plist-get (lean4--json-parse-buffer) :packages))))))
 
 (defun lean4-lake--direct-dependencies (root)
   "Return the names of ROOT\\='s direct Git dependencies.

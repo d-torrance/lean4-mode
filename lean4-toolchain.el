@@ -123,8 +123,7 @@ Signals if elan cannot be run or its answer cannot be read."
     (unless (eq status 0)
       (user-error "Could not ask elan what it has: %s" (string-trim output)))
     (condition-case nil
-        (json-parse-string output :object-type 'plist :array-type 'list
-                           :null-object nil :false-object nil)
+        (lean4--json-parse-string output)
       (error (user-error "Could not read what elan said")))))
 
 (defun lean4-toolchain-installed ()
@@ -200,18 +199,10 @@ installed versions are still worth offering."
             (url-retrieve-synchronously lean4-toolchain-releases-url
                                         'silent 'inhibit-cookies 30))
         (unwind-protect
-            (progn
-              (goto-char (point-min))
-              (unless (re-search-forward "^\r?$" nil t)
-                (error "No response body"))
-              (forward-line)
-              (let ((json (json-parse-buffer :object-type 'plist
-                                             :array-type 'list
-                                             :null-object nil
-                                             :false-object nil)))
-                (list :stable (lean4-toolchain--release-names json :stable)
-                      :beta (lean4-toolchain--release-names json :beta)
-                      :nightly (lean4-toolchain--release-names json :nightly))))
+            (let ((json (lean4--json-parse-http-body)))
+              (list :stable (lean4-toolchain--release-names json :stable)
+                    :beta (lean4-toolchain--release-names json :beta)
+                    :nightly (lean4-toolchain--release-names json :nightly)))
           (kill-buffer (current-buffer))))
     (error (message "Could not fetch the list of Lean versions: %s"
                     (error-message-string error))
@@ -648,9 +639,7 @@ projects using it, as `elan toolchain gc' reports them."
     (if (not (eq status 0))
         (cons nil nil)
       (condition-case nil
-          (let* ((json (json-parse-string output :object-type 'plist
-                                          :array-type 'list
-                                          :null-object nil :false-object nil))
+          (let* ((json (lean4--json-parse-string output))
                  (used nil))
             (dolist (entry (plist-get json :used_toolchains))
               (let* ((toolchain (plist-get entry :toolchain))

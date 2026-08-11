@@ -97,16 +97,12 @@ Entries containing $CURSOR are dropped: that is the extension's way of
 saying where to leave point after expanding, and Quail has no
 equivalent, so keeping them would insert the literal text."
   (require 'url)
-  (require 'json)
   (let ((target (expand-file-name "data/abbreviations.json" lean4-build--dir))
         (kept 0) (dropped 0))
     (with-temp-buffer
       (url-insert-file-contents lean4-build--abbreviations-url)
       (goto-char (point-min))
-      (let* ((table (let ((json-key-type 'string))
-                      (if (fboundp 'json-parse-buffer)
-                          (json-parse-buffer :object-type 'alist)
-                        (json-read))))
+      (let* ((table (json-parse-buffer :object-type 'alist))
              (filtered (seq-remove
                         (lambda (entry)
                           (if (string-match-p "\\$CURSOR" (cdr entry))

@@ -54,26 +54,14 @@
 
 (defun lean4-input-concat-map (f xs)
   "Concat (map F XS)."
-  (apply #'append (mapcar f xs)))
-
-(defun lean4-input-to-string-list (s)
-  "Convert a string S to a list of one-character strings.
-First remove all space and newline characters."
-  (lean4-input-concat-map
-   (lambda (c) (if (member c (string-to-list " \n"))
-              nil
-            (list (string c))))
-   (string-to-list s)))
-
-(defun lean4-input-character-range (from to)
-  "A string consisting of the characters from FROM to TO."
-  (let (seq)
-    (dotimes (i (1+ (- to from)))
-      (setq seq (cons (+ from i) seq)))
-    (concat (nreverse seq))))
+  (mapcan f xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Functions used to tweak translation pairs
+;;
+;; These are the combinators `lean4-input-inherit' is written in terms of,
+;; so they are part of that option's interface: a reader who has customized
+;; it has these names in their own configuration.
 
 (defun lean4-input-compose (f g)
   "\\x -> concatMap F (G x)."
@@ -83,26 +71,10 @@ First remove all space and newline characters."
   "\\x -> F x ++ G x."
   (lambda (x) (append (funcall f x) (funcall g x))))
 
-(defun lean4-input-nonempty ()
-  "Only keep pairs with a non-empty first component."
-  (lambda (x) (if (> (length (car x)) 0) (list x))))
-
-(defun lean4-input-prepend (prefix)
-  "Prepend PREFIX to all key sequences."
-    (lambda (x) `((,(concat prefix (car x)) . ,(cdr x)))))
-
 (defun lean4-input-prefix (prefix)
   "Only keep pairs whose key sequence starts with PREFIX."
   (lambda (x)
     (if (equal (substring (car x) 0 (length prefix)) prefix)
-        (list x))))
-
-(defun lean4-input-suffix (suffix)
-  "Only keep pairs whose key sequence ends with SUFFIX."
-  (lambda (x)
-    (if (equal (substring (car x)
-                          (- (length (car x)) (length suffix)))
-               suffix)
         (list x))))
 
 (defun lean4-input-drop (ss)
@@ -114,25 +86,12 @@ SS should be a list of strings."
   "Drop N characters from the beginning of each key sequence."
   (lambda (x) `((,(substring (car x) n) . ,(cdr x)))))
 
-(defun lean4-input-drop-end (n)
-  "Drop N characters from the end of each key sequence."
-  (lambda (x)
-    `((,(substring (car x) 0 (- (length (car x)) n)) .
-       ,(cdr x)))))
-
 (defun lean4-input-drop-prefix (prefix)
   "Only keep pairs whose key sequence starts with PREFIX.
 This prefix is dropped."
   (lean4-input-compose
    (lean4-input-drop-beginning (length prefix))
    (lean4-input-prefix prefix)))
-
-(defun lean4-input-drop-suffix (suffix)
-  "Only keep pairs whose key sequence ends with SUFFIX.
-This suffix is dropped."
-  (lean4-input-compose
-   (lean4-input-drop-end (length suffix))
-   (lean4-input-suffix suffix)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Customization
@@ -327,9 +286,6 @@ a list of such pairs."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Setting up the input method
 
-(defvar json-key-type)
-(declare-function json-read "json")
-
 (defun lean4-input-setup ()
   "Set up the Lean input method.
 Use customisable variables and parent input methods to setup Lean input method."
@@ -352,13 +308,9 @@ tasks as well."
                            "abbreviations.json"
                            lean4-input-data-directory))
     (thread-last
-      (let ((json-key-type 'string)) ;; make sure json key is a string.
-        ;; Prefer emacs native support implemented in C (since 27.1).
-        ;; Back-up is still useful in case Emacs in not compiled `--with-json`.
-        (if (fboundp 'json-parse-buffer)
-            (json-parse-buffer)
-          (require 'json)
-          (json-read)))
+      ;; A hash table with string keys, which `map' reads as happily as an
+      ;; alist.
+      (json-parse-buffer)
       (map-filter (lambda (_ s) (not (string-match-p "\\$CURSOR" s))))
       (map-apply (lambda (k s) (cons k (vector s))))
       lean4-input-add-translations))

@@ -37,11 +37,11 @@
 
 ;;; Code:
 
-(require 'cl-lib)
 (require 'magit-section)
 (require 'seq)
 
 (require 'lean4-eglot)
+(require 'lean4-util)
 
 (defgroup lean4-module nil
   "Lean\\='s module hierarchy."
@@ -155,7 +155,7 @@ should hear about."
 opens a section, so notice it afterwards -- the same arrangement
 `lean4-info' uses for a trace\\='s children."
   (when lean4-module--pending
-    (lean4-module--map-sections
+    (lean4--map-sections
      (lambda (section)
        (let ((value (oref section value)))
          (when (and (consp value) (eq (car value) 'module)
@@ -168,14 +168,6 @@ opens a section, so notice it afterwards -- the same arrangement
                (remhash path lean4-module--pending)
                (lean4-module--fetch-children path module)))))))))
 
-(defun lean4-module--map-sections (function)
-  "Call FUNCTION on every section of the tree, the root included."
-  (when (and (boundp 'magit-root-section) magit-root-section)
-    (letrec ((walk (lambda (section)
-                     (funcall function section)
-                     (mapc walk (oref section children)))))
-      (funcall walk magit-root-section))))
-
 ;;;; Drawing
 
 (defclass lean4-module-section (magit-section) nil
@@ -183,18 +175,9 @@ opens a section, so notice it afterwards -- the same arrangement
 
 (defmacro lean4-module--section-body (&rest body)
   "Insert BODY as a section\\='s body, remembering how far in it sits.
-
-`magit-section' puts the body of a section that starts folded aside and
-runs it when the reader opens the section.  How far in we were is a
-dynamic binding, and it has long unwound by then, so a body run that way
-would come out at the outermost level -- every child of a folded node
-drawn hard left.  Captured here, and bound again when the body finally
-runs.  `lean4-info' needs the same thing of its traces."
+See `lean4--section-body', which `lean4-info' uses for its traces too."
   (declare (indent 0) (debug t))
-  `(let ((indent lean4-module--indent))
-     (magit-insert-section-body
-       (let ((lean4-module--indent indent))
-         ,@body))))
+  `(lean4--section-body lean4-module--indent ,@body))
 
 (defface lean4-module-name
   '((t :inherit magit-section-heading))
@@ -221,7 +204,7 @@ runs.  `lean4-info' needs the same thing of its traces."
    (propertize (or (lean4-module--name module) "(unnamed)")
                'font-lock-face 'lean4-module-name)
    (when modifiers
-     (concat " " (propertize (mapconcat #'identity modifiers ", ")
+     (concat " " (propertize (string-join modifiers ", ")
                              'font-lock-face 'lean4-module-modifier)))
    (when repeated
      (propertize "  (shown above)" 'font-lock-face 'lean4-module-repeated))
@@ -293,11 +276,8 @@ graph does contain diamonds."
 
 (defun lean4-module-module-at-point ()
   "Return the `LeanModule' the section at point is for, or nil."
-  (when-let* ((section (magit-current-section))
-              (value (oref section value))
-              ((consp value))
-              ((eq (car value) 'module))
-              (path (cadr value)))
+  (when-let* ((section (lean4--section-at-point 'module))
+              (path (cadr (oref section value))))
     ;; The path names the node; the module itself is whatever the tree holds
     ;; for it, which for the root is the root and otherwise a child of the
     ;; entry above.

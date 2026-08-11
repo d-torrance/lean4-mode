@@ -34,9 +34,10 @@
 ;;; Code:
 
 (require 'magit-section)
-(require 'seq)
 (require 'subr-x)
 (require 'url)
+
+(require 'lean4-util)
 
 (defgroup lean4-loogle nil
   "Searching Mathlib with Loogle."
@@ -95,13 +96,9 @@ query is owed the chance to know where it came from."
 Signals if there is no body or it does not parse, which is what a
 proxy\\='s error page looks like from here."
   (with-current-buffer buffer
-    (goto-char (point-min))
-    (unless (re-search-forward "^\r?$" nil t)
-      (error "Loogle sent no response body"))
-    (forward-line)
     (condition-case nil
-        (json-parse-buffer :object-type 'plist :array-type 'list
-                           :null-object nil :false-object nil)
+        (lean4--json-parse-http-body)
+      (lean4-no-http-body (error "Loogle sent no response body"))
       (error (error "Loogle sent something that is not JSON")))))
 
 (defun lean4-loogle--fetch (query callback)
@@ -228,12 +225,8 @@ quotes, and VS Code says the same of its own version."
   "Return the result point is in, as Loogle sent it, or nil.
 Walks out to the enclosing result: point is usually on the type or the
 docstring rather than on the name."
-  (let ((section (magit-current-section)))
-    (while (and section
-                (not (let ((value (oref section value)))
-                       (and (consp value) (eq (car value) 'hit)))))
-      (setq section (oref section parent)))
-    (when section (cadr (oref section value)))))
+  (when-let* ((section (lean4--section-at-point 'hit)))
+    (cadr (oref section value))))
 
 (defun lean4-loogle-browse-documentation ()
   "Open the documentation for the result at point.

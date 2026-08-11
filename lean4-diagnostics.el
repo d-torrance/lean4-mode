@@ -296,7 +296,7 @@ goals-accomplished marker is made of."
     (apply #'cl-call-next-method server method
            (plist-put (copy-sequence params) :diagnostics (vconcat visible)))))
 
-(defun lean4-diagnostics-update-markers (diagnostics)
+(defalias 'lean4-diagnostics-update-markers #'lean4-diagnostics--mark-accomplished
   "Refresh the goals-accomplished markers from DIAGNOSTICS.
 
 DIAGNOSTICS must be the *interactive* ones, from
@@ -305,8 +305,7 @@ reports a finished proof as a silent diagnostic, and silent diagnostics
 are precisely the ones it does not push over
 `textDocument/publishDiagnostics'.  Verified against Lean 4.32.2, where
 `isSilent' and `leanTags' appear on the interactive diagnostics and on
-no pushed one."
-  (lean4-diagnostics--mark-accomplished diagnostics))
+no pushed one.")
 
 ;;;; Navigation
 

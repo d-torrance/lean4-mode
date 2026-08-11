@@ -50,7 +50,6 @@
 
 ;;; Code:
 
-(require 'cl-lib)
 (require 'lisp-mnt)
 (require 'pcase)
 
@@ -112,14 +111,12 @@ FILE-NAME."
               (shell-quote-argument (lean4--program lean4-executable-name))
               (or arg "")
               (shell-quote-argument (expand-file-name target-file-name))))
-    ;; restore old value
-    (setq compile-command cc)
-    (setq default-directory dd)))
+    ;; `compile' assigns this; `default-directory' needs no restoring, being
+    ;; let-bound above.
+    (setq compile-command cc)))
 
-(defun lean4-std-exe ()
-  "Execute Lean in the current buffer."
-  (interactive)
-  (lean4-execute))
+;;;###autoload
+(define-obsolete-function-alias 'lean4-std-exe #'lean4-execute "2.0.0")
 
 (defcustom lean4-indent-function #'lean4-indent-line
   "How TAB indents a line in a Lean buffer.
@@ -142,8 +139,8 @@ and which is what this mode did before."
 
 (defvar-keymap lean4-mode-map
   :doc "Keymap used in Lean 4 mode."
-  "C-c C-x"     #'lean4-std-exe
-  "C-c C-l"     #'lean4-std-exe
+  "C-c C-x"     #'lean4-execute
+  "C-c C-l"     #'lean4-execute
   "C-c C-k"     #'quail-show-key
   "C-c C-i"     #'lean4-toggle-info
   "C-c C-p C-l" #'lean4-lake-build
@@ -274,13 +271,6 @@ The page VS Code\='s \"Show Documentation Resources\" opens."
   (interactive)
   (browse-url "https://lean-lang.org/learn/"))
 
-(defconst lean4-hooks-alist
-  '((before-save-hook . lean4-whitespace-cleanup))
-  "Hooks which lean4-mode needs to hook in.
-
-The `car' of each pair is a hook variable, the `cdr' a function
-to be added or removed from the hook variable.")
-
 ;;;###autoload
 (define-derived-mode lean4-mode prog-mode "Lean 4"
   "Major mode for Lean language.
@@ -315,8 +305,7 @@ to be added or removed from the hook variable.")
   ;; variable Emacs provides for a mode to say that reindenting on a
   ;; newline does not suit its language.
   (setq-local electric-indent-inhibit t)
-  (pcase-dolist (`(,hook . ,fn) lean4-hooks-alist)
-    (add-hook hook fn nil 'local))
+  (add-hook 'before-save-hook #'lean4-whitespace-cleanup nil 'local)
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-semantic-tokens nil 'local)
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-completion nil 'local)
   ;; Before `eglot-ensure' below, which is what asks project.el where

@@ -82,14 +82,12 @@
     (modify-syntax-entry ?« "<" st)
     (modify-syntax-entry ?» ">" st)
 
-    ;; Word constituent
-    (dolist (it (list ?a ?b ?c ?d ?e ?f ?g ?h ?i ?j ?k ?l ?m
-                  ?n ?o ?p ?q ?r ?s ?t ?u ?v ?w ?x ?y ?z
-                  ?A ?B ?C ?D ?E ?F ?G ?H ?I ?J ?K ?L ?M
-                  ?N ?O ?P ?Q ?R ?S ?T ?U ?V ?W ?X ?Y ?Z))
-      (modify-syntax-entry it "w" st))
-    (dolist (it (list ?0 ?1 ?2 ?3 ?4 ?5 ?6 ?7 ?8 ?9))
-      (modify-syntax-entry it "w" st))
+    ;; Word constituent.  `modify-syntax-entry' takes a (MIN . MAX) range,
+    ;; which is what these three contiguous blocks are.
+    (dolist (range '((?a . ?z) (?A . ?Z) (?0 . ?9)))
+      (modify-syntax-entry range "w" st))
+    ;; The rest are picked out one by one: `λ' is deliberately left out of
+    ;; the Greek block, and the others are not contiguous.
     (dolist (it (list ?α ?β ?γ ?δ ?ε ?ζ ?η ?θ ?ι ?κ ;;?λ
                   ?μ ?ν ?ξ ?ο ?π ?ρ ?ς ?σ ?τ ?υ
                   ?φ ?χ ?ψ ?ω))
