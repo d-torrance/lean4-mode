@@ -206,7 +206,16 @@ The counterpart of the double check-mark VS Code shows in the gutter."
 
 (defface lean4-goals-accomplished
   '((t :inherit success))
-  "Face for the marker shown against a completed proof."
+  "Face for the marker shown against a completed proof.
+
+Inherited rather than coloured here, so that the marker is whatever the
+theme in force calls success -- green in most of them, and legible on
+that theme\\='s background, which a colour named here would not be.  VS
+Code draws this decoration in the same blue as the unsolved-goals one;
+Emacs has a face that means success and none that means blue, and
+following the theme is worth more than matching the shade.  A theme
+that gives success the colour it gives something else can be overruled
+by customizing this face."
   :group 'lean4)
 
 (defcustom lean4-show-unsolved-goals t
@@ -219,8 +228,14 @@ there."
   :type 'boolean)
 
 (defface lean4-unsolved-goals
-  '((t :inherit shadow))
-  "Face for the marker shown where goals are left unproved."
+  '((t :inherit warning))
+  "Face for the marker shown where goals are left unproved.
+
+Inherited from `warning' -- the marker says there is work left at this
+line, which is what that face is for, and it has to be told apart from
+the code beside it.  It was `shadow' before, which is the grey a theme
+gives comments: the one thing a marker sitting after the code must not
+look like."
   :group 'lean4)
 
 (defun lean4-diagnostics--unsolved-goals-marker ()
