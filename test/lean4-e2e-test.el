@@ -1291,6 +1291,56 @@ the thing under point."
     (should-error (lean4-insert-inlay-hint) :type 'user-error)
     (should-not (buffer-modified-p))))
 
+;;;; Searching a trace
+
+(ert-deftest lean4-e2e-trace-search-opens-what-holds-the-match ()
+  "Lean answers a search with the message again, opened where the match is.
+The fixture's trace is a `synthInstance' one, whose children Lean has not
+sent: what comes back has them, thinned to those a match is in, and the
+matching text marked.  Which is the point of asking the server rather than
+searching the buffer -- most of what is searched was never in it."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (lean4-e2e--show-goal-at lean4-e2e--trace-line)
+      (with-current-buffer lean4-info-buffer-name
+        (let* ((section (lean4-e2e--wait-until
+                         "a message with a trace in it"
+                         (lambda ()
+                           (accept-process-output nil 0.05)
+                           (goto-char (point-min))
+                           (when (re-search-forward "Meta.synthInstance" nil t)
+                             (lean4-info--message-section-at-point)))))
+               (place (progn (goto-char (oref section start))
+                             (lean4-info--message-place-at-point)))
+               (message (lean4-info--message-at-place place))
+               (answer nil))
+          (should place)
+          (should message)
+          (should (lean4-info--has-trace-p message))
+          (lean4-rpc-highlight-matches
+           lean4-info--handle "Inhabited" message
+           (lambda (highlighted) (setq answer highlighted))
+           (lambda (error) (error "Search failed: %S" error)))
+          (lean4-e2e--wait-until "the search to come back"
+                                 (lambda () answer))
+          ;; The answer carries the marks a plain message never does.
+          (should (lean4-e2e--marks-a-match-p answer)))))))
+
+(defun lean4-e2e--marks-a-match-p (object)
+  "Return non-nil if OBJECT carries a search-match tag anywhere in it.
+Walked without regard for shape.  What matters is that the answer carries
+marks the message did not; where in the tree they sit is Lean's business,
+and in practice they are deep -- inside the terms inside the messages of
+the trace children it fetched.
+
+"
+  (cond ((stringp object) (lean4-render--highlight-p object))
+        ((consp object) (or (lean4-e2e--marks-a-match-p (car object))
+                            (lean4-e2e--marks-a-match-p (cdr object))))
+        ((vectorp object) (seq-some #'lean4-e2e--marks-a-match-p object))
+        (t nil)))
+
 ;;;; Folding, against what the server folds
 
 (ert-deftest lean4-e2e-outline-headings-cover-the-servers-ranges ()

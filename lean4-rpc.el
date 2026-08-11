@@ -460,6 +460,19 @@ SUCCESS receives the result; FAILURE, if given, receives any error."
   (lean4-rpc-call handle "Lean.Widget.lazyTraceChildrenToInteractive"
                   children success failure))
 
+(defun lean4-rpc-highlight-matches (handle query message success
+                                           &optional failure)
+  "Ask HANDLE for MESSAGE with QUERY found in it.
+SUCCESS receives the message again, with three differences: the text
+matching QUERY is wrapped in a `highlighted' tag, a trace with a match
+somewhere below it comes back expanded, and children Lean had not sent
+are fetched and thinned to the ones containing a match.  So the answer is
+the same message with the parts worth reading opened up.  FAILURE, if
+given, receives any error."
+  (lean4-rpc-call handle "Lean.Widget.highlightMatches"
+                  (list :query query :msg message)
+                  success failure))
+
 (defun lean4-rpc-get-widgets (handle success &optional failure)
   "Request the user widgets active at HANDLE's position.
 SUCCESS receives the result; FAILURE, if given, receives any error."

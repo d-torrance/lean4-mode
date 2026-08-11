@@ -95,6 +95,31 @@ VS Code draws these at seventy percent opacity and a smaller font size."
 
 ;;;; Tagged text
 
+(defface lean4-render-match
+  '((t :inherit match))
+  "Face for the text a trace search found.
+`match' is what Emacs uses for a search hit everywhere else -- isearch's
+lazy highlight, `occur', `grep' -- so a hit in a trace looks like a hit."
+  :group 'lean4-info)
+
+(defconst lean4-render--highlight-tag "highlighted"
+  "How `Lean.Widget.highlightMatches' marks the text a search found.
+A tag whose embed carries nothing, which the protocol encodes as the bare
+name of the constructor rather than as an object with a field: a
+`TaggedText' whose tag is this string, wrapped around the words that
+matched.  It turns up inside a term as readily as in the words around one,
+the search looking into both.")
+
+(defun lean4-render--highlight-p (embed)
+  "Return non-nil if EMBED is a search match rather than a subterm."
+  (equal embed lean4-render--highlight-tag))
+
+(defun lean4-render--highlight (string)
+  "Return STRING faced as a search match."
+  (font-lock-prepend-text-property 0 (length string) 'font-lock-face
+                                   'lean4-render-match string)
+  string)
+
 (defun lean4-render--apply-info (string info position diff)
   "Attach INFO, POSITION and DIFF to the parts of STRING that lack them.
 
@@ -138,10 +163,12 @@ from a newer Lean than we know about degrades rather than errors."
            (inner (elt tag 1))
            ;; Render the inside first; see `lean4-render--apply-info'.
            (string (copy-sequence (lean4-render-tagged-text inner))))
-      (lean4-render--apply-info string
-                                (plist-get subexpr :info)
-                                (plist-get subexpr :subexprPos)
-                                (plist-get subexpr :diffStatus))))
+      (if (lean4-render--highlight-p subexpr)
+          (lean4-render--highlight string)
+        (lean4-render--apply-info string
+                                  (plist-get subexpr :info)
+                                  (plist-get subexpr :subexprPos)
+                                  (plist-get subexpr :diffStatus)))))
    (t "")))
 
 ;;;; Messages
@@ -220,6 +247,14 @@ trace from another when the display is rebuilt."
              (embed (elt tag 0))
              (inner (elt tag 1)))
         (cond
+         ;; First: this embed is a bare string, and `plist-member' signals
+         ;; on one rather than answering no.
+         ((lean4-render--highlight-p embed)
+          (mapcar (lambda (part)
+                    (if (stringp part)
+                        (lean4-render--highlight (copy-sequence part))
+                      part))
+                  (lean4-render-message-parts inner (cons 0 path))))
          ;; A term: hand it to the goal renderer, so its subterms carry the
          ;; same properties they would inside a goal.
          ((plist-member embed :expr)

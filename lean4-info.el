@@ -145,6 +145,25 @@ diagnostics repeatedly without anything the reader would see changing.")
 Nil until the first RPC refresh, and while running without RPC, in
 which case the display falls back to what Flymake holds.")
 
+(defvar lean4-info--search nil
+  "The trace search in force, or nil.
+A plist of `:place', naming the message searched as its section names it,
+`:query', and `:message', the message the server sent back with the
+matches marked and the traces holding them opened.  One at a time, as in
+VS Code, where the search belongs to the message whose header it was
+opened from.
+
+Keyed by the place rather than by the message: a message keeps its place
+across the rebuilds a file's elaboration causes, and if it moves, the
+search it was carrying is no longer about anything and goes.")
+
+(defvar lean4-info--messages (make-hash-table :test #'equal)
+  "The message shown at each place, as the display was last built.
+What a trace search needs and cannot otherwise reach: the display runs in
+its own buffer, and the messages belong to the Lean one.  Written as each
+message is inserted and emptied when the buffer is, so it says what is on
+screen rather than what once was.")
+
 (defvar lean4-info--trace-lazy (make-hash-table :test #'equal)
   "What to ask for to get a trace node\\='s children, keyed by its path.
 Filled as a node is inserted with its children still unfetched, and read
@@ -180,7 +199,11 @@ whatever the reader\\='s Magit does."
   "C-c C-s" #'lean4-info-toggle-pin
   "C-c C-o" #'lean4-info-toggle-message-order
   "C-c C-a" #'lean4-info-toggle-all-messages-pause
-  "C-c C-g" #'lean4-info-refresh-paused)
+  "C-c C-g" #'lean4-info-refresh-paused
+  ;; `C-s' is `isearch' and stays so: what this searches is not in the
+  ;; buffer.  `C-c C-f' is find, and free.
+  "C-c C-f" #'lean4-info-search-trace
+  "C-c C-e" #'lean4-info-clear-trace-search)
 
 (define-derived-mode lean4-info-mode magit-section-mode "Lean Goal"
   "Major mode for the *Lean Goal* buffer.
@@ -568,6 +591,78 @@ VS Code\\='s \"Copy Message\"."
   "Return the message section point is in, or nil."
   (lean4--section-at-point 'message))
 
+(defun lean4-info--message-place-at-point ()
+  "Return the place naming the message point is in, or nil.
+The place is what the section is keyed by -- the file, line and column the
+message was reported for -- and so what a search is keyed by too."
+  (when-let* ((section (lean4-info--message-section-at-point)))
+    (nth 1 (oref section value))))
+
+(defun lean4-info--diagnostic-place (diagnostic buffer)
+  "Return how a section shows where DIAGNOSTIC in BUFFER was reported.
+The same string `lean4-info--insert-message' heads it with, which is what
+a message section is keyed by."
+  (let* ((start (plist-get (plist-get diagnostic :range) :start))
+         (line (1+ (or (plist-get start :line) 0)))
+         (column (or (plist-get start :character) 0)))
+    (format "%s:%d:%d" (buffer-name buffer) line column)))
+
+(defun lean4-info--message-at-place (place)
+  "Return the message the display last showed at PLACE, or nil."
+  (gethash place lean4-info--messages))
+
+;;;###autoload
+(defun lean4-info-search-trace (query)
+  "Search the traces of the message at point for QUERY.
+Lean answers with the message again: the text that matched is faced, and
+every trace with a match somewhere below it comes back open -- including
+children it had not sent yet, thinned to the ones a match is in.  That
+last part is why this is a request rather than an `isearch': the search is
+for text which is not in the buffer, and in a `simp' trace most of it
+never will be.
+
+One search at a time, on the message it was asked about, as in VS Code.
+`lean4-info-clear-trace-search' puts the message back as it was.  With no
+QUERY -- an empty answer to the prompt -- it does that too."
+  (interactive
+   (progn
+     (unless (derived-mode-p 'lean4-info-mode)
+       (user-error "Not in the goal display"))
+     (list (read-string
+            (format-prompt "Search the trace for"
+                           (plist-get lean4-info--search :query))
+            nil nil (plist-get lean4-info--search :query)))))
+  (let* ((place (or (lean4-info--message-place-at-point)
+                    (user-error "No message at point")))
+         (handle lean4-info--handle)
+         (message (or (lean4-info--message-at-place place)
+                      (user-error "That message is no longer on display"))))
+    (cond
+     ((string-empty-p (string-trim query)) (lean4-info-clear-trace-search))
+     ((not (lean4-info--has-trace-p message))
+      (user-error "That message has no trace to search"))
+     ((null handle) (user-error "No interactive session to ask"))
+     (t
+      (lean4-rpc-highlight-matches
+       handle query message
+       (lambda (highlighted)
+         (setq lean4-info--search
+               (list :place place :query query :message highlighted))
+         (lean4-info-buffer-redisplay))
+       (lambda (error)
+         (message "Lean could not search that trace: %s"
+                  (plist-get error :message))))))))
+
+;;;###autoload
+(defun lean4-info-clear-trace-search ()
+  "Put back the message a trace search opened up.
+VS Code clears its search field with a \"Collapse all\"; this is that."
+  (interactive)
+  (if (null lean4-info--search)
+      (message "No trace search to clear")
+    (setq lean4-info--search nil)
+    (lean4-info-buffer-redisplay)))
+
 ;;;###autoload
 (defun lean4-info-copy-to-comment ()
   "Insert the tactic state as a comment above the line point is on.
@@ -920,7 +1015,9 @@ the position reads as a place rather than as a bare pair of numbers."
          (line (1+ (or (plist-get start :line) 0)))
          (column (or (plist-get start :character) 0))
          (message (plist-get diagnostic :message))
-         (place (format "%s:%d:%d" (buffer-name buffer) line column)))
+         ;; The same helper a search uses to find this message again, so
+         ;; that the two cannot come to disagree about what a place is.
+         (place (lean4-info--diagnostic-place diagnostic buffer)))
     (magit-insert-section (lean4-info-section (list 'message place))
       (magit-insert-heading
         ;; The place is on the whole heading, not just the label: RET goes
@@ -933,13 +1030,37 @@ the position reads as a place rather than as a bare pair of numbers."
           (propertize place 'face 'lean4-info-location)
           (list (lean4-info--goto-button buffer line column)))
           'lean4-info-position (list buffer line column))))
+      (puthash place message lean4-info--messages)
       (lean4-info--section-body
         ;; Plain diagnostics carry a string; interactive ones carry a
         ;; tree, whose terms render live and whose traces are sections.
         (if (stringp message)
             (lean4-info--insert message "\n")
-          (lean4-info--insert-parts message)
+          (lean4-info--insert-parts (lean4-info--searched message place))
           (lean4-info--insert "\n"))))))
+
+(defun lean4-info--searched (message place)
+  "Return the message to show for PLACE: the search's answer, or MESSAGE.
+The answer has the matches marked and every trace holding one opened, so
+showing it in place of the message is the whole of what a search does to
+the display."
+  (or (and (equal place (plist-get lean4-info--search :place))
+           (plist-get lean4-info--search :message))
+      message))
+
+(defun lean4-info--has-trace-p (message)
+  "Return non-nil if MESSAGE has a trace in it.
+Which is what makes it worth searching: VS Code puts its search icon on
+the messages with trace output and on no others."
+  (cond ((or (null message) (stringp message)) nil)
+        ((plist-member message :append)
+         (seq-some #'lean4-info--has-trace-p
+                   (append (plist-get message :append) nil)))
+        ((plist-member message :tag)
+         (let ((tag (plist-get message :tag)))
+           (or (plist-member (elt tag 0) :trace)
+               (lean4-info--has-trace-p (elt tag 1)))))
+        (t nil)))
 
 (defun lean4-info--insert-parts (message)
   "Insert MESSAGE, giving each trace in it a section of its own."
@@ -1337,6 +1458,10 @@ The buffer is erased and rebuilt from scratch, which is visible as a
 flicker, and the server can republish diagnostics repeatedly without
 anything the reader would see changing."
   (list goals term-goal location diagnostics all
+        ;; Which message a search has opened up, and for what.  Without
+        ;; this the redisplay a search asks for finds nothing changed.
+        (plist-get lean4-info--search :place)
+        (plist-get lean4-info--search :query)
         lean4-info-paused
         lean4-info-message-order
         lean4-info-all-messages-paused
@@ -1482,6 +1607,7 @@ Lean buffer to be the selected one, which it is not in that case."
                 lean4-info--imports-stale stale)
           (lean4-info--keeping-position
             (erase-buffer)
+            (clrhash lean4-info--messages)
             (lean4-info--insert-display location goals term-goal here
                                         sorted all following buffer)
             (lean4-info--add-visibility-indicators)))))))
@@ -2497,7 +2623,14 @@ creates a pin, which is the nil answer."
                 "Order all messages by position in the file"
               "Order all messages by nearness to point")]
     ["Copy the tactic state" lean4-info-copy-state]
-    ["Copy the state into a comment" lean4-info-copy-to-comment])
+    ["Copy the state into a comment" lean4-info-copy-to-comment]
+    ;; Only in the display: both act on the message point is in, and
+    ;; there are no messages to stand in outside it.
+    ["Search this message's trace..." lean4-info-search-trace
+     :visible (derived-mode-p 'lean4-info-mode)]
+    ["Clear the trace search" lean4-info-clear-trace-search
+     :visible (derived-mode-p 'lean4-info-mode)
+     :enable lean4-info--search])
   "Menu entries for the goal display\\='s controls.
 Shared by `lean4-mode-menu' and `lean4-info-mode-menu': the commands
 work from either buffer, so it would only confuse matters for the two

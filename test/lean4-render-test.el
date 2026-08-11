@@ -401,5 +401,33 @@ A string has nowhere to put children that fold."
     (should (member '(:__rpcref "0") refs))
     (should (member '(:__rpcref "4") refs))))
 
+;;;; What a search found
+
+(ert-deftest lean4-render-faces-a-search-match ()
+  "`Lean.Widget.highlightMatches' marks what it found with a tag carrying
+nothing -- the protocol writes a constructor with no fields as its bare
+name -- around the words that matched.  They are faced as a match is faced
+everywhere else in Emacs."
+  (let ((rendered (lean4-render-tagged-text
+                   '(:append [(:text "@inst")
+                              (:tag ["highlighted" (:text "Inhabited")])
+                              (:text "Prod")]))))
+    (should (equal rendered "@instInhabitedProd"))
+    ;; Prepended rather than set, so the property is a list of faces: a
+    ;; match inside a subterm keeps whatever the subterm put there.
+    (should (member 'lean4-render-match
+                    (get-text-property (string-search "Inhabited" rendered)
+                                       'font-lock-face rendered)))
+    (should-not (get-text-property 0 'font-lock-face rendered))))
+
+(ert-deftest lean4-render-faces-a-match-in-a-message ()
+  "And in the words of a message, not only inside a term."
+  (let ((parts (lean4-render-message-parts
+                '(:append [(:text "found ")
+                           (:tag ["highlighted" (:text "here")])]))))
+    (should (equal (apply #'concat parts) "found here"))
+    (should (member 'lean4-render-match
+                    (get-text-property 0 'font-lock-face (nth 1 parts))))))
+
 (provide 'lean4-render-test)
 ;;; lean4-render-test.el ends here

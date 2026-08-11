@@ -79,6 +79,10 @@ Usage
 * Completion::
 * Finding a symbol you cannot name::
 
+Keys in the goal display
+
+* Searching a trace::
+
 Choosing which Lean to use
 
 * Elan itself::
@@ -382,6 +386,8 @@ Key           Description                                                 Comman
 ‘C-c C-g’     Bring a paused display up to date                           ‘lean4-info-refresh-paused’
 ‘C-c C-a’     Pause or unpause the file's message list                    ‘lean4-info-toggle-all-messages-pause’
 ‘C-c C-o’     Order that list by position or by nearness                  ‘lean4-info-toggle-message-order’
+‘C-c C-f’     Search the traces of the message point is in                ‘lean4-info-search-trace’
+‘C-c C-e’     Put that message back as it was                             ‘lean4-info-clear-trace-search’
 
    Folding and movement come from ‘magit-section’, this being one of its
 buffers: ‘TAB’, ‘n’, ‘p’, ‘M-n’ and ‘M-p’ mean in the goal display
@@ -436,6 +442,35 @@ area by default, or a child frame with a package such as ‘eldoc-box’.
 the mouse, with the same indicator.  Lean does not send the children of
 a trace node until something asks - a ‘simp’ trace on a real proof is
 enormous - so opening one fetches them, once.
+
+* Menu:
+
+* Searching a trace::
+
+
+File: lean4-mode.info,  Node: Searching a trace,  Up: Keys in the goal display
+
+2.2.1 Searching a trace
+-----------------------
+
+‘C-c C-f’ (‘lean4-info-search-trace’) asks Lean to find something in the
+traces of the message point is in.  What comes back is that message with
+the matches faced, and every trace holding one opened - including
+children Lean had not sent yet, thinned to those a match is in.  ‘C-c
+C-e’ (‘lean4-info-clear-trace-search’) puts the message back as it was;
+so does answering the prompt with nothing.  Both are in the goal
+display's menu.
+
+   That is why this is a request rather than an ‘isearch’: most of what
+is searched has never been in the buffer, and on a ‘simp’ trace most of
+it never will be.  ‘C-s’ still means ‘isearch’, for the text that is
+there.
+
+   One search at a time, belonging to the message it was asked about, as
+in VS Code - which opens its search from a message's header, on the
+messages that have trace output and no others.  Here there is no icon to
+click: the key and the menu are the way in, and a message with no trace
+in it says so rather than searching nothing.
 
 
 File: lean4-mode.info,  Node: The tactic state,  Next: Copying what is on display,  Prev: Keys in the goal display,  Up: Usage
@@ -1755,56 +1790,57 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2717
-Node: Requirements2942
-Node: From source4387
-Node: With a source-based package manager4875
-Node: Native vc (Emacs 30 or later)5386
-Node: Doom-Emacs5831
-Node: Straight6150
-Node: Upgrading from version 16507
-Node: Usage9676
-Node: Keys in a Lean buffer11723
-Node: Keys in the goal display14221
-Node: The tactic state18756
-Node: Copying what is on display20485
-Node: How much of a goal to show21512
-Node: Errors and warnings25819
-Node: Building dependencies29914
-Node: Starting a project31184
-Node: Building32976
-Node: Mathlib's build cache34168
-Node: Choosing which Lean to use35780
-Node: Elan itself38214
-Node: Git and curl39430
-Node: Searching Mathlib with Loogle41177
-Node: Following a name through a project43447
-Node: The module hierarchy46234
-Node: It needs a built project48282
-Node: Other Lake operations48932
-Node: Moving by declaration50368
-Node: Folding a file up52890
-Node: Applying what Lean suggests55265
-Node: Being told a suggestion is there57150
-Node: What Lean filled in for you59604
-Node: Completion62009
-Node: Finding a symbol you cannot name63178
-Node: Configuration64429
-Node: Frequently used options64909
-Node: Finding the Lean programs66929
-Node: Tuning67871
-Node: The goal display's controls68673
-Node: Older Lean versions70947
-Node: Semantic highlighting71929
-Node: Optional packages73441
-Node: Troubleshooting73934
-Node: What is checked before Lean starts74299
-Node: Reporting on the setup76638
-Node: Where the documentation is78635
-Node: "Timed out after 30 seconds" opening a file outside a project79793
-Node: "Imports are out of date and must be rebuilt"80981
-Node: Common Pitfalls82504
-Node: Acknowledgements83105
+Node: Installation2766
+Node: Requirements2991
+Node: From source4436
+Node: With a source-based package manager4924
+Node: Native vc (Emacs 30 or later)5435
+Node: Doom-Emacs5880
+Node: Straight6199
+Node: Upgrading from version 16556
+Node: Usage9725
+Node: Keys in a Lean buffer11772
+Node: Keys in the goal display14270
+Node: Searching a trace19059
+Node: The tactic state20211
+Node: Copying what is on display21940
+Node: How much of a goal to show22967
+Node: Errors and warnings27274
+Node: Building dependencies31369
+Node: Starting a project32639
+Node: Building34431
+Node: Mathlib's build cache35623
+Node: Choosing which Lean to use37235
+Node: Elan itself39669
+Node: Git and curl40885
+Node: Searching Mathlib with Loogle42632
+Node: Following a name through a project44902
+Node: The module hierarchy47689
+Node: It needs a built project49737
+Node: Other Lake operations50387
+Node: Moving by declaration51823
+Node: Folding a file up54345
+Node: Applying what Lean suggests56720
+Node: Being told a suggestion is there58605
+Node: What Lean filled in for you61059
+Node: Completion63464
+Node: Finding a symbol you cannot name64633
+Node: Configuration65884
+Node: Frequently used options66364
+Node: Finding the Lean programs68384
+Node: Tuning69326
+Node: The goal display's controls70128
+Node: Older Lean versions72402
+Node: Semantic highlighting73384
+Node: Optional packages74896
+Node: Troubleshooting75389
+Node: What is checked before Lean starts75754
+Node: Reporting on the setup78093
+Node: Where the documentation is80090
+Node: "Timed out after 30 seconds" opening a file outside a project81248
+Node: "Imports are out of date and must be rebuilt"82436
+Node: Common Pitfalls83959
+Node: Acknowledgements84560
 
 End Tag Table
 

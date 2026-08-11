@@ -213,6 +213,8 @@ rest on any part of a goal and ask about it.
 | =C-c C-g=   | Bring a paused display up to date                   | ~lean4-info-refresh-paused~            |
 | =C-c C-a=   | Pause or unpause the file's message list            | ~lean4-info-toggle-all-messages-pause~ |
 | =C-c C-o=   | Order that list by position or by nearness          | ~lean4-info-toggle-message-order~      |
+| =C-c C-f=   | Search the traces of the message point is in        | ~lean4-info-search-trace~              |
+| =C-c C-e=   | Put that message back as it was                     | ~lean4-info-clear-trace-search~        |
 
 Folding and movement come from ~magit-section~, this being one of its
 buffers: =TAB=, =n=, =p=, =M-n= and =M-p= mean in the goal display
@@ -268,6 +270,26 @@ Traces fold like everything else, being sections themselves: =TAB= or
 the mouse, with the same indicator.  Lean does not send the children of
 a trace node until something asks -- a =simp= trace on a real proof is
 enormous -- so opening one fetches them, once.
+
+*** Searching a trace
+
+=C-c C-f= (~lean4-info-search-trace~) asks Lean to find something in the
+traces of the message point is in.  What comes back is that message with
+the matches faced, and every trace holding one opened -- including
+children Lean had not sent yet, thinned to those a match is in.  =C-c
+C-e= (~lean4-info-clear-trace-search~) puts the message back as it was;
+so does answering the prompt with nothing.  Both are in the goal
+display's menu.
+
+That is why this is a request rather than an =isearch=: most of what is
+searched has never been in the buffer, and on a =simp= trace most of it
+never will be.  =C-s= still means =isearch=, for the text that is there.
+
+One search at a time, belonging to the message it was asked about, as in
+VS Code -- which opens its search from a message's header, on the
+messages that have trace output and no others.  Here there is no icon to
+click: the key and the menu are the way in, and a message with no trace
+in it says so rather than searching nothing.
 
 ** The tactic state
 

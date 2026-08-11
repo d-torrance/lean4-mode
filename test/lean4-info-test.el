@@ -1944,6 +1944,92 @@ sent."
                  "Nat is a type"))
   (should (equal (lean4-info--message-words nil) "")))
 
+;;;; Searching a trace
+
+(defconst lean4-info-test--trace-message
+  '(:append [(:text "Trying to prove: ")
+             (:tag [(:trace (:indent 0 :cls "Meta.synthInstance"
+                             :msg (:text "result")
+                             :collapsed t
+                             :children (:lazy (:p "ref"))))
+                    (:text "")])])
+  "A message with a trace in it, shaped as the server sends one.")
+
+(ert-deftest lean4-info-a-trace-is-what-makes-a-message-searchable ()
+  "VS Code offers its search on the messages with trace output and no
+others, so knowing which those are is where a search begins."
+  (should (lean4-info--has-trace-p lean4-info-test--trace-message))
+  (should-not (lean4-info--has-trace-p "type mismatch"))
+  (should-not (lean4-info--has-trace-p
+               '(:append [(:text "no trace ") (:text "in here")])))
+  (should-not (lean4-info--has-trace-p nil)))
+
+(ert-deftest lean4-info-a-searched-message-is-shown-in-its-place ()
+  "What a search does to the display is show the answer where the message
+was: the answer is that message with its matches marked and the traces
+holding them opened."
+  (let ((lean4-info--search '(:place "Foo.lean:3:0" :query "instance"
+                              :message (:text "the answer"))))
+    (should (equal (lean4-info--searched '(:text "the message") "Foo.lean:3:0")
+                   '(:text "the answer")))
+    ;; Another message, and the one it was asked about once it has moved.
+    (should (equal (lean4-info--searched '(:text "the message") "Foo.lean:9:0")
+                   '(:text "the message")))))
+
+(ert-deftest lean4-info-without-a-search-the-message-stands ()
+  "And with no search in force, every message is itself."
+  (let ((lean4-info--search nil))
+    (should (equal (lean4-info--searched '(:text "the message") "Foo.lean:3:0")
+                   '(:text "the message")))))
+
+(ert-deftest lean4-info-a-message-is-found-by-where-it-was-shown ()
+  "A search asks for the message at a place, which the display records as
+it draws: the display runs in its own buffer, and the diagnostics belong
+to the Lean one."
+  (let ((lean4-info--messages (make-hash-table :test #'equal)))
+    (puthash "Foo.lean:3:0" '(:text "here it is") lean4-info--messages)
+    (should (equal (lean4-info--message-at-place "Foo.lean:3:0")
+                   '(:text "here it is")))
+    (should-not (lean4-info--message-at-place "Foo.lean:9:0"))))
+
+(ert-deftest lean4-info-a-place-names-a-message-the-way-a-section-does ()
+  "A search is keyed by the place, so the two readings of it must agree:
+one heads the section, the other finds the message again."
+  (with-temp-buffer
+    (rename-buffer "Fixture.lean" t)
+    (should (equal (lean4-info--diagnostic-place
+                    '(:range (:start (:line 6 :character 2))) (current-buffer))
+                   (format "%s:7:2" (buffer-name))))))
+
+(ert-deftest lean4-info-a-search-is-part-of-what-the-display-is-built-from ()
+  "Otherwise the redisplay a search asks for would find nothing changed
+and do nothing."
+  (let ((without (let ((lean4-info--search nil))
+                   (lean4-info--render-key nil nil "here" nil nil t)))
+        (with (let ((lean4-info--search '(:place "Foo.lean:3:0"
+                                          :query "instance")))
+                (lean4-info--render-key nil nil "here" nil nil t))))
+    (should-not (equal without with))))
+
+(ert-deftest lean4-info-clearing-a-search-when-there-is-none ()
+  "Says so rather than redrawing the display for nothing."
+  (let ((lean4-info--search nil)
+        (redisplays 0))
+    (cl-letf (((symbol-function 'lean4-info-buffer-redisplay)
+               (lambda (&rest _) (setq redisplays (1+ redisplays)))))
+      (lean4-info-clear-trace-search))
+    (should (= redisplays 0))))
+
+(ert-deftest lean4-info-clearing-a-search-redraws ()
+  "And clears it, so the message goes back to how Lean sent it."
+  (let ((lean4-info--search '(:place "Foo.lean:3:0" :query "x"))
+        (redisplays 0))
+    (cl-letf (((symbol-function 'lean4-info-buffer-redisplay)
+               (lambda (&rest _) (setq redisplays (1+ redisplays)))))
+      (lean4-info-clear-trace-search))
+    (should-not lean4-info--search)
+    (should (= redisplays 1))))
+
 ;;;; Keeping the settings
 
 (ert-deftest lean4-info-saves-every-goal-setting ()

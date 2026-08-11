@@ -87,6 +87,10 @@ Usage
 * Completion::
 * Finding a symbol you cannot name::
 
+Keys in the goal display
+
+* Searching a trace::
+
 Choosing which Lean to use
 
 * Elan itself::
@@ -432,6 +436,12 @@ rest on any part of a goal and ask about it.
 @item @samp{C-c C-o}
 @tab Order that list by position or by nearness
 @tab @code{lean4-info-toggle-message-order}
+@item @samp{C-c C-f}
+@tab Search the traces of the message point is in
+@tab @code{lean4-info-search-trace}
+@item @samp{C-c C-e}
+@tab Put that message back as it was
+@tab @code{lean4-info-clear-trace-search}
 @end multitable
 
 Folding and movement come from @code{magit-section}, this being one of its
@@ -488,6 +498,31 @@ Traces fold like everything else, being sections themselves: @samp{TAB} or
 the mouse, with the same indicator.  Lean does not send the children of
 a trace node until something asks -- a @samp{simp} trace on a real proof is
 enormous -- so opening one fetches them, once.
+
+@menu
+* Searching a trace::
+@end menu
+
+@node Searching a trace
+@subsection Searching a trace
+
+@samp{C-c C-f} (@code{lean4-info-search-trace}) asks Lean to find something in the
+traces of the message point is in.  What comes back is that message with
+the matches faced, and every trace holding one opened -- including
+children Lean had not sent yet, thinned to those a match is in.  @samp{C-c
+C-e} (@code{lean4-info-clear-trace-search}) puts the message back as it was;
+so does answering the prompt with nothing.  Both are in the goal
+display's menu.
+
+That is why this is a request rather than an @samp{isearch}: most of what is
+searched has never been in the buffer, and on a @samp{simp} trace most of it
+never will be.  @samp{C-s} still means @samp{isearch}, for the text that is there.
+
+One search at a time, belonging to the message it was asked about, as in
+VS Code -- which opens its search from a message's header, on the
+messages that have trace output and no others.  Here there is no icon to
+click: the key and the menu are the way in, and a message with no trace
+in it says so rather than searching nothing.
 
 @node The tactic state
 @section The tactic state

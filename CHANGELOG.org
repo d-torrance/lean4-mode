@@ -132,6 +132,15 @@ xref, project roots through =project.el=.
   the alternatives when the guess is wrong.  ~lean4-indent-offset~ sets
   the width of a level, and ~lean4-indent-function~ restores the
   previous cycle-only behaviour.
+- Searching a trace, through Lean's own `highlightMatches': =C-c C-f= in
+  the goal display asks for something in the traces of the message point
+  is in, and Lean answers with that message again -- the matches faced,
+  every trace holding one opened, and children it had not sent yet fetched
+  and thinned to those a match is in.  =C-c C-e= puts the message back.
+  A request rather than an =isearch= because most of what is searched has
+  never been in the buffer, and on a =simp= trace never will be; =C-s=
+  still means =isearch=.  VS Code opens its search from an icon in a
+  message's header; here the key and the menu are the way in.
 - The setup is checked when a Lean file is visited, and what looks wrong is
   said through ~display-warning~ -- VS Code's setup diagnostics and its
   =showSetupWarnings=.  Missing Git or curl, no =lean=, no =lake= and a
@@ -329,7 +338,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 453 unit tests, and 48 end-to-end tests that run against
+- A test suite: 463 unit tests, and 49 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual says where VS Code's navigation commands went, none of which
   this package implements and all of which therefore appeared in no table
