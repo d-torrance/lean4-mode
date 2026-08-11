@@ -1182,6 +1182,8 @@ extension's; the other two open the same pages VS Code opens.
 
    The manual is shipped as Info beside the source, so it is found
 whether or not the package was installed anywhere Info knows to look.
+The same text is on the web (https://d-torrance.github.io/lean4-mode/),
+rebuilt from this file whenever it changes.
 
 
 File: lean4-mode.info,  Node: "Timed out after 30 seconds" opening a file outside a project,  Next: "Imports are out of date and must be rebuilt",  Prev: Where the documentation is,  Up: Troubleshooting
@@ -1318,10 +1320,10 @@ Node: Semantic highlighting50175
 Node: Optional packages51494
 Node: Troubleshooting51987
 Node: Where the documentation is53571
-Node: "Timed out after 30 seconds" opening a file outside a project54582
-Node: "Imports are out of date and must be rebuilt"55770
-Node: Common Pitfalls57293
-Node: Acknowledgements57894
+Node: "Timed out after 30 seconds" opening a file outside a project54698
+Node: "Imports are out of date and must be rebuilt"55886
+Node: Common Pitfalls57409
+Node: Acknowledgements58010
 
 End Tag Table
 

@@ -243,6 +243,9 @@ xref, project roots through =project.el=.
   opens.
 - A test suite: 330 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
+- The manual is published at [[https://d-torrance.github.io/lean4-mode/][d-torrance.github.io/lean4-mode]],
+  exported from the same README the Info manual is made from, so the two
+  cannot disagree.  =make html= builds it locally.
 
 ** Changed
 

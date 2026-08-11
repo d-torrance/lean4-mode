@@ -1,3 +1,4 @@
 *.elc
 .elpa/
+public/
 test/fixture/.lake/

@@ -23,7 +23,7 @@ ELC   = $(EL:.el=.elc)
 E2E   = test/lean4-e2e-test.el
 TESTS = $(filter-out $(E2E),$(wildcard test/lean4-*-test.el))
 
-.PHONY: all help deps compile checkdoc lint test e2e docs abbreviations \
+.PHONY: all help deps compile checkdoc lint test e2e docs html abbreviations \
 	clean distclean
 
 all: compile checkdoc test
@@ -38,8 +38,9 @@ help:
 	@echo '  test      run the ERT suite (no language server required)'
 	@echo '  e2e       run the end-to-end suite against a real "lake serve"'
 	@echo '  docs      regenerate lean4-mode.texi and lean4-mode.info'
+	@echo '  html      export the manual to public/ as a web page'
 	@echo '  abbreviations  refresh data/abbreviations.json from vscode-lean4'
-	@echo '  clean     remove byte-compiled files'
+	@echo '  clean     remove byte-compiled files and the exported website'
 
 deps:
 	@$(EMACS) -Q --batch -L . \
@@ -84,8 +85,17 @@ lean4-mode.info lean4-mode.texi: README.org
 		'--eval=(find-file "$<")' \
 		'--eval=(org-texinfo-export-to-info)'
 
+# The same README the .texi comes from, exported to HTML instead, so the
+# website says exactly what the shipped manual says.  Needs no Texinfo:
+# ox-html is built into Emacs.  .github/workflows/pages.yml publishes the
+# result; this is the same thing by hand, and `make html && xdg-open
+# public/index.html' is how to look at a change before pushing it.
+html:
+	@$(EMACS) -Q --batch -l build.el -f lean4-build-html
+
 clean:
 	@rm -f $(ELC)
+	@rm -rf public
 
 distclean: clean
 	@rm -rf $(ELPA_DIR)

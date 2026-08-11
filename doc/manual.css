@@ -1,0 +1,445 @@
+/* Stylesheet for the lean4-mode web manual.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The markup this styles is whatever ox-html emits: #content wraps the
+ * lot, #table-of-contents holds the contents, and each section is a
+ * div.outline-N containing an hN with a stable id.  Nothing here depends
+ * on JavaScript having run -- manual.js only adds the current-section
+ * highlight and the small-screen toggle. */
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #5b6570;
+  --border: #d8dee4;
+  --surface: #f6f8fa;
+  --surface-alt: #eef1f5;
+  --accent: #4b4fbf;
+  --accent-bg: #edeefb;
+
+  --sidebar: 19rem;
+  --measure: 46rem;
+  --radius: 6px;
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e3e9ef;
+    --muted: #9198a1;
+    --border: #2c333b;
+    --surface: #161b22;
+    --surface-alt: #1c232c;
+    --accent: #a9aeff;
+    --accent-bg: #1d2140;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Layout ------------------------------------------------------------- */
+
+#content {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+@media (min-width: 64rem) {
+  #content {
+    margin: 0 0 0 var(--sidebar);
+    padding: 3rem 3rem 6rem;
+  }
+}
+
+/* Typography --------------------------------------------------------- */
+
+h1.title {
+  margin: 0 0 2.5rem;
+  font-size: 2.1rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+h2,
+h3,
+h4,
+h5 {
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  /* Anchor jumps otherwise land with the heading flush against the top. */
+  scroll-margin-top: 1.5rem;
+}
+
+h2 {
+  margin: 3.5rem 0 1rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 1.6rem;
+}
+
+h3 {
+  margin: 2.5rem 0 0.75rem;
+  font-size: 1.25rem;
+}
+
+h4 {
+  margin: 2rem 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+p {
+  margin: 0 0 1rem;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+ul,
+ol {
+  margin: 0 0 1rem;
+  padding-left: 1.4rem;
+}
+
+li {
+  margin: 0.25rem 0;
+}
+
+hr {
+  height: 1px;
+  margin: 2.5rem 0;
+  border: 0;
+  background: var(--border);
+}
+
+/* Code --------------------------------------------------------------- */
+
+code,
+kbd,
+pre {
+  font-family: var(--font-mono);
+}
+
+/* Every key sequence and command name in this manual is =verbatim= or
+ * ~code~, so inline code carries most of the reference material and is
+ * worth setting apart clearly. */
+code {
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  background: var(--surface-alt);
+  font-size: 0.875em;
+  white-space: nowrap;
+}
+
+pre {
+  position: relative;
+  margin: 0 0 1.25rem;
+  padding: 1rem 1rem 0.9rem;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  tab-size: 8;
+}
+
+pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+  white-space: pre;
+}
+
+/* Org names the block after its language; say so, since there is no
+ * syntax highlighting to make it obvious. */
+pre.src::before {
+  display: block;
+  margin-bottom: 0.6rem;
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+pre.src-elisp::before {
+  content: "Emacs Lisp";
+}
+
+pre.src-lean::before {
+  content: "Lean";
+}
+
+pre.src-sh::before,
+pre.src-shell::before {
+  content: "Shell";
+}
+
+/* Tables ------------------------------------------------------------- */
+
+table {
+  width: 100%;
+  margin: 0 0 1.5rem;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+/* The key tables are wide; let them scroll rather than squeeze. */
+@media (max-width: 48rem) {
+  table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+/* Three columns of key, description and command do not fit a measure
+ * chosen for prose, and there is nothing but margin to their right, so
+ * let them past it once there is room to spare. */
+@media (min-width: 80rem) {
+  table {
+    width: calc(100% + 8rem);
+  }
+}
+
+th,
+td {
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+thead th {
+  border-bottom: 2px solid var(--border);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+tbody tr:hover {
+  background: var(--surface);
+}
+
+blockquote {
+  margin: 0 0 1.25rem;
+  padding: 0.25rem 0 0.25rem 1rem;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+
+/* Table of contents -------------------------------------------------- */
+
+#table-of-contents {
+  margin: 0 0 2.5rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+#table-of-contents h2 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+#text-table-of-contents {
+  margin-top: 0.75rem;
+}
+
+#text-table-of-contents ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#text-table-of-contents ul ul {
+  padding-left: 0.9rem;
+}
+
+#text-table-of-contents li {
+  margin: 0;
+}
+
+#text-table-of-contents a {
+  display: block;
+  padding: 0.22rem 0.5rem;
+  border-left: 2px solid transparent;
+  border-radius: 0 4px 4px 0;
+  color: var(--fg);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+#text-table-of-contents ul ul a {
+  color: var(--muted);
+  font-size: 0.83rem;
+}
+
+/* Headings such as "Native =:vc=" carry inline code into the contents,
+ * where a boxed and tinted fragment is far too loud. */
+#text-table-of-contents code {
+  padding: 0;
+  background: none;
+  font-size: 0.95em;
+}
+
+#text-table-of-contents a:hover {
+  background: var(--surface-alt);
+  color: var(--accent);
+}
+
+/* Set by manual.js as the page scrolls. */
+#text-table-of-contents a.is-current {
+  border-left-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* On a wide screen the contents become a fixed sidebar.  #content is a
+ * later sibling in the flow, so taking the list out of the flow costs
+ * nothing but the margin that makes room for it. */
+@media (min-width: 64rem) {
+  #table-of-contents {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--sidebar);
+    height: 100vh;
+    margin: 0;
+    padding: 2rem 0.9rem 2rem 1.4rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 0;
+    border-right: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--surface);
+  }
+}
+
+/* The toggle manual.js inserts; pointless without it, so it stays hidden
+ * until the script says otherwise. */
+#toc-toggle {
+  display: none;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+#toc-toggle::after {
+  content: "▾";
+  float: right;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+#table-of-contents.is-collapsed #toc-toggle::after {
+  transform: rotate(-90deg);
+}
+
+#table-of-contents.is-collapsed #text-table-of-contents {
+  display: none;
+}
+
+/* Postamble ---------------------------------------------------------- */
+
+#postamble {
+  max-width: var(--measure);
+  margin: 4rem auto 0;
+  padding: 1.25rem 1.25rem 3rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+@media (min-width: 64rem) {
+  #postamble {
+    margin: 4rem 0 0 var(--sidebar);
+    padding-left: 3rem;
+    padding-right: 3rem;
+  }
+}
+
+#postamble p {
+  margin: 0;
+}
+
+/* Print -------------------------------------------------------------- */
+
+@media print {
+  #table-of-contents,
+  #postamble {
+    display: none;
+  }
+
+  #content {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  pre {
+    white-space: pre-wrap;
+  }
+}

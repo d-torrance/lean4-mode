@@ -126,6 +126,109 @@ equivalent, so keeping them would insert the literal text."
              kept dropped)
     (kill-emacs 0)))
 
+;;; Manual
+
+(defconst lean4-build--html-dir (expand-file-name "public" lean4-build--dir)
+  "Where `lean4-build-html' writes the web manual.
+Named for what the GitHub Pages action expects to upload rather than
+for what it holds.")
+
+(defconst lean4-build--html-assets '("manual.css" "manual.js")
+  "Files copied out of doc/ to sit beside the exported manual.")
+
+(defun lean4-build--anchor (heading)
+  "Return an HTML anchor derived from HEADING.
+Left to itself Org numbers anchors from the document's structure, so
+inserting a section renames every anchor below it and quietly breaks
+whatever links people have already made.  Deriving the anchor from the
+text keeps it stable across edits, and readable besides -- the same
+bargain Texinfo node names strike."
+  (let* ((text (substring-no-properties heading))
+         ;; Dropped rather than replaced: "Mathlib's" should become
+         ;; "Mathlibs", not "Mathlib-s".
+         (text (replace-regexp-in-string "['’]" "" text))
+         (slug (replace-regexp-in-string "[^[:alnum:]]+" "-" text)))
+    (string-trim slug "-+" "-+")))
+
+(defun lean4-build--label-headlines ()
+  "Give every headline in the current Org buffer a CUSTOM_ID.
+`org-html-prefer-user-labels' then uses these as the anchors, in place
+of the generated ones.  Collisions are numbered, so two sections that
+happen to share a name still get an anchor apiece."
+  (let ((seen (make-hash-table :test #'equal)))
+    (org-map-entries
+     (lambda ()
+       (let* ((base (lean4-build--anchor (org-get-heading t t t t)))
+              (count (puthash base (1+ (gethash base seen 0)) seen)))
+         (org-entry-put nil "CUSTOM_ID"
+                        (if (= count 1) base (format "%s-%d" base count))))))))
+
+(defun lean4-build-html ()
+  "Export README.org to a web manual under `lean4-build--html-dir'.
+This is the same source the .texi and .info manuals are made from, so
+the website cannot drift away from what the package ships.
+
+Org's own stylesheet and scripts are turned off in favour of doc/,
+and the export is kept free of timestamps so that rebuilding an
+unchanged README produces an unchanged page."
+  (require 'org)
+  (require 'ox-html)
+  (let ((readme (expand-file-name "README.org" lean4-build--dir))
+        (target (expand-file-name "index.html" lean4-build--html-dir)))
+    (make-directory lean4-build--html-dir t)
+    (with-temp-buffer
+      (insert-file-contents readme)
+      ;; Relative links and the export machinery both resolve against this.
+      (setq default-directory lean4-build--dir)
+      (delay-mode-hooks (org-mode))
+      (lean4-build--label-headlines)
+      (let ((org-html-doctype "html5")
+            (org-html-html5-fancy t)
+            (org-html-head-include-default-style nil)
+            (org-html-head-include-scripts nil)
+            (org-html-head
+             (concat
+              "<meta name=\"description\" content=\"Manual for lean4-mode,"
+              " the Emacs major mode for the Lean 4 language.\">\n"
+              "<link rel=\"stylesheet\" href=\"manual.css\">\n"
+              "<script defer src=\"manual.js\"></script>"))
+            (org-html-prefer-user-labels t)
+            (org-html-validation-link nil)
+            ;; Syntax highlighting would mean htmlize, a theme, and a
+            ;; frame's worth of faces in a batch Emacs, all to colour nine
+            ;; short blocks.  Left off, and the stylesheet labels each
+            ;; block with its language instead.
+            (org-html-htmlize-output-type nil)
+            ;; Org still decorates tables with border, cellpadding and
+            ;; friends, which no stylesheet can talk it out of.
+            (org-html-table-default-attributes nil)
+            (org-html-postamble
+             (concat
+              "<p>Generated from README.org in the "
+              "<a href=\"https://github.com/d-torrance/lean4-mode\">"
+              "lean4-mode repository</a>.  The same text ships with the"
+              " package as an Info manual: <code>C-h i</code>, then"
+              " <code>m Lean4-Mode</code>.</p>"))
+            (org-export-with-author nil)
+            (org-export-with-creator nil)
+            ;; Numbering the sections would be no worse in itself, but a
+            ;; cross-reference with no description of its own then exports
+            ;; as the bare number: README's "see [[*Acknowledgements]]"
+            ;; becomes "see 6".  Unnumbered, it says "see Acknowledgements",
+            ;; which is both readable and what the Info manual says.
+            (org-export-with-section-numbers nil)
+            (org-export-time-stamp-file nil))
+        (org-export-to-file 'html target)))
+    (dolist (asset lean4-build--html-assets)
+      (copy-file (expand-file-name (concat "doc/" asset) lean4-build--dir)
+                 (expand-file-name asset lean4-build--html-dir)
+                 t))
+    ;; Without this, Pages runs the output through Jekyll, which discards
+    ;; any file whose name begins with an underscore.
+    (write-region "" nil (expand-file-name ".nojekyll" lean4-build--html-dir))
+    (message "html: wrote %s" target)
+    (kill-emacs 0)))
+
 ;;; Targets
 
 ;; Declared, not merely bound: recent Emacs made this lexical, and

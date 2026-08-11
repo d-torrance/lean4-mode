@@ -1282,7 +1282,9 @@ Troubleshooting Guide", pointed at this package's manual rather than the
 extension's; the other two open the same pages VS Code opens.
 
 The manual is shipped as Info beside the source, so it is found whether or
-not the package was installed anywhere Info knows to look.
+not the package was installed anywhere Info knows to look.  The same text
+is @uref{https://d-torrance.github.io/lean4-mode/, on the web}, rebuilt from
+this file whenever it changes.
 
 @node "Timed out after 30 seconds" opening a file outside a project
 @section "Timed out after 30 seconds" opening a file outside a project
