@@ -182,6 +182,7 @@ the arguments to pass."
     ;; the "Restart File" command when a file's imports are stale.
     ["Restart File"         lean4-refresh-file-dependencies    t]
     ["Restart lean process" eglot-reconnect                   t]
+    ["Stop the Lean server"  eglot-shutdown            (eglot-current-server)]
     "--"
     ("Project"
      ["New project..."                 lean4-new-project             t]
@@ -197,6 +198,7 @@ the arguments to pass."
      ["Fetch Mathlib cache"            lean4-lake-fetch-cache        t]
      ["Fetch cache for this file"      lean4-lake-fetch-file-cache
       buffer-file-name]
+     ["Fetch cache for some open files..." lean4-lake-fetch-some-file-caches t]
      ["Fetch cache for open files"     lean4-lake-fetch-open-file-caches t])
     ["Apply what Lean suggests here..." lean4-apply-suggestion
      (eglot-current-server)]
@@ -300,6 +302,10 @@ The page VS Code\='s \"Show Documentation Resources\" opens."
   (setq-local comment-use-syntax t)
   (setq-local font-lock-defaults lean4-font-lock-defaults)
   (setq-local indent-tabs-mode nil)
+  ;; VS Code sets `insertFinalNewline' for Lean files.  Through
+  ;; `mode-require-final-newline' rather than `t', so that a reader who has
+  ;; turned that off is not overruled by their major mode.
+  (setq-local require-final-newline mode-require-final-newline)
   (setq-local indent-line-function #'lean4-indent-line-function)
   ;; Without these, `C-M-a' and everything built on it fall back to a recipe
   ;; meant for Lisp -- an open paren in column zero -- which Lean code does

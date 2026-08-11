@@ -1866,5 +1866,105 @@ a fold made by hand."
       (lean4-info-cycle-expected-type)
       (should (eq lean4-info-expected-type-visibility 'expanded)))))
 
+;;;; Which messages a line shows
+
+(defconst lean4-info-test--line-messages
+  (list '(:range (:start (:line 3 :character 2) :end (:line 3 :character 6))
+          :message "left of point")
+        '(:range (:start (:line 3 :character 20) :end (:line 3 :character 24))
+          :message "right of point")
+        '(:range (:start (:line 1 :character 0) :end (:line 5 :character 0))
+          :message "spanning the line from above"))
+  "Three raw diagnostics touching line 3: before, after, and across it.")
+
+(ert-deftest lean4-info-every-message-on-the-line-by-default ()
+  "All three cover the line, and by default all three are listed."
+  (let ((lean4-info-all-errors-on-line t))
+    (should (= (length (lean4-info--diagnostics-at-line
+                        lean4-info-test--line-messages 3 10))
+               3))))
+
+(ert-deftest lean4-info-only-the-messages-after-point ()
+  "With the option off, only what begins at or after the column given.
+The one spanning the line from further up covers it from the left rather
+than standing to the right of anything on it, so it goes too."
+  (let ((lean4-info-all-errors-on-line nil))
+    (should (equal (mapcar (lambda (diagnostic)
+                             (plist-get diagnostic :message))
+                           (lean4-info--diagnostics-at-line
+                            lean4-info-test--line-messages 3 10))
+                   '("right of point")))))
+
+(ert-deftest lean4-info-without-a-column-every-message-stands ()
+  "Asked without a column -- as a pinned position is -- the option cannot
+apply, and does not."
+  (let ((lean4-info-all-errors-on-line nil))
+    (should (= (length (lean4-info--diagnostics-at-line
+                        lean4-info-test--line-messages 3))
+               3))))
+
+;;;; Stale imports, and the control they call for
+
+(ert-deftest lean4-info-notices-imports-which-must-be-rebuilt ()
+  "The error Lean puts in the header of a file whose imports are stale."
+  (should (lean4-info--imports-stale-p
+           '((:message "Imports are out of date and must be rebuilt; use \
+the \"Restart File\" command in your editor.")))))
+
+(ert-deftest lean4-info-notices-imports-which-should-be-rebuilt ()
+  "And the note it sends when one goes stale under an open file."
+  (should (lean4-info--imports-stale-p
+           '((:message "Imports of Foo.Bar are out of date and should be \
+rebuilt.")))))
+
+(ert-deftest lean4-info-notices-nothing-in-an-ordinary-message ()
+  "An ordinary error is not one of those."
+  (should-not (lean4-info--imports-stale-p
+               '((:message "type mismatch")
+                 (:message "unsolved goals")))))
+
+(ert-deftest lean4-info-notices-it-in-an-interactive-message ()
+  "With the interactive RPC a message is a tree rather than a string, which
+is the shape it arrives in by default.  The tree here is one the server
+sent."
+  (should (lean4-info--imports-stale-p
+           '((:message (:append [(:text "Imports are out of date")
+                                 (:tag [(:expr (:text " and must be rebuilt"))
+                                        (:text "")])]))))))
+
+(ert-deftest lean4-info-reads-the-words-of-any-message ()
+  "Every shape a message comes in answers with its words."
+  (should (equal (lean4-info--message-words "plain") "plain"))
+  (should (equal (lean4-info--message-words '(:text "leaf")) "leaf"))
+  (should (equal (lean4-info--message-words
+                  '(:append [(:text "one ") (:text "two")]))
+                 "one two"))
+  (should (equal (lean4-info--message-words
+                  '(:tag [(:expr (:text "Nat")) (:text " is a type")]))
+                 "Nat is a type"))
+  (should (equal (lean4-info--message-words nil) "")))
+
+;;;; Keeping the settings
+
+(ert-deftest lean4-info-saves-every-goal-setting ()
+  "`lean4-info-save-settings' offers the custom machinery all eight, and
+writes the file once rather than once apiece."
+  (let ((offered nil)
+        (saves 0))
+    (cl-letf (((symbol-function 'customize-set-variable)
+               (lambda (option _value &rest _) (push option offered)))
+              ((symbol-function 'custom-save-all)
+               (lambda () (setq saves (1+ saves)))))
+      (lean4-info-save-settings))
+    (should (equal (nreverse offered) lean4-info--goal-options))
+    (should (= saves 1))))
+
+(ert-deftest lean4-info-the-saved-settings-are-the-eight ()
+  "And they are the eight the toggles and the menu act on, which is what
+makes saving them mean what the menu entry says."
+  (should (= (length lean4-info--goal-options) 8))
+  (dolist (option lean4-info--goal-options)
+    (should (custom-variable-p option))))
+
 (provide 'lean4-info-test)
 ;;; lean4-info-test.el ends here

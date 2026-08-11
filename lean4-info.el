@@ -85,6 +85,11 @@ Held as `lean4-goals' is; see there.")
 (defvar lean4-info-paused nil
   "Non-nil while the goal display is paused.")
 
+(defvar lean4-info--imports-stale nil
+  "Non-nil while Lean says this file's imports want rebuilding.
+Worked out in the Lean buffer as the display is rebuilt, and read while
+the controls are drawn, which happens in the display's own buffer.")
+
 (cl-defstruct (lean4-info-pin (:constructor lean4-info--pin-create))
   "A position the goal display goes on showing, whatever point does."
   marker                                ; where, in which Lean buffer
@@ -274,13 +279,81 @@ the one buffer rather than taking it as an argument."
     ;; all -- and the display has to keep up when it is.
     (eq (current-buffer) (lean4-info--displayed-buffer)))))
 
-(defun lean4-info--diagnostics-at-line (diagnostics line)
+(defconst lean4-info--stale-imports-regexp
+  (rx "out of date")
+  "How Lean says that a file's imports want rebuilding.
+It says it two ways -- imports that /must/ be rebuilt, an error in the
+header, and imports that /should/ be, a note arriving later -- and both
+carry this much.  Matching the words is unlovely and is what there is:
+the tags Lean attaches to a diagnostic run to finished proofs and
+unsolved goals, not to this.")
+
+(defun lean4-info--message-words (message)
+  "Return the plain words of MESSAGE, whatever shape it arrived in.
+A string, from a server without the interactive RPC; a tree of tagged
+text with it.  Walked for its `:text' leaves rather than handed to
+`lean4-render-message-parts', which would propertize it and render the
+terms embedded in it: this is asked about every message in the file
+whenever the display is rebuilt, and the words are all it wants.  A
+trace's children are not in the object until something asks for them, so
+even a `simp' trace is small here."
+  (cond ((null message) "")
+        ((stringp message) message)
+        ((plist-member message :text) (or (plist-get message :text) ""))
+        ((plist-member message :expr)
+         (lean4-info--message-words (plist-get message :expr)))
+        ((plist-member message :append)
+         (mapconcat #'lean4-info--message-words
+                    (append (plist-get message :append) nil)
+                    ""))
+        ((plist-member message :tag)
+         (let ((tag (plist-get message :tag)))
+           (concat (lean4-info--message-words (elt tag 0))
+                   (lean4-info--message-words (elt tag 1)))))
+        (t "")))
+
+(defun lean4-info--imports-stale-p (diagnostics)
+  "Return non-nil if any of DIAGNOSTICS says the imports want rebuilding.
+DIAGNOSTICS are the raw LSP objects, whose message is a string or a tree
+according to whether the interactive RPC is in use, rather than the text
+`lean4-diagnostic-message' reads off a Flymake one."
+  (seq-some (lambda (diagnostic)
+              (string-match-p
+               lean4-info--stale-imports-regexp
+               (lean4-info--message-words (plist-get diagnostic :message))))
+            diagnostics))
+
+(defcustom lean4-info-all-errors-on-line t
+  "Whether to list every message on the line, or only those after point.
+Every one, by default, as in VS Code, whose `allErrorsOnLine' this is.
+Set to nil to be shown only the messages beginning at or after the
+position being reported on -- \"to the right of the text cursor\", as VS
+Code puts it -- which on a line carrying several is a way of reading them
+one at a time."
+  :group 'lean4
+  :type 'boolean)
+
+(defun lean4-info--diagnostic-after-p (diagnostic line column)
+  "Return non-nil if DIAGNOSTIC begins at or after COLUMN on LINE.
+One beginning further up covers the line from the left rather than
+standing to the right of anything on it, so it does not count."
+  (and (= (lean4-diagnostics-start-line diagnostic) line)
+       (>= (lean4-diagnostics-start-column diagnostic) column)))
+
+(defun lean4-info--diagnostics-at-line (diagnostics line &optional column)
   "Return the raw LSP DIAGNOSTICS whose full range covers zero-based LINE.
 Covering it rather than starting on it: that is how a message about a
-multi-line declaration stays visible while point moves through it."
+multi-line declaration stays visible while point moves through it.
+
+Given COLUMN, and with `lean4-info-all-errors-on-line' nil, only those
+beginning at or after it."
   (seq-filter (lambda (diagnostic)
                 (and (<= (lean4-diagnostics-start-line diagnostic) line)
-                     (<= line (lean4-diagnostics-end-line diagnostic))))
+                     (<= line (lean4-diagnostics-end-line diagnostic))
+                     (or lean4-info-all-errors-on-line
+                         (null column)
+                         (lean4-info--diagnostic-after-p
+                          diagnostic line column))))
               diagnostics))
 
 ;;;; How much of a goal to show
@@ -594,6 +667,12 @@ future sessions\" could write out."
     lean4-info-hide-let-values
   "Show or hide the value of each let-bound hypothesis."
   "let-values hidden" "let-values shown")
+
+;;;###autoload (autoload 'lean4-info-toggle-all-errors-on-line "lean4-info" nil t)
+(lean4-info--define-toggle lean4-info-toggle-all-errors-on-line
+    lean4-info-all-errors-on-line
+  "List every message on the line, or only those after point."
+  "every message on the line" "only the messages after point")
 
 ;;;###autoload
 (defun lean4-info-cycle-expected-type ()
@@ -1382,11 +1461,15 @@ Lean buffer to be the selected one, which it is not in that case."
            ;; true, which showed the position just pinned twice over.
            (location (lean4-info--location-string))
            (line (1- (line-number-at-pos nil 'absolute)))
+           ;; The protocol's column rather than `current-column': Lean code
+           ;; is full of characters that are not one column wide.
+           (column (plist-get (eglot--pos-to-lsp-position) :character))
            (following (lean4-info--following-point-p))
            (diagnostics (lean4-info--diagnostics))
            (all (lean4-info--file-messages diagnostics line))
            (sorted (lean4-info--sort-messages diagnostics line))
-           (here (lean4-info--diagnostics-at-line sorted line))
+           (here (lean4-info--diagnostics-at-line sorted line column))
+           (stale (lean4-info--imports-stale-p diagnostics))
            (key (lean4-info--render-key goals term-goal location
                                         diagnostics all following)))
       ;; Nothing to see: rebuilding would only make the display blink.
@@ -1395,7 +1478,8 @@ Lean buffer to be the selected one, which it is not in that case."
         (setq lean4-info--rendered key)
         (with-current-buffer lean4-info-buffer-name
           (setq lean4-info--handle handle
-                lean4-info--source-buffer buffer)
+                lean4-info--source-buffer buffer
+                lean4-info--imports-stale stale)
           (lean4-info--keeping-position
             (erase-buffer)
             (lean4-info--insert-display location goals term-goal here
@@ -1815,6 +1899,19 @@ Nil means pick whichever candidate the frame can display."
   "Return the refresh control for this frame."
   (lean4--glyph lean4-info-refresh-icon '("⟳" "↻" "⭮") "R"))
 
+(defcustom lean4-info-restart-file-icon nil
+  "Control that rebuilds the imports and reloads the file.
+Nil means pick whichever candidate the frame can display."
+  :group 'lean4-info
+  :type '(choice (const :tag "Choose to suit the frame" nil) string))
+
+(defun lean4-info-restart-file-glyph ()
+  "Return the restart-file control for this frame."
+  ;; A circling arrow says "again" and is taken by the refresh control, so
+  ;; this is the one that says "from the beginning": U+21BB with a bar, or
+  ;; failing that the recycling arrows, which read as rebuilding.
+  (lean4--glyph lean4-info-restart-file-icon '("⭯" "♻" "⟲") "RF"))
+
 (defun lean4-info-goto-glyph ()
   "Return the go-to-position control for this frame."
   ;; VS Code uses a codicon of a page with an arrow leaving it.  Unicode
@@ -1970,6 +2067,15 @@ everything the two rows have in common, where it pushes nothing along."
 (defun lean4-info--controls ()
   "Return the controls for the section following point."
   (list
+   ;; Only while Lean says the imports want rebuilding, that being the one
+   ;; thing the reader can do about it and the one time it means anything.
+   ;; VS Code puts a "Restart File" button in its InfoView for the same
+   ;; reason.
+   (when lean4-info--imports-stale
+     (lean4-info--button
+      (lean4-info-restart-file-glyph)
+      "mouse-1: rebuild the imports which are out of date and reload"
+      #'lean4-refresh-file-dependencies))
    ;; Only while paused: nothing else leaves the display out of date, so
    ;; anywhere else this would be a control with nothing to do.  It goes
    ;; on the left, where appearing and going again leaves the two
@@ -2397,6 +2503,37 @@ Shared by `lean4-mode-menu' and `lean4-info-mode-menu': the commands
 work from either buffer, so it would only confuse matters for the two
 menus to offer different subsets of them.")
 
+(defconst lean4-info--goal-options
+  '(lean4-info-show-goal-names
+    lean4-info-emphasize-first-goal
+    lean4-info-target-first
+    lean4-info-hide-type-assumptions
+    lean4-info-hide-instance-assumptions
+    lean4-info-hide-inaccessible-assumptions
+    lean4-info-hide-let-values
+    lean4-info-expected-type-visibility)
+  "The options saying how much of a goal to show.
+The eight VS Code gathers behind the cog in its InfoView, in the order
+its menu lists them.")
+
+;;;###autoload (autoload 'lean4-info-save-settings "lean4-info" nil t)
+(defun lean4-info-save-settings ()
+  "Keep the present goal-display settings for future sessions.
+The toggles change a setting for the session only, which is what makes
+them worth pressing to see what a goal looks like the other way; this
+writes whatever they have arrived at to your `custom-file', as VS Code\\='s
+\"Save Current Settings to Default Settings\" does.
+
+Written once rather than eight times: `customize-set-variable' tells the
+custom machinery about each, and one `custom-save-all' puts the lot on
+disk."
+  (interactive)
+  (dolist (option lean4-info--goal-options)
+    (customize-set-variable option (symbol-value option)))
+  (custom-save-all)
+  (message "Goal display: %d settings saved for future sessions"
+           (length lean4-info--goal-options)))
+
 (defconst lean4-info-display-menu
   ;; Checkboxes rather than the swapping labels the controls above use:
   ;; these are seven independent settings shown together, and a column of
@@ -2422,7 +2559,12 @@ menus to offer different subsets of them.")
      :label (pcase lean4-info-expected-type-visibility
               ('expanded "Expected type: shown")
               ('collapsed "Expected type: folded")
-              (_ "Expected type: hidden"))])
+              (_ "Expected type: hidden"))]
+    "--"
+    ["Messages after point only" lean4-info-toggle-all-errors-on-line
+     :style toggle :selected (not lean4-info-all-errors-on-line)]
+    "--"
+    ["Keep these for future sessions" lean4-info-save-settings t])
   "Submenu for the settings deciding how much of a goal is shown.
 Shared by `lean4-mode-menu' and `lean4-info-mode-menu', as
 `lean4-info-menu-items' is.")

@@ -340,7 +340,19 @@ and an option.
 
 Every default is VS Code's, so out of the box the whole goal is shown.
 The commands change a setting for the session; customizing it makes the
-change stick.
+change stick, and so does =M-x lean4-info-save-settings=, which writes
+whatever the eight have arrived at to your =custom-file= -- VS Code's
+"Save Current Settings to Default Settings", and =Keep these for future
+sessions= at the foot of the same menu.
+
+A ninth setting sits under them there, being about the messages rather
+than the goal: ~lean4-info-all-errors-on-line~, default =t=, lists every
+message on the line point is on.  Set it to =nil=, or press =Messages
+after point only=, to be shown only those beginning at or after point --
+"to the right of the text cursor", as VS Code words its
+=allErrorsOnLine=, which this is.  A message spanning the line from
+further up covers it from the left rather than standing to the right of
+anything on it, and goes with the rest.
 
 - Goal names are the =case inl= labels a structured proof produces.
 - Emphasizing the first goal draws the others smaller and dimmer -- the
@@ -528,9 +540,12 @@ compilation buffer.
 | =C-c C-p C-c= | The whole package                       | ~lean4-lake-fetch-cache~            |
 | =C-c C-p C-f= | This file and what it imports           | ~lean4-lake-fetch-file-cache~       |
 |               | Every open Lean file in the package     | ~lean4-lake-fetch-open-file-caches~ |
+|               | Whichever of those you choose           | ~lean4-lake-fetch-some-file-caches~ |
 
-The last is in the Lean menu, under =Project=, along with the other two
-and =lake build=.  Fetching for one file is much quicker than for the
+The last two are in the Lean menu, under =Project=, along with the other
+two and =lake build=; the fourth offers the open files and takes as many
+as are wanted, comma-separated, which is VS Code's "For Open Files" to
+the third's "For All Open Files".  Fetching for one file is much quicker than for the
 whole of Mathlib and is usually what is wanted; fetching for the package
 is the thing to run once, after cloning.
 
@@ -1134,16 +1149,22 @@ graphical frame and a terminal gets the right thing in each.  A
 graphical frame usually gets =📌 📍 ⏸ ⏵=, a terminal =⌖ ⌾ ⏸ ⏵=, and a
 display with nothing but ASCII gets =P [P] || >=.
 
-Every one of the seven is an option, so any of them can be set to a
+Every one of the eight is an option, so any of them can be set to a
 string of your own instead: ~lean4-info-pin-icon~,
 ~lean4-info-unpin-icon~, ~lean4-info-pause-icon~ and
 ~lean4-info-resume-icon~ for those four, and ~lean4-info-goto-icon~
-(=↪=), ~lean4-info-refresh-icon~ (=⟳=) and ~lean4-info-sort-icon~ (=⇅=)
-for the way to a position, the refresh of a paused section and the order
-of the message list.  The last three do not swap glyph: going somewhere
-and refreshing have no second state, and neither message order is the
-one to warn about, so the face says which is in force and the tooltip
-says what a click would change it to.
+(=↪=), ~lean4-info-refresh-icon~ (=⟳=), ~lean4-info-sort-icon~ (=⇅=) and
+~lean4-info-restart-file-icon~ (=⭯=) for the way to a position, the
+refresh of a paused section, the order of the message list and the
+rebuilding of stale imports.  Those four do not swap glyph: going
+somewhere, refreshing and rebuilding have no second state, and neither
+message order is the one to warn about, so the face says which is in
+force and the tooltip says what a click would change it to.
+
+The last of them appears only when there is something for it to do:
+=⭯= sits in the position heading while Lean says the file's imports are
+out of date, and rebuilds them, which is =C-c C-d= and the button VS Code
+puts in its InfoView for the same reason.  See [["Imports are out of date and must be rebuilt"]].
 
 ** Older Lean versions
 
@@ -1235,7 +1256,8 @@ visiting no file at all is written to a temporary one instead.
 
 =C-c C-r= (~eglot-reconnect~) restarts the server, which is VS Code's
 "Server: Restart Server".  To stop one without starting another --
-VS Code's "Server: Stop Server" -- =M-x eglot-shutdown=; and a Lean
+VS Code's "Server: Stop Server" -- =M-x eglot-shutdown=, which is =Stop
+the Lean server= in the =Lean= menu; and a Lean
 buffer visited afterwards starts a new one, unless
 ~lean4-auto-start-server~ is off.  Neither is to be confused with
 =C-c C-d=, which restarts the /file/: see [[*"Imports are out of date and

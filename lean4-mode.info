@@ -518,7 +518,19 @@ Setting                                      Default      Command
 
    Every default is VS Code's, so out of the box the whole goal is
 shown.  The commands change a setting for the session; customizing it
-makes the change stick.
+makes the change stick, and so does ‘M-x lean4-info-save-settings’,
+which writes whatever the eight have arrived at to your ‘custom-file’ -
+VS Code's "Save Current Settings to Default Settings", and ‘Keep these
+for future sessions’ at the foot of the same menu.
+
+   A ninth setting sits under them there, being about the messages
+rather than the goal: ‘lean4-info-all-errors-on-line’, default ‘t’,
+lists every message on the line point is on.  Set it to ‘nil’, or press
+‘Messages after point only’, to be shown only those beginning at or
+after point - "to the right of the text cursor", as VS Code words its
+‘allErrorsOnLine’, which this is.  A message spanning the line from
+further up covers it from the left rather than standing to the right of
+anything on it, and goes with the rest.
 
    • Goal names are the ‘case inl’ labels a structured proof produces.
    • Emphasizing the first goal draws the others smaller and dimmer -
@@ -730,11 +742,15 @@ Key             Description                           Command
 ‘C-c C-p C-c’   The whole package                     ‘lean4-lake-fetch-cache’
 ‘C-c C-p C-f’   This file and what it imports         ‘lean4-lake-fetch-file-cache’
                 Every open Lean file in the package   ‘lean4-lake-fetch-open-file-caches’
+                Whichever of those you choose         ‘lean4-lake-fetch-some-file-caches’
 
-   The last is in the Lean menu, under ‘Project’, along with the other
-two and ‘lake build’.  Fetching for one file is much quicker than for
-the whole of Mathlib and is usually what is wanted; fetching for the
-package is the thing to run once, after cloning.
+   The last two are in the Lean menu, under ‘Project’, along with the
+other two and ‘lake build’; the fourth offers the open files and takes
+as many as are wanted, comma-separated, which is VS Code's "For Open
+Files" to the third's "For All Open Files".  Fetching for one file is
+much quicker than for the whole of Mathlib and is usually what is
+wanted; fetching for the package is the thing to run once, after
+cloning.
 
    Output goes to a compilation buffer, so ‘M-x next-error’ walks
 whatever Lake reports, as with any other build.
@@ -1433,16 +1449,23 @@ graphical frame and a terminal gets the right thing in each.  A
 graphical frame usually gets ‘📌 📍 ⏸ ⏵’, a terminal ‘⌖ ⌾ ⏸ ⏵’, and a
 display with nothing but ASCII gets ‘P [P] || >’.
 
-   Every one of the seven is an option, so any of them can be set to a
+   Every one of the eight is an option, so any of them can be set to a
 string of your own instead: ‘lean4-info-pin-icon’,
 ‘lean4-info-unpin-icon’, ‘lean4-info-pause-icon’ and
 ‘lean4-info-resume-icon’ for those four, and ‘lean4-info-goto-icon’
-(‘↪’), ‘lean4-info-refresh-icon’ (‘⟳’) and ‘lean4-info-sort-icon’ (‘⇅’)
-for the way to a position, the refresh of a paused section and the order
-of the message list.  The last three do not swap glyph: going somewhere
-and refreshing have no second state, and neither message order is the
-one to warn about, so the face says which is in force and the tooltip
-says what a click would change it to.
+(‘↪’), ‘lean4-info-refresh-icon’ (‘⟳’), ‘lean4-info-sort-icon’ (‘⇅’) and
+‘lean4-info-restart-file-icon’ (‘⭯’) for the way to a position, the
+refresh of a paused section, the order of the message list and the
+rebuilding of stale imports.  Those four do not swap glyph: going
+somewhere, refreshing and rebuilding have no second state, and neither
+message order is the one to warn about, so the face says which is in
+force and the tooltip says what a click would change it to.
+
+   The last of them appears only when there is something for it to do:
+‘⭯’ sits in the position heading while Lean says the file's imports are
+out of date, and rebuilds them, which is ‘C-c C-d’ and the button VS
+Code puts in its InfoView for the same reason.  See *note "Imports are
+out of date and must be rebuilt"::.
 
 
 File: lean4-mode.info,  Node: Older Lean versions,  Next: Semantic highlighting,  Prev: The goal display's controls,  Up: Configuration
@@ -1548,10 +1571,11 @@ buffer visiting no file at all is written to a temporary one instead.
 
    ‘C-c C-r’ (‘eglot-reconnect’) restarts the server, which is VS Code's
 "Server: Restart Server".  To stop one without starting another - VS
-Code's "Server: Stop Server" - ‘M-x eglot-shutdown’; and a Lean buffer
-visited afterwards starts a new one, unless ‘lean4-auto-start-server’ is
-off.  Neither is to be confused with ‘C-c C-d’, which restarts the
-_file_: see *note "Imports are out of date and must be rebuilt"::.
+Code's "Server: Stop Server" - ‘M-x eglot-shutdown’, which is ‘Stop the
+Lean server’ in the ‘Lean’ menu; and a Lean buffer visited afterwards
+starts a new one, unless ‘lean4-auto-start-server’ is off.  Neither is
+to be confused with ‘C-c C-d’, which restarts the _file_: see *note
+"Imports are out of date and must be rebuilt"::.
 
 * Menu:
 
@@ -1695,40 +1719,40 @@ Node: Keys in the goal display14155
 Node: The tactic state18690
 Node: Copying what is on display20419
 Node: How much of a goal to show21446
-Node: Errors and warnings24957
-Node: Building dependencies29052
-Node: Starting a project30322
-Node: Building32114
-Node: Mathlib's build cache33306
-Node: Choosing which Lean to use34663
-Node: Elan itself37097
-Node: Git and curl38313
-Node: Searching Mathlib with Loogle40060
-Node: Following a name through a project42330
-Node: The module hierarchy45117
-Node: It needs a built project47165
-Node: Other Lake operations47815
-Node: Moving by declaration49251
-Node: Folding a file up51773
-Node: Applying what Lean suggests54148
-Node: Being told a suggestion is there56033
-Node: What Lean filled in for you58487
-Node: Completion60892
-Node: Finding a symbol you cannot name62061
-Node: Configuration63312
-Node: Frequently used options63792
-Node: Finding the Lean programs65812
-Node: Tuning66754
-Node: The goal display's controls67556
-Node: Older Lean versions69411
-Node: Semantic highlighting70393
-Node: Optional packages71905
-Node: Troubleshooting72398
-Node: Where the documentation is74423
-Node: "Timed out after 30 seconds" opening a file outside a project75550
-Node: "Imports are out of date and must be rebuilt"76738
-Node: Common Pitfalls78261
-Node: Acknowledgements78862
+Node: Errors and warnings25753
+Node: Building dependencies29848
+Node: Starting a project31118
+Node: Building32910
+Node: Mathlib's build cache34102
+Node: Choosing which Lean to use35714
+Node: Elan itself38148
+Node: Git and curl39364
+Node: Searching Mathlib with Loogle41111
+Node: Following a name through a project43381
+Node: The module hierarchy46168
+Node: It needs a built project48216
+Node: Other Lake operations48866
+Node: Moving by declaration50302
+Node: Folding a file up52824
+Node: Applying what Lean suggests55199
+Node: Being told a suggestion is there57084
+Node: What Lean filled in for you59538
+Node: Completion61943
+Node: Finding a symbol you cannot name63112
+Node: Configuration64363
+Node: Frequently used options64843
+Node: Finding the Lean programs66863
+Node: Tuning67805
+Node: The goal display's controls68607
+Node: Older Lean versions70881
+Node: Semantic highlighting71863
+Node: Optional packages73375
+Node: Troubleshooting73868
+Node: Where the documentation is75953
+Node: "Timed out after 30 seconds" opening a file outside a project77080
+Node: "Imports are out of date and must be rebuilt"78268
+Node: Common Pitfalls79791
+Node: Acknowledgements80392
 
 End Tag Table
 

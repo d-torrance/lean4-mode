@@ -395,5 +395,21 @@ Files\"."
                     (user-error "No Lean file in %s is open" root))))
     (apply #'lean4-lake--run "exe" "cache" "get" files)))
 
+(defun lean4-lake-fetch-some-file-caches (files)
+  "Fetch Mathlib\\='s build cache for FILES and what they import.
+Interactively, offers the open Lean files of the package and takes as
+many as are wanted, comma-separated.  The counterpart of VS Code\\='s
+\"Fetch Mathlib Build Cache For Open Files\", which asks which of them
+too; `lean4-lake-fetch-open-file-caches' is its \"For All Open Files\",
+which does not ask."
+  (interactive
+   (let* ((root (lean4-lake-find-dir-safe))
+          (open (or (lean4-lake--open-files root)
+                    (user-error "No Lean file in %s is open" root))))
+     (list (or (completing-read-multiple
+                "Fetch the cache for (comma-separated): " open nil t)
+               (user-error "No file chosen")))))
+  (apply #'lean4-lake--run "exe" "cache" "get" files))
+
 (provide 'lean4-lake)
 ;;; lean4-lake.el ends here

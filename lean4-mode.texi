@@ -585,7 +585,19 @@ and an option.
 
 Every default is VS Code's, so out of the box the whole goal is shown.
 The commands change a setting for the session; customizing it makes the
-change stick.
+change stick, and so does @samp{M-x lean4-info-save-settings}, which writes
+whatever the eight have arrived at to your @samp{custom-file} -- VS Code's
+"Save Current Settings to Default Settings", and @samp{Keep these for future
+sessions} at the foot of the same menu.
+
+A ninth setting sits under them there, being about the messages rather
+than the goal: @code{lean4-info-all-errors-on-line}, default @samp{t}, lists every
+message on the line point is on.  Set it to @samp{nil}, or press @samp{Messages
+after point only}, to be shown only those beginning at or after point --
+"to the right of the text cursor", as VS Code words its
+@samp{allErrorsOnLine}, which this is.  A message spanning the line from
+further up covers it from the left rather than standing to the right of
+anything on it, and goes with the rest.
 
 @itemize
 @item
@@ -805,10 +817,15 @@ compilation buffer.
 @item 
 @tab Every open Lean file in the package
 @tab @code{lean4-lake-fetch-open-file-caches}
+@item 
+@tab Whichever of those you choose
+@tab @code{lean4-lake-fetch-some-file-caches}
 @end multitable
 
-The last is in the Lean menu, under @samp{Project}, along with the other two
-and @samp{lake build}.  Fetching for one file is much quicker than for the
+The last two are in the Lean menu, under @samp{Project}, along with the other
+two and @samp{lake build}; the fourth offers the open files and takes as many
+as are wanted, comma-separated, which is VS Code's "For Open Files" to
+the third's "For All Open Files".  Fetching for one file is much quicker than for the
 whole of Mathlib and is usually what is wanted; fetching for the package
 is the thing to run once, after cloning.
 
@@ -1560,16 +1577,22 @@ graphical frame and a terminal gets the right thing in each.  A
 graphical frame usually gets @samp{📌 📍 ⏸ ⏵}, a terminal @samp{⌖ ⌾ ⏸ ⏵}, and a
 display with nothing but ASCII gets @samp{P [P] || >}.
 
-Every one of the seven is an option, so any of them can be set to a
+Every one of the eight is an option, so any of them can be set to a
 string of your own instead: @code{lean4-info-pin-icon},
 @code{lean4-info-unpin-icon}, @code{lean4-info-pause-icon} and
 @code{lean4-info-resume-icon} for those four, and @code{lean4-info-goto-icon}
-(@samp{↪}), @code{lean4-info-refresh-icon} (@samp{⟳}) and @code{lean4-info-sort-icon} (@samp{⇅})
-for the way to a position, the refresh of a paused section and the order
-of the message list.  The last three do not swap glyph: going somewhere
-and refreshing have no second state, and neither message order is the
-one to warn about, so the face says which is in force and the tooltip
-says what a click would change it to.
+(@samp{↪}), @code{lean4-info-refresh-icon} (@samp{⟳}), @code{lean4-info-sort-icon} (@samp{⇅}) and
+@code{lean4-info-restart-file-icon} (@samp{⭯}) for the way to a position, the
+refresh of a paused section, the order of the message list and the
+rebuilding of stale imports.  Those four do not swap glyph: going
+somewhere, refreshing and rebuilding have no second state, and neither
+message order is the one to warn about, so the face says which is in
+force and the tooltip says what a click would change it to.
+
+The last of them appears only when there is something for it to do:
+@samp{⭯} sits in the position heading while Lean says the file's imports are
+out of date, and rebuilds them, which is @samp{C-c C-d} and the button VS Code
+puts in its InfoView for the same reason.  See @ref{"Imports are out of date and must be rebuilt"}.
 
 @node Older Lean versions
 @section Older Lean versions
@@ -1674,7 +1697,8 @@ visiting no file at all is written to a temporary one instead.
 
 @samp{C-c C-r} (@code{eglot-reconnect}) restarts the server, which is VS Code's
 "Server: Restart Server".  To stop one without starting another --
-VS Code's "Server: Stop Server" -- @samp{M-x eglot-shutdown}; and a Lean
+VS Code's "Server: Stop Server" -- @samp{M-x eglot-shutdown}, which is @samp{Stop
+the Lean server} in the @samp{Lean} menu; and a Lean
 buffer visited afterwards starts a new one, unless
 @code{lean4-auto-start-server} is off.  Neither is to be confused with
 @samp{C-c C-d}, which restarts the @emph{file}: see @ref{"Imports are out of date and must be rebuilt"}.

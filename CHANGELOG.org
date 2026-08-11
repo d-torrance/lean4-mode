@@ -132,6 +132,19 @@ xref, project roots through =project.el=.
   the alternatives when the guess is wrong.  ~lean4-indent-offset~ sets
   the width of a level, and ~lean4-indent-function~ restores the
   previous cycle-only behaviour.
+- Six smaller pieces of what VS Code has.  ~lean4-info-all-errors-on-line~
+  lists every message on point's line, or only those after point, as its
+  =allErrorsOnLine= does.  =M-x lean4-info-save-settings= writes the eight
+  goal-display settings to your =custom-file=, its "Save Current Settings
+  to Default Settings".  ~lean4-lake-fetch-some-file-caches~ fetches the
+  cache for whichever open files you choose, its "For Open Files" to the
+  existing command's "For All Open Files".  A =⭯= appears in the goal
+  display's position heading while Lean says the imports are out of date,
+  and rebuilds them, which is the "Restart File" button in its InfoView.
+  =Stop the Lean server= is in the =Lean= menu.  And a Lean buffer gets
+  ~require-final-newline~ from ~mode-require-final-newline~, matching its
+  =insertFinalNewline= without overruling a reader who has turned that
+  off.
 - Folding by structure, so that =M-x outline-minor-mode= folds a Lean
   file the way VS Code's carets in the gutter do: a namespace holding
   sections holding declarations, each folding to its first line.  The
@@ -305,7 +318,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 429 unit tests, and 48 end-to-end tests that run against
+- A test suite: 439 unit tests, and 48 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual says where VS Code's navigation commands went, none of which
   this package implements and all of which therefore appeared in no table
