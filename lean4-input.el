@@ -141,6 +141,27 @@ order for the change to take effect."
   :type '(repeat (cons (string :tag "Quail package")
                        (sexp :tag "Tweaking function"))))
 
+(defcustom lean4-input-leader "\\"
+  "What an abbreviation begins with, so that `\\\\alpha' gives α.
+VS Code\\='s `Input: Leader\\=', and for the same reason: on a keyboard
+where the backslash wants a chord, a character that does not is worth
+having in something typed as often as this.
+
+Quail has no notion of a leader -- it knows key sequences, and this is
+merely the first character of every one of them -- so a whole rule table
+is rebuilt when this changes.
+
+Two things to want of a replacement.  It should be a character your
+keyboard gives you easily, that being the point.  And Lean should never
+begin a token with it: `#\\=' would be a poor choice, since the table
+holds single-letter abbreviations, so typing `#eval\\=' would find `#e\\='
+complete and hand you ε.  The backslash is the default because Lean code
+starts nothing with one."
+  :group 'lean4-input
+  :set 'lean4-input-incorporate-changed-setting
+  :initialize 'custom-initialize-default
+  :type 'string)
+
 (defcustom lean4-input-data-directory
   (expand-file-name "data/" (file-name-directory (or load-file-name (buffer-file-name))))
   "Directory in which abbreviations.json resides."
@@ -193,7 +214,8 @@ worth doing once.  `lean4-input-setup' clears it.")
 
 (defun lean4-input--completion-candidates ()
   "Return the abbreviation table as an alist of (KEY . TRANSLATIONS).
-KEY includes its leading backslash.  TRANSLATIONS is a list of strings."
+KEY includes the leader it begins with, whatever `lean4-input-leader'
+says that is.  TRANSLATIONS is a list of strings."
   (or lean4-input--completion-cache
       (setq lean4-input--completion-cache
             (mapcar
@@ -234,11 +256,21 @@ Meant for `completion-at-point-functions'.  Completes text like
 stands for."
   (when-let* ((end (point))
               (start (save-excursion
-                       ;; An abbreviation is a backslash and the
-                       ;; non-whitespace after it, on one line.
-                       (skip-chars-backward "^ \t\n\\\\")
-                       (when (eq (char-before) ?\\)
-                         (1- (point))))))
+                       ;; An abbreviation is the leader and the
+                       ;; non-whitespace after it, on one line.  Searched
+                       ;; for rather than skipped back to, so that a leader
+                       ;; of the reader's choosing works as the backslash
+                       ;; does -- `skip-chars-backward' wants a set of
+                       ;; characters, and would have to escape whatever
+                       ;; arrived in one.
+                       (and (search-backward lean4-input-leader
+                                             (line-beginning-position) t)
+                            (let ((candidate (point)))
+                              (and (not (string-match-p
+                                         "[ \t]"
+                                         (buffer-substring-no-properties
+                                          candidate end)))
+                                   candidate))))))
     (list start end
           (completion-table-dynamic
            (lambda (_) (mapcar #'car (lean4-input--completion-candidates))))
@@ -265,7 +297,7 @@ translations are appended to the current translations."
   (with-temp-buffer
     (map-do (lambda (key tr)
               (when key
-                (quail-defrule (concat "\\" key)
+                (quail-defrule (concat lean4-input-leader key)
                                tr
                                "Lean" t)))
             trans)))

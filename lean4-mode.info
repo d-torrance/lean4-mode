@@ -1347,6 +1347,25 @@ whatever else you have configured.
    Typing an abbreviation in full still works without completion: the
 Lean input method replaces it as soon as it is unambiguous.
 
+   An abbreviation begins with a backslash, and ‘lean4-input-leader’
+says so: set it to something else and ‘,alpha’ gives α, all 1831
+abbreviations following.  VS Code's ‘Input: Leader’, and worth having
+for the same reason - on a keyboard where the backslash wants a chord,
+this is a chord in the middle of every second identifier.
+
+   Quail, which is what the input method is built on, has no notion of a
+leader: it knows key sequences, and the leader is merely the first
+character of every one of them.  So changing this rebuilds the table,
+which the option does for you, and the old leader stops working rather
+than both working.
+
+   Two things to want of a replacement.  It should be a character your
+keyboard gives you easily, that being the point.  And Lean should never
+begin a token with it - ‘#’ would be a poor choice, since the table
+holds single-letter abbreviations, so typing ‘#eval’ would find ‘#e’
+complete and hand you ε.  The backslash is the default because Lean code
+starts nothing with one.
+
 
 File: lean4-mode.info,  Node: Finding a symbol you cannot name,  Prev: Completion,  Up: Usage
 
@@ -1824,23 +1843,23 @@ Node: Applying what Lean suggests56720
 Node: Being told a suggestion is there58605
 Node: What Lean filled in for you61059
 Node: Completion63464
-Node: Finding a symbol you cannot name64633
-Node: Configuration65884
-Node: Frequently used options66364
-Node: Finding the Lean programs68384
-Node: Tuning69326
-Node: The goal display's controls70128
-Node: Older Lean versions72402
-Node: Semantic highlighting73384
-Node: Optional packages74896
-Node: Troubleshooting75389
-Node: What is checked before Lean starts75754
-Node: Reporting on the setup78093
-Node: Where the documentation is80090
-Node: "Timed out after 30 seconds" opening a file outside a project81248
-Node: "Imports are out of date and must be rebuilt"82436
-Node: Common Pitfalls83959
-Node: Acknowledgements84560
+Node: Finding a symbol you cannot name65673
+Node: Configuration66924
+Node: Frequently used options67404
+Node: Finding the Lean programs69424
+Node: Tuning70366
+Node: The goal display's controls71168
+Node: Older Lean versions73442
+Node: Semantic highlighting74424
+Node: Optional packages75936
+Node: Troubleshooting76429
+Node: What is checked before Lean starts76794
+Node: Reporting on the setup79133
+Node: Where the documentation is81130
+Node: "Timed out after 30 seconds" opening a file outside a project82288
+Node: "Imports are out of date and must be rebuilt"83476
+Node: Common Pitfalls84999
+Node: Acknowledgements85600
 
 End Tag Table
 

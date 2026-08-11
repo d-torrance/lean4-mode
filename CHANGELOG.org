@@ -132,6 +132,13 @@ xref, project roots through =project.el=.
   the alternatives when the guess is wrong.  ~lean4-indent-offset~ sets
   the width of a level, and ~lean4-indent-function~ restores the
   previous cycle-only behaviour.
+- ~lean4-input-leader~, which is what an abbreviation begins with: VS
+  Code's =Input: Leader=.  Quail has no notion of one -- it knows key
+  sequences, and the leader is the first character of every one -- so
+  changing this rebuilds the table, and the backslash stops working rather
+  than both working.  Worth choosing a character Lean never begins a token
+  with: =#= would find =#e= complete and hand you ε in the middle of
+  =#eval=.
 - Searching a trace, through Lean's own `highlightMatches': =C-c C-f= in
   the goal display asks for something in the traces of the message point
   is in, and Lean answers with that message again -- the matches faced,
@@ -338,7 +345,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 463 unit tests, and 49 end-to-end tests that run against
+- A test suite: 468 unit tests, and 49 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual says where VS Code's navigation commands went, none of which
   this package implements and all of which therefore appeared in no table

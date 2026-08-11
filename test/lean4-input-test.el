@@ -213,5 +213,51 @@ typed to find a symbol."
     (should (member "\\a" (cdr (assoc "α" symbols))))
     (should (member "\\sum" (cdr (assoc "∑" symbols))))))
 
+;;;; The leader
+
+(defmacro lean4-input-test--with-leader (leader &rest body)
+  "Evaluate BODY with LEADER opening every abbreviation.
+The rule table is rebuilt for it and rebuilt again afterwards, the input
+method being one Quail package shared by every buffer in the session."
+  (declare (indent 1) (debug (form body)))
+  `(unwind-protect
+       (let ((lean4-input-leader ,leader))
+         (lean4-input-setup)
+         ,@body)
+     (lean4-input-setup)))
+
+(ert-deftest lean4-input-leader-opens-the-abbreviations ()
+  "With another leader, that is what an abbreviation begins with."
+  (lean4-input-test--with-leader "#"
+    (should (member "α" (lean4-input-test--strings
+                         (cdr (assoc "#alpha"
+                                     (lean4-input-get-translations "Lean"))))))))
+
+(ert-deftest lean4-input-leader-replaces-the-backslash ()
+  "And the backslash is no longer one, the table being rebuilt rather than
+added to.  Otherwise both would work, which is not what was asked for."
+  (lean4-input-test--with-leader "#"
+    (should-not (assoc "\\alpha" (lean4-input-get-translations "Lean")))))
+
+(ert-deftest lean4-input-leader-is-restored ()
+  "The macro above leaves the session as it found it."
+  (should (member "α" (lean4-input-test--strings-for "alpha"))))
+
+(ert-deftest lean4-input-capf-follows-the-leader ()
+  "Completion claims what the leader opened, not what a backslash did."
+  (lean4-input-test--with-leader "#"
+    (with-temp-buffer
+      (insert "def f := #alph")
+      (pcase-let ((`(,start ,end ,table . ,_)
+                   (lean4-input-completion-at-point)))
+        (should (equal (buffer-substring-no-properties start end) "#alph"))
+        (should (member "#alpha" (all-completions "#alph" table)))))
+    (should-not (lean4-input-test--capf-in "def f := \\alph"))))
+
+(ert-deftest lean4-input-capf-stops-at-whitespace ()
+  "An abbreviation is the leader and the non-whitespace after it, so a
+leader further back on the line is not one for the word at point."
+  (should-not (lean4-input-test--capf-in "\\alpha and then foo")))
+
 (provide 'lean4-input-test)
 ;;; lean4-input-test.el ends here
