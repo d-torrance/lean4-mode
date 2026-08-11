@@ -93,6 +93,23 @@ release channel currently resolves to."
          (cons (format "ELAN_TOOLCHAIN=%s" toolchain) process-environment)))
     (apply #'lean4-toolchain--elan arguments)))
 
+(defun lean4-toolchain--elan-or-lose (failed &rest arguments)
+  "Run elan with ARGUMENTS and return its output, or signal.
+
+FAILED heads the `user-error' raised where elan reports failure, and
+elan\\='s own output follows it: elan has already said what went wrong,
+and saying it again in our words would say less.  FAILED is taken as
+text, not as a format string, so a version name holding a `%' cannot
+derail the report.
+
+The output is returned trimmed, for the callers that echo it.  Six
+commands run elan for its effect rather than for its answer, and every
+one of them wants exactly this."
+  (pcase-let ((`(,status . ,output) (apply #'lean4-toolchain--elan arguments)))
+    (unless (eq status 0)
+      (user-error "%s: %s" failed (string-trim output)))
+    (string-trim output)))
+
 (defun lean4-toolchain--elan-major-version ()
   "Return elan\\='s major version, or nil if elan could not be run."
   (pcase-let ((`(,status . ,output) (lean4-toolchain--elan "--version")))
@@ -324,12 +341,9 @@ version at any time, which elan will fetch as new ones appear."
   (unless (yes-or-no-p (format "Make %s the Lean version used outside any \
 project? " toolchain))
     (user-error "Not changing the default Lean version"))
-  (pcase-let ((`(,status . ,output)
-               (lean4-toolchain--elan "default" toolchain)))
-    (if (eq status 0)
-        (message "The default Lean version is now %s" toolchain)
-      (user-error "Could not set the default Lean version: %s"
-                  (string-trim output)))))
+  (lean4-toolchain--elan-or-lose "Could not set the default Lean version"
+                                 "default" toolchain)
+  (message "The default Lean version is now %s" toolchain))
 
 ;;;; Updating a release channel
 
@@ -383,12 +397,9 @@ ask what each channel now resolves to."
                                       string predicate))))
            (channel (completing-read "Update which release channel: "
                                      table nil t)))
-      (pcase-let ((`(,status . ,output)
-                   (lean4-toolchain--elan "toolchain" "install" channel)))
-        (if (eq status 0)
-            (message "%s is now at its newest version" channel)
-          (user-error "Could not update %s: %s" channel
-                      (string-trim output)))))))
+      (lean4-toolchain--elan-or-lose (format "Could not update %s" channel)
+                                     "toolchain" "install" channel)
+      (message "%s is now at its newest version" channel))))
 
 ;;;; Installing a Lean version
 
@@ -404,11 +415,9 @@ fetching one ahead of needing it."
           (list (lean4-toolchain--read "Install Lean version: "))))
   (lean4-toolchain--require-elan)
   (message "Installing %s..." toolchain)
-  (pcase-let ((`(,status . ,output)
-               (lean4-toolchain--elan "toolchain" "install" toolchain)))
-    (if (eq status 0)
-        (message "Installed %s" toolchain)
-      (user-error "Could not install %s: %s" toolchain (string-trim output)))))
+  (lean4-toolchain--elan-or-lose (format "Could not install %s" toolchain)
+                                 "toolchain" "install" toolchain)
+  (message "Installed %s" toolchain))
 
 ;;;; Elan itself
 
@@ -474,10 +483,9 @@ This updates the tool that manages Lean versions, not any Lean version;
   (unless (yes-or-no-p "Update elan itself? ")
     (user-error "Not updating elan"))
   (message "Updating elan...")
-  (pcase-let ((`(,status . ,output) (lean4-toolchain--elan "self" "update")))
-    (if (eq status 0)
-        (message "%s" (string-trim output))
-      (user-error "Could not update elan: %s" (string-trim output)))))
+  ;; Elan's own report of what it did, which is more use than a fixed line.
+  (message "%s" (lean4-toolchain--elan-or-lose "Could not update elan"
+                                               "self" "update")))
 
 ;;;###autoload
 (defun lean4-uninstall-elan ()
@@ -496,11 +504,9 @@ again and fetching every version afresh."
       (user-error "Not removing elan"))
     (unless (yes-or-no-p "This cannot be undone.  Really remove elan? ")
       (user-error "Not removing elan")))
-  (pcase-let ((`(,status . ,output)
-               (lean4-toolchain--elan "self" "uninstall" "-y")))
-    (if (eq status 0)
-        (message "Elan removed")
-      (user-error "Could not remove elan: %s" (string-trim output)))))
+  (lean4-toolchain--elan-or-lose "Could not remove elan"
+                                 "self" "uninstall" "-y")
+  (message "Elan removed"))
 
 ;;;; What Lean's setup needs
 
@@ -693,12 +699,9 @@ fetch it again the next time that project is opened."
     (user-error "No Lean version chosen"))
   (unless (yes-or-no-p (format "Remove %s? " (string-join toolchains ", ")))
     (user-error "Not removing anything"))
-  (pcase-let ((`(,status . ,output)
-               (apply #'lean4-toolchain--elan
-                      "toolchain" "uninstall" toolchains)))
-    (if (eq status 0)
-        (message "Removed %s" (string-join toolchains ", "))
-      (user-error "Could not remove: %s" (string-trim output)))))
+  (apply #'lean4-toolchain--elan-or-lose "Could not remove"
+         "toolchain" "uninstall" toolchains)
+  (message "Removed %s" (string-join toolchains ", ")))
 
 (provide 'lean4-toolchain)
 ;;; lean4-toolchain.el ends here
