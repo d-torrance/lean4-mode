@@ -261,25 +261,37 @@ not for a project\\='s."
           (push (cons toolchain " (not installed)") annotations))))
     (cons (nreverse names) (nreverse annotations))))
 
+(defun lean4-toolchain--completion-table (names annotations)
+  "Return a completion table over NAMES, annotated from ANNOTATIONS.
+
+ANNOTATIONS is an alist of name to the text shown beside it, its own
+leading spacing included.  NAMES is offered in the order given -- newest
+first, as VS Code lists them, rather than alphabetically -- which is why
+the metadata declines to sort, for cycling as well as for display.
+
+Three commands read a Lean version this way and differed only in what
+they annotate it with."
+  (lambda (string predicate action)
+    (if (eq action 'metadata)
+        `(metadata
+          (annotation-function
+           . ,(lambda (name) (cdr (assoc name annotations))))
+          (display-sort-function . identity)
+          (cycle-sort-function . identity))
+      (complete-with-action action names string predicate))))
+
 (defun lean4-toolchain--read (prompt &optional include-stable)
   "Read a Lean version with PROMPT, offering INCLUDE-STABLE as well.
 The order is the one VS Code shows rather than alphabetical, so the
 metadata says not to sort."
-  (pcase-let* ((`(,names . ,annotations)
-                (lean4-toolchain--candidates include-stable))
-               (table
-                (lambda (string predicate action)
-                  (if (eq action 'metadata)
-                      `(metadata
-                        (annotation-function
-                         . ,(lambda (name) (cdr (assoc name annotations))))
-                        (display-sort-function . identity)
-                        (cycle-sort-function . identity))
-                    (complete-with-action action names string predicate)))))
+  (pcase-let ((`(,names . ,annotations)
+               (lean4-toolchain--candidates include-stable)))
     (unless names
       (user-error "Elan has no Lean versions installed, and none could be \
 fetched"))
-    (completing-read prompt table nil t)))
+    (completing-read prompt
+                     (lean4-toolchain--completion-table names annotations)
+                     nil t)))
 
 ;;;; Choosing
 
@@ -384,19 +396,16 @@ ask what each channel now resolves to."
   (let ((outdated (lean4-toolchain--outdated-channels)))
     (unless outdated
       (user-error "Every release channel is already at its newest version"))
-    (let* ((annotations outdated)
-           (table
-            (lambda (string predicate action)
-              (if (eq action 'metadata)
-                  `(metadata
-                    (annotation-function
-                     . ,(lambda (name)
-                          (concat "  " (cdr (assoc name annotations)))))
-                    (display-sort-function . identity))
-                (complete-with-action action (mapcar #'car outdated)
-                                      string predicate))))
-           (channel (completing-read "Update which release channel: "
-                                     table nil t)))
+    (let* ((annotations
+            ;; The change is data; the gap before it is presentation.
+            (mapcar (lambda (entry)
+                      (cons (car entry) (concat "  " (cdr entry))))
+                    outdated))
+           (channel (completing-read
+                     "Update which release channel: "
+                     (lean4-toolchain--completion-table
+                      (mapcar #'car outdated) annotations)
+                     nil t)))
       (lean4-toolchain--elan-or-lose (format "Could not update %s" channel)
                                      "toolchain" "install" channel)
       (message "%s is now at its newest version" channel))))
@@ -681,19 +690,13 @@ fetch it again the next time that project is opened."
                                        (string-join
                                         (cdr (assoc toolchain used)) ", ")))
                               (t ""))))
-                     installed))
-            (table
-             (lambda (string predicate action)
-               (if (eq action 'metadata)
-                   `(metadata
-                     (annotation-function
-                      . ,(lambda (name) (cdr (assoc name annotations))))
-                     (display-sort-function . identity))
-                 (complete-with-action action installed string predicate)))))
+                     installed)))
        (unless installed
          (user-error "Elan has no Lean versions installed"))
        (list (completing-read-multiple
-              "Remove Lean versions (comma-separated): " table nil t)))))
+              "Remove Lean versions (comma-separated): "
+              (lean4-toolchain--completion-table installed annotations)
+              nil t)))))
   (lean4-toolchain--require-elan)
   (unless toolchains
     (user-error "No Lean version chosen"))
