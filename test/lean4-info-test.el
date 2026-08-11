@@ -223,7 +223,7 @@ An empty buffer reads like one that has stopped working."
 
 (ert-deftest lean4-info-message-badge-counts-by-severity ()
   "The heading says what kinds of message a file has, as VS Code does."
-  (cl-letf (((symbol-function 'lean4-info--displayable-p) (lambda (&rest _) t)))
+  (cl-letf (((symbol-function 'lean4--displayable-p) (lambda (&rest _) t)))
     (should (equal (lean4-info--severity-badge
                     '((:severity 1) (:severity 3) (:severity 3)
                       (:severity 3) (:severity 3) (:severity 3)))
@@ -240,7 +240,7 @@ An empty buffer reads like one that has stopped working."
 
 (ert-deftest lean4-info-message-badge-falls-back-to-letters ()
   "A frame with no glyphs gets letters, not a row of boxes."
-  (cl-letf (((symbol-function 'lean4-info--displayable-p) #'ignore))
+  (cl-letf (((symbol-function 'lean4--displayable-p) #'ignore))
     (should (equal (lean4-info--severity-badge
                     '((:severity 1) (:severity 3)))
                    "1 E  1 I"))))
@@ -249,7 +249,7 @@ An empty buffer reads like one that has stopped working."
   "The caption names the section and counts what is in it.
 Both message sections are captioned the same way -- the one for the
 position and the one for the file."
-  (cl-letf (((symbol-function 'lean4-info--displayable-p) (lambda (&rest _) t)))
+  (cl-letf (((symbol-function 'lean4--displayable-p) (lambda (&rest _) t)))
     (should (equal (lean4-info--messages-caption "All messages"
                                                  '((:severity 1)))
                    "All messages (1 ⊗)"))
@@ -1183,11 +1183,11 @@ Without this the only sign of the state was the control's face, which is
 not much to read a mode off."
   (should-not (equal (lean4-info-pin-glyph) (lean4-info-unpin-glyph)))
   ;; Including when the frame can display none of the candidates.
-  (cl-letf (((symbol-function 'lean4-info--displayable-p) #'ignore))
+  (cl-letf (((symbol-function 'lean4--displayable-p) #'ignore))
     (should-not (equal (lean4-info-pin-glyph) (lean4-info-unpin-glyph))))
   ;; And when it can display all of them, so the pair is the emoji pair
   ;; rather than two tiers of the fallback chain.
-  (cl-letf (((symbol-function 'lean4-info--displayable-p)
+  (cl-letf (((symbol-function 'lean4--displayable-p)
              (lambda (&rest _) t)))
     (should (equal (lean4-info-pin-glyph) "📌"))
     (should (equal (lean4-info-unpin-glyph) "📍")))
@@ -1241,7 +1241,7 @@ glyphs out from under the reader's pointer."
     (rename-buffer "Order.lean" 'unique)
     ;; Force the emoji: the terminal fallbacks are several characters
     ;; wide, and the point of the exercise is the ones that are not.
-    (cl-letf (((symbol-function 'lean4-info--displayable-p) (lambda (&rest _) t)))
+    (cl-letf (((symbol-function 'lean4--displayable-p) (lambda (&rest _) t)))
       (let* ((lean4-info-paused nil)
              (pin (lean4-info--pin-create :marker (copy-marker (point-min))))
              (pinned (lean4-info--heading "x" (lean4-info--pin-controls pin)
@@ -1268,7 +1268,7 @@ edge inwards.  The go-to control on its left does move along, as VS
 Code's does: an absent control is not left holding a column open."
   (with-temp-buffer
     (rename-buffer "Paused.lean" 'unique)
-    (cl-letf (((symbol-function 'lean4-info--displayable-p) (lambda (&rest _) t)))
+    (cl-letf (((symbol-function 'lean4--displayable-p) (lambda (&rest _) t)))
       (let* ((pin (lean4-info--pin-create :marker (copy-marker (point-min))))
              (running (let ((lean4-info-paused nil))
                         (lean4-info--heading "x" (lean4-info--controls))))

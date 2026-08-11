@@ -49,6 +49,7 @@
 
 (require 'lean4-eglot)
 (require 'lean4-settings)
+(require 'lean4-util)
 
 ;;;; Tags
 
@@ -224,10 +225,15 @@ there."
 
 (defun lean4-diagnostics--unsolved-goals-marker ()
   "Return the marker to draw for goals left unproved.
-VS Code uses a tool; a frame that cannot show one gets something it can."
-  (if (char-displayable-p ?\N{HAMMER AND WRENCH})
-      " \N{HAMMER AND WRENCH}"
-    " (goals)"))
+
+VS Code uses a tool, and U+1F6E0 is that tool -- but it is missing from
+emoji fonts that carry the rest of the block, Noto Color Emoji among
+them, so the frame is asked before it is used.  U+2692 is the same idea
+in a font a great many more machines have, and a frame that can draw
+neither gets a word."
+  (concat " " (lean4--glyph nil
+                            '("\N{HAMMER AND WRENCH}" "\N{HAMMER AND PICK}")
+                            "(goals)")))
 
 (defvar-local lean4-diagnostics--accomplished-overlays nil
   "Overlays marking what Lean has tagged: finished proofs and unproved goals.

@@ -1009,7 +1009,7 @@ section.  Severities nobody has are left out rather than shown as zero."
                     diagnostics)))
         (when (> count 0)
           (push (concat (number-to-string count) " "
-                        (propertize (lean4-info--glyph nil candidates fallback)
+                        (propertize (lean4--glyph nil candidates fallback)
                                     'face face))
                 parts))))
     (when parts (string-join (nreverse parts) "  "))))
@@ -1058,7 +1058,7 @@ Nil means pick whichever candidate the frame can display."
   ;; action and neither is a state the reader has to be warned about, so
   ;; the face carries which is in force and the tooltip says what a click
   ;; would change it to.
-  (lean4-info--glyph lean4-info-sort-icon '("⇅" "↕") "S"))
+  (lean4--glyph lean4-info-sort-icon '("⇅" "↕") "S"))
 
 ;;;###autoload
 (defun lean4-info-toggle-message-order ()
@@ -1677,25 +1677,8 @@ many pins there are."
 VS Code emboldens it, as it does the headings."
   :group 'lean4-info)
 
-;; Unicode with a fallback, the way `magit-section' picks its own
-;; indicators.  Emacs runs in terminals and on machines with no emoji font,
-;; so a glyph that is merely likely to work is not good enough on its own.
-;;
-;; Chosen per frame rather than once at load: `char-displayable-p' answers
-;; for the frame it is asked in, and one Emacs can serve a graphical frame
-;; and a terminal at the same time.  Deciding at load time would give
-;; whichever frame happened to come first.
-
-(defun lean4-info--displayable-p (string)
-  "Return non-nil if every character of STRING can be displayed here."
-  (seq-every-p #'char-displayable-p string))
-
-(defun lean4-info--glyph (configured candidates fallback)
-  "Return CONFIGURED, or the first of CANDIDATES this frame can show.
-FALLBACK is used when it can show none of them."
-  (or configured
-      (seq-find #'lean4-info--displayable-p candidates)
-      fallback))
+;; The controls are drawn with `lean4--glyph', which picks whichever
+;; candidate the frame can actually draw; see there.
 
 (defcustom lean4-info-pin-icon nil
   "Control shown in the goal display while it is following point.
@@ -1734,7 +1717,7 @@ is.  Nil means pick whichever candidate the frame can display."
   ;; renders as a box.  U+2316, POSITION INDICATOR, is the terminal-safe
   ;; one -- it is in the same block as the media controls, which terminal
   ;; fonts that have any of this tend to cover.
-  (lean4-info--glyph lean4-info-pin-icon '("📌" "🖈" "⌖") "P"))
+  (lean4--glyph lean4-info-pin-icon '("📌" "🖈" "⌖") "P"))
 
 (defun lean4-info-unpin-glyph ()
   "Return the unpin control for this frame.
@@ -1752,7 +1735,7 @@ first one also decides this."
     (or lean4-info-unpin-icon
         (seq-find (lambda (candidate)
                     (and (not (equal candidate pin))
-                         (lean4-info--displayable-p candidate)))
+                         (lean4--displayable-p candidate)))
                   '("📍" "🖈" "⌾"))
         "[P]")))
 
@@ -1770,7 +1753,7 @@ Nil means pick whichever candidate the frame can display."
 
 (defun lean4-info-refresh-glyph ()
   "Return the refresh control for this frame."
-  (lean4-info--glyph lean4-info-refresh-icon '("⟳" "↻" "⭮") "R"))
+  (lean4--glyph lean4-info-refresh-icon '("⟳" "↻" "⭮") "R"))
 
 (defun lean4-info-goto-glyph ()
   "Return the go-to-position control for this frame."
@@ -1778,15 +1761,15 @@ Nil means pick whichever candidate the frame can display."
   ;; has no such glyph, and a bare page says nothing about going there,
   ;; so take the arrow half: U+21AA is the one that reads as jumping
   ;; somewhere rather than as scrolling or as a return.
-  (lean4-info--glyph lean4-info-goto-icon '("↪" "⤴" "→") "->"))
+  (lean4--glyph lean4-info-goto-icon '("↪" "⤴" "→") "->"))
 
 (defun lean4-info-pause-glyph ()
   "Return the pause control for this frame."
-  (lean4-info--glyph lean4-info-pause-icon '("⏸" "‖") "||"))
+  (lean4--glyph lean4-info-pause-icon '("⏸" "‖") "||"))
 
 (defun lean4-info-resume-glyph ()
   "Return the resume control for this frame."
-  (lean4-info--glyph lean4-info-resume-icon '("⏵" "▶" "▸") ">"))
+  (lean4--glyph lean4-info-resume-icon '("⏵" "▶" "▸") ">"))
 
 (defun lean4-info--run-control (command)
   "Run COMMAND as though it had been invoked from the Lean buffer.

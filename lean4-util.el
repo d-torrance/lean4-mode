@@ -23,6 +23,7 @@
 ;;; Code:
 
 (require 'magit-section)
+(require 'seq)
 
 (require 'lean4-settings)
 
@@ -108,6 +109,46 @@ usually on the body rather than on the heading."
                        (and (consp value) (eq (car value) tag)))))
       (setq section (oref section parent)))
     section))
+
+;;;; Glyphs
+
+;; Unicode with a fallback, the way `magit-section' picks its own
+;; visibility indicators.  Emacs runs in terminals and on machines with no
+;; emoji font, so a glyph that is merely likely to work is not good enough
+;; on its own.
+;;
+;; Asked per frame rather than once at load: one Emacs can serve a
+;; graphical frame and a terminal at the same time, and the answer is not
+;; the same in both.  Deciding at load time would give whichever frame
+;; happened to come first.
+
+(defun lean4--char-displayable-p (character)
+  "Return non-nil if CHARACTER has a glyph to draw it with here.
+
+`char-displayable-p' is not that question.  On a graphical frame it asks
+whether the frame\\='s fontset claims CHARACTER, which it answers by
+block rather than by character: it says yes to U+1F6E0 on a machine
+whose emoji font stops short of that one, and what the reader gets is a
+box with 1F6E0 printed inside it.  Ask instead for the font that would
+actually draw the character, which is what `describe-char' reports.
+
+A terminal has no font to ask about, and there `char-displayable-p' --
+whether the terminal\\='s coding system can encode the character -- is
+the whole of the question."
+  (and (char-displayable-p character)
+       (or (not (display-graphic-p))
+           (and (internal-char-font nil character) t))))
+
+(defun lean4--displayable-p (string)
+  "Return non-nil if every character of STRING can be drawn here."
+  (seq-every-p #'lean4--char-displayable-p string))
+
+(defun lean4--glyph (configured candidates fallback)
+  "Return CONFIGURED, or the first of CANDIDATES this frame can draw.
+FALLBACK is used when it can draw none of them."
+  (or configured
+      (seq-find #'lean4--displayable-p candidates)
+      fallback))
 
 ;;;; Programs
 
