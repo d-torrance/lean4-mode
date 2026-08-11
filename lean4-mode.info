@@ -85,6 +85,8 @@ The module hierarchy
 Configuration
 
 * Frequently used options::
+* Finding the Lean programs::
+* Tuning::
 * The goal display's controls::
 * Older Lean versions::
 * Semantic highlighting::
@@ -736,6 +738,8 @@ fetches it; each is marked ‘(installed)’ or ‘(not installed)’.  Being
 unable to reach that list is a warning, not a failure: what is installed
 is still worth offering.  Releases are listed newest first, with a
 release above the candidates that led to it.
+‘lean4-toolchain-releases-url’ is the address asked, for a mirror or an
+air-gapped copy of it.
 
    Only ‘lean4-select-default-toolchain’ offers
 ‘leanprover/lean4:stable’, the channel meaning "whatever is newest".  A
@@ -863,7 +867,11 @@ Key     Description                                    Command
 
    This needs no Lean server and no project: Loogle is a web service,
 and it answers about Mathlib rather than about the code in hand.
-‘lean4-loogle-url’ points elsewhere, for a Loogle of your own.
+‘lean4-loogle-url’ points elsewhere, for a Loogle of your own, and
+‘lean4-loogle-documentation-url’ says where ‘RET’ should look a result
+up - by default ‘leanprover-community.github.io/mathlib4_docs/’, to
+which the module's name, its dots turned into slashes, and ‘.html’ are
+appended.
 
 
 File: lean4-mode.info,  Node: The module hierarchy,  Next: Other Lake operations,  Prev: Searching Mathlib with Loogle,  Up: Usage
@@ -1019,13 +1027,15 @@ applies.
 * Menu:
 
 * Frequently used options::
+* Finding the Lean programs::
+* Tuning::
 * The goal display's controls::
 * Older Lean versions::
 * Semantic highlighting::
 * Optional packages::
 
 
-File: lean4-mode.info,  Node: Frequently used options,  Next: The goal display's controls,  Up: Configuration
+File: lean4-mode.info,  Node: Frequently used options,  Next: Finding the Lean programs,  Up: Configuration
 
 3.1 Frequently used options
 ===========================
@@ -1060,9 +1070,44 @@ File: lean4-mode.info,  Node: Frequently used options,  Next: The goal display's
      never to start a server.
 
 
-File: lean4-mode.info,  Node: The goal display's controls,  Next: Older Lean versions,  Prev: Frequently used options,  Up: Configuration
+File: lean4-mode.info,  Node: Finding the Lean programs,  Next: Tuning,  Prev: Frequently used options,  Up: Configuration
 
-3.2 The goal display's controls
+3.2 Finding the Lean programs
+=============================
+
+Normally nothing here needs setting: elan puts ‘lean’, ‘lake’ and ‘elan’
+on your ‘PATH’, and elan's shims select whichever toolchain the project
+in hand pins.
+
+   • ‘lean4-rootdir’ (default ‘nil’) - a directory holding the
+     toolchain, for a Lean that is not on ‘exec-path’ at all.  Leave it
+     nil under elan: naming a directory here reaches past the shims, and
+     so past the per-project version they exist to choose.
+   • ‘lean4-executable-name’, ‘lean4-lake-name’ and ‘lean4-elan-name’
+     (‘lean’, ‘lake’ and ‘elan’, the first two with ‘.exe’ on Windows) -
+     what each of the three programs is called, for an installation that
+     renames one or puts a wrapper in front of it.
+
+
+File: lean4-mode.info,  Node: Tuning,  Next: The goal display's controls,  Prev: Finding the Lean programs,  Up: Configuration
+
+3.3 Tuning
+==========
+
+   • ‘lean4-diagnostics-delay’ (default ‘0.05’ seconds) - how long to
+     let diagnostics gather before reacting to them.  Lean republishes
+     them repeatedly while a file elaborates and the goal display is
+     rebuilt from each batch, so this is the difference between reading
+     the display and watching it flicker.  Raise it on a slow machine.
+   • ‘lean4-info-debounce-delay’ (default ‘0.1’ seconds) - how much
+     quiet to wait for before re-rendering the goal display.  Point
+     moves in bursts and ‘magit-section’ rendering is not cheap, so
+     rapid movement is coalesced into one redraw at the end of it.
+
+
+File: lean4-mode.info,  Node: The goal display's controls,  Next: Older Lean versions,  Prev: Tuning,  Up: Configuration
+
+3.4 The goal display's controls
 ===============================
 
 Each control says what clicking it will do rather than what the state
@@ -1095,7 +1140,7 @@ says what a click would change it to.
 
 File: lean4-mode.info,  Node: Older Lean versions,  Next: Semantic highlighting,  Prev: The goal display's controls,  Up: Configuration
 
-3.3 Older Lean versions
+3.5 Older Lean versions
 =======================
 
 Some of what this package reads was added to the Lean server over time,
@@ -1117,7 +1162,7 @@ extensions the running server offers.
 
 File: lean4-mode.info,  Node: Semantic highlighting,  Next: Optional packages,  Prev: Older Lean versions,  Up: Configuration
 
-3.4 Semantic highlighting
+3.6 Semantic highlighting
 =========================
 
 What counts as a keyword in Lean is settled by the elaborator rather
@@ -1152,7 +1197,7 @@ eglot-semantic-tokens-mode’ to turn it off leaves it uncoloured.
 
 File: lean4-mode.info,  Node: Optional packages,  Prev: Semantic highlighting,  Up: Configuration
 
-3.5 Optional packages
+3.7 Optional packages
 =====================
 
 None of these are required, and none are declared as dependencies.
@@ -1322,46 +1367,48 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2422
-Node: Requirements2647
-Node: From source3727
-Node: With a source-based package manager4215
-Node: Native vc (Emacs 30 or later)4726
-Node: Doom-Emacs5171
-Node: Straight5490
-Node: Upgrading from version 15847
-Node: Usage9016
-Node: Keys in a Lean buffer10875
-Node: Keys in the goal display13253
-Node: The tactic state17788
-Node: Copying what is on display19007
-Node: How much of a goal to show20034
-Node: Errors and warnings23545
-Node: Building dependencies27640
-Node: Starting a project28910
-Node: Building30702
-Node: Mathlib's build cache31894
-Node: Choosing which Lean to use33251
-Node: Elan itself35586
-Node: Git and curl36802
-Node: Searching Mathlib with Loogle38549
-Node: The module hierarchy40565
-Node: It needs a built project42608
-Node: Other Lake operations43258
-Node: Completion44683
-Node: Finding a symbol you cannot name45846
-Node: Configuration47097
-Node: Frequently used options47536
-Node: The goal display's controls49558
-Node: Older Lean versions51430
-Node: Semantic highlighting52412
-Node: Optional packages53924
-Node: Troubleshooting54417
-Node: Where the documentation is56001
-Node: "Timed out after 30 seconds" opening a file outside a project57128
-Node: "Imports are out of date and must be rebuilt"58316
-Node: Common Pitfalls59839
-Node: Acknowledgements60440
+Node: Installation2463
+Node: Requirements2688
+Node: From source3768
+Node: With a source-based package manager4256
+Node: Native vc (Emacs 30 or later)4767
+Node: Doom-Emacs5212
+Node: Straight5531
+Node: Upgrading from version 15888
+Node: Usage9057
+Node: Keys in a Lean buffer10916
+Node: Keys in the goal display13294
+Node: The tactic state17829
+Node: Copying what is on display19048
+Node: How much of a goal to show20075
+Node: Errors and warnings23586
+Node: Building dependencies27681
+Node: Starting a project28951
+Node: Building30743
+Node: Mathlib's build cache31935
+Node: Choosing which Lean to use33292
+Node: Elan itself35726
+Node: Git and curl36942
+Node: Searching Mathlib with Loogle38689
+Node: The module hierarchy40945
+Node: It needs a built project42988
+Node: Other Lake operations43638
+Node: Completion45063
+Node: Finding a symbol you cannot name46226
+Node: Configuration47477
+Node: Frequently used options47957
+Node: Finding the Lean programs49977
+Node: Tuning50919
+Node: The goal display's controls51721
+Node: Older Lean versions53576
+Node: Semantic highlighting54558
+Node: Optional packages56070
+Node: Troubleshooting56563
+Node: Where the documentation is58147
+Node: "Timed out after 30 seconds" opening a file outside a project59274
+Node: "Imports are out of date and must be rebuilt"60462
+Node: Common Pitfalls61985
+Node: Acknowledgements62586
 
 End Tag Table
 

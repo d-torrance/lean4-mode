@@ -93,6 +93,8 @@ The module hierarchy
 Configuration
 
 * Frequently used options::
+* Finding the Lean programs::
+* Tuning::
 * The goal display's controls::
 * Older Lean versions::
 * Semantic highlighting::
@@ -814,7 +816,8 @@ releases too, so a version you have not got can be chosen and elan
 fetches it; each is marked @samp{(installed)} or @samp{(not installed)}.  Being
 unable to reach that list is a warning, not a failure: what is installed
 is still worth offering.  Releases are listed newest first, with a release
-above the candidates that led to it.
+above the candidates that led to it.  @code{lean4-toolchain-releases-url} is
+the address asked, for a mirror or an air-gapped copy of it.
 
 Only @code{lean4-select-default-toolchain} offers @samp{leanprover/lean4:stable},
 the channel meaning "whatever is newest".  A project pins a version
@@ -957,7 +960,11 @@ a spelling suggestion it is a button that searches for it instead.
 
 This needs no Lean server and no project: Loogle is a web service, and it
 answers about Mathlib rather than about the code in hand.
-@code{lean4-loogle-url} points elsewhere, for a Loogle of your own.
+@code{lean4-loogle-url} points elsewhere, for a Loogle of your own, and
+@code{lean4-loogle-documentation-url} says where @samp{RET} should look a result up
+-- by default @samp{leanprover-community.github.io/mathlib4_docs/}, to which
+the module's name, its dots turned into slashes, and @samp{.html} are
+appended.
 
 @node The module hierarchy
 @section The module hierarchy
@@ -1115,6 +1122,8 @@ Eglot's own configuration applies.
 
 @menu
 * Frequently used options::
+* Finding the Lean programs::
+* Tuning::
 * The goal display's controls::
 * Older Lean versions::
 * Semantic highlighting::
@@ -1161,6 +1170,43 @@ visiting a file may build the dependencies it imports.  See @ref{Building depend
 @code{lean4-workspace-roots} and @code{lean4-workspace-exclusions} -- directories
 to treat as workspace roots, and directories in which never to start a
 server.
+@end itemize
+
+@node Finding the Lean programs
+@section Finding the Lean programs
+
+Normally nothing here needs setting: elan puts @samp{lean}, @samp{lake} and @samp{elan}
+on your @samp{PATH}, and elan's shims select whichever toolchain the project
+in hand pins.
+
+@itemize
+@item
+@code{lean4-rootdir} (default @samp{nil}) -- a directory holding the toolchain,
+for a Lean that is not on @code{exec-path} at all.  Leave it nil under
+elan: naming a directory here reaches past the shims, and so past the
+per-project version they exist to choose.
+@item
+@code{lean4-executable-name}, @code{lean4-lake-name} and @code{lean4-elan-name}
+(@samp{lean}, @samp{lake} and @samp{elan}, the first two with @samp{.exe} on Windows) --
+what each of the three programs is called, for an installation that
+renames one or puts a wrapper in front of it.
+@end itemize
+
+@node Tuning
+@section Tuning
+
+@itemize
+@item
+@code{lean4-diagnostics-delay} (default @samp{0.05} seconds) -- how long to let
+diagnostics gather before reacting to them.  Lean republishes them
+repeatedly while a file elaborates and the goal display is rebuilt
+from each batch, so this is the difference between reading the display
+and watching it flicker.  Raise it on a slow machine.
+@item
+@code{lean4-info-debounce-delay} (default @samp{0.1} seconds) -- how much quiet
+to wait for before re-rendering the goal display.  Point moves in
+bursts and @code{magit-section} rendering is not cheap, so rapid movement
+is coalesced into one redraw at the end of it.
 @end itemize
 
 @node The goal display's controls

@@ -544,7 +544,8 @@ releases too, so a version you have not got can be chosen and elan
 fetches it; each is marked =(installed)= or =(not installed)=.  Being
 unable to reach that list is a warning, not a failure: what is installed
 is still worth offering.  Releases are listed newest first, with a release
-above the candidates that led to it.
+above the candidates that led to it.  ~lean4-toolchain-releases-url~ is
+the address asked, for a mirror or an air-gapped copy of it.
 
 Only ~lean4-select-default-toolchain~ offers =leanprover/lean4:stable=,
 the channel meaning "whatever is newest".  A project pins a version
@@ -651,7 +652,11 @@ a spelling suggestion it is a button that searches for it instead.
 
 This needs no Lean server and no project: Loogle is a web service, and it
 answers about Mathlib rather than about the code in hand.
-~lean4-loogle-url~ points elsewhere, for a Loogle of your own.
+~lean4-loogle-url~ points elsewhere, for a Loogle of your own, and
+~lean4-loogle-documentation-url~ says where =RET= should look a result up
+-- by default =leanprover-community.github.io/mathlib4_docs/=, to which
+the module's name, its dots turned into slashes, and =.html= are
+appended.
 
 ** The module hierarchy
 
@@ -806,6 +811,33 @@ Eglot's own configuration applies.
 - ~lean4-workspace-roots~ and ~lean4-workspace-exclusions~ -- directories
   to treat as workspace roots, and directories in which never to start a
   server.
+
+** Finding the Lean programs
+
+Normally nothing here needs setting: elan puts =lean=, =lake= and =elan=
+on your =PATH=, and elan's shims select whichever toolchain the project
+in hand pins.
+
+- ~lean4-rootdir~ (default =nil=) -- a directory holding the toolchain,
+  for a Lean that is not on ~exec-path~ at all.  Leave it nil under
+  elan: naming a directory here reaches past the shims, and so past the
+  per-project version they exist to choose.
+- ~lean4-executable-name~, ~lean4-lake-name~ and ~lean4-elan-name~
+  (=lean=, =lake= and =elan=, the first two with =.exe= on Windows) --
+  what each of the three programs is called, for an installation that
+  renames one or puts a wrapper in front of it.
+
+** Tuning
+
+- ~lean4-diagnostics-delay~ (default =0.05= seconds) -- how long to let
+  diagnostics gather before reacting to them.  Lean republishes them
+  repeatedly while a file elaborates and the goal display is rebuilt
+  from each batch, so this is the difference between reading the display
+  and watching it flicker.  Raise it on a slow machine.
+- ~lean4-info-debounce-delay~ (default =0.1= seconds) -- how much quiet
+  to wait for before re-rendering the goal display.  Point moves in
+  bursts and ~magit-section~ rendering is not cheap, so rapid movement
+  is coalesced into one redraw at the end of it.
 
 ** The goal display's controls
 
