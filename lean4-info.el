@@ -524,80 +524,66 @@ block comment above the cursor, which is what this does."
   (lean4-info--redisplay-source)
   (message "Goal display: %s" description))
 
-;;;###autoload
-(defun lean4-info-toggle-goal-names ()
-  "Show or hide the case name labelling each goal.
-Sets `lean4-info-show-goal-names' for this session."
-  (interactive)
-  (setq lean4-info-show-goal-names (not lean4-info-show-goal-names))
-  (lean4-info--report-setting
-   (if lean4-info-show-goal-names "goal names shown" "goal names hidden")))
+(defmacro lean4-info--define-toggle (name variable doc on off)
+  "Define NAME, a command flipping VARIABLE and redrawing the display.
 
-;;;###autoload
-(defun lean4-info-toggle-emphasize-first-goal ()
-  "Draw the goals after the first less prominently, or alike.
-Sets `lean4-info-emphasize-first-goal' for this session."
-  (interactive)
-  (setq lean4-info-emphasize-first-goal (not lean4-info-emphasize-first-goal))
-  (lean4-info--report-setting
-   (if lean4-info-emphasize-first-goal
-       "first goal emphasized"
-     "all goals drawn alike")))
+DOC heads the command\\='s docstring.  ON and OFF are what to report once
+the option is set and clear respectively, as `lean4-info--report-setting'
+says them.
 
-;;;###autoload
-(defun lean4-info-toggle-target-first ()
-  "Show each goal\\='s target above its hypotheses, or below them.
-Sets `lean4-info-target-first' for this session."
-  (interactive)
-  (setq lean4-info-target-first (not lean4-info-target-first))
-  (lean4-info--report-setting
-   (if lean4-info-target-first
-       "target before assumptions"
-     "assumptions before target")))
+Seven options say how much of a goal to show, and a command apiece to
+flip one is seven copies of the same three lines.  Written out, the
+copies drifted: the shape is stated here instead, so that changing how a
+toggle behaves is one edit rather than seven.  Each command is still
+autoloaded, by a cookie on the call below."
+  (declare (indent 2) (doc-string 3))
+  `(defun ,name ()
+     ,(concat doc "\nSets `" (symbol-name variable) "' for this session.")
+     (interactive)
+     (setq ,variable (not ,variable))
+     (lean4-info--report-setting (if ,variable ,on ,off))))
 
-;;;###autoload
-(defun lean4-info-toggle-type-assumptions ()
-  "Show or hide the hypotheses that are types.
-Sets `lean4-info-hide-type-assumptions' for this session."
-  (interactive)
-  (setq lean4-info-hide-type-assumptions (not lean4-info-hide-type-assumptions))
-  (lean4-info--report-setting
-   (if lean4-info-hide-type-assumptions
-       "type assumptions hidden"
-     "type assumptions shown")))
+;;;###autoload (autoload 'lean4-info-toggle-goal-names "lean4-info" nil t)
+(lean4-info--define-toggle lean4-info-toggle-goal-names
+    lean4-info-show-goal-names
+  "Show or hide the case name labelling each goal."
+  "goal names shown" "goal names hidden")
 
-;;;###autoload
-(defun lean4-info-toggle-instance-assumptions ()
-  "Show or hide the hypotheses that are typeclass instances.
-Sets `lean4-info-hide-instance-assumptions' for this session."
-  (interactive)
-  (setq lean4-info-hide-instance-assumptions
-        (not lean4-info-hide-instance-assumptions))
-  (lean4-info--report-setting
-   (if lean4-info-hide-instance-assumptions
-       "instance assumptions hidden"
-     "instance assumptions shown")))
+;;;###autoload (autoload 'lean4-info-toggle-emphasize-first-goal "lean4-info" nil t)
+(lean4-info--define-toggle lean4-info-toggle-emphasize-first-goal
+    lean4-info-emphasize-first-goal
+  "Draw the goals after the first less prominently, or alike."
+  "first goal emphasized" "all goals drawn alike")
 
-;;;###autoload
-(defun lean4-info-toggle-inaccessible-assumptions ()
-  "Show or hide the hypotheses whose names Lean has made inaccessible.
-Sets `lean4-info-hide-inaccessible-assumptions' for this session."
-  (interactive)
-  (setq lean4-info-hide-inaccessible-assumptions
-        (not lean4-info-hide-inaccessible-assumptions))
-  (lean4-info--report-setting
-   (if lean4-info-hide-inaccessible-assumptions
-       "inaccessible assumptions hidden"
-     "inaccessible assumptions shown")))
+;;;###autoload (autoload 'lean4-info-toggle-target-first "lean4-info" nil t)
+(lean4-info--define-toggle lean4-info-toggle-target-first
+    lean4-info-target-first
+  "Show each goal\\='s target above its hypotheses, or below them."
+  "target before assumptions" "assumptions before target")
 
-;;;###autoload
-(defun lean4-info-toggle-let-values ()
-  "Show or hide the value of each let-bound hypothesis.
-Sets `lean4-info-hide-let-values' for this session."
-  (interactive)
-  (setq lean4-info-hide-let-values (not lean4-info-hide-let-values))
-  (lean4-info--report-setting
-   (if lean4-info-hide-let-values "let-values hidden" "let-values shown")))
+;;;###autoload (autoload 'lean4-info-toggle-type-assumptions "lean4-info" nil t)
+(lean4-info--define-toggle lean4-info-toggle-type-assumptions
+    lean4-info-hide-type-assumptions
+  "Show or hide the hypotheses that are types."
+  "type assumptions hidden" "type assumptions shown")
+
+;;;###autoload (autoload 'lean4-info-toggle-instance-assumptions "lean4-info" nil t)
+(lean4-info--define-toggle lean4-info-toggle-instance-assumptions
+    lean4-info-hide-instance-assumptions
+  "Show or hide the hypotheses that are typeclass instances."
+  "instance assumptions hidden" "instance assumptions shown")
+
+;;;###autoload (autoload 'lean4-info-toggle-inaccessible-assumptions "lean4-info" nil t)
+(lean4-info--define-toggle lean4-info-toggle-inaccessible-assumptions
+    lean4-info-hide-inaccessible-assumptions
+  "Show or hide the hypotheses whose names Lean has made inaccessible."
+  "inaccessible assumptions hidden" "inaccessible assumptions shown")
+
+;;;###autoload (autoload 'lean4-info-toggle-let-values "lean4-info" nil t)
+(lean4-info--define-toggle lean4-info-toggle-let-values
+    lean4-info-hide-let-values
+  "Show or hide the value of each let-bound hypothesis."
+  "let-values hidden" "let-values shown")
 
 ;;;###autoload
 (defun lean4-info-cycle-expected-type ()
