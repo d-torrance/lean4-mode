@@ -743,6 +743,47 @@ by whichever workspace encloses it, so =C-x C-f= and =project.el= are the
 whole of it.  VS Code's "Open Local Project" exists because it has a
 window to point at a folder.
 
+** Moving by declaration
+
+The commands Emacs binds in every buffer for moving over a function work
+here over a declaration, so =C-M-a= goes back to the start of the
+=theorem= or =def= point is in, =C-M-e= forward to its end, and
+=C-M-h= (~mark-defun~) and =M-x narrow-to-defun= take the whole of it.
+A prefix argument repeats, and a negative one reverses.
+
+A declaration for this purpose is a named one -- =theorem=, =lemma=,
+=def=, =abbrev=, =instance=, =example=, =structure=, =class=,
+=inductive=, =opaque=, =axiom=, =macro=, =syntax=, =elab=, =notation=
+and their relatives.  =namespace= and =section= are not: they enclose
+declarations rather than being them, and a =C-M-a= that stopped at
+=namespace Foo= would leave the theorem you were standing in.
+
+It begins at whatever is attached above it -- its attributes, and the
+doc comment those hang from -- so ~mark-defun~ does not leave the
+docstring behind.  A blank line detaches, a =/- -/= with a gap under it
+being a note about the file rather than about what follows; a =--=
+comment never attaches, having no way to say whether it belongs to the
+line below or the one above.  The end is where the next declaration
+begins, with the blank lines between the two belonging to neither.
+
+~which-function-mode~ and =M-x add-change-log-entry= are told the name
+of the declaration point is in, which is what makes them work here as
+they do elsewhere.  An =example=, or an =instance= not given a name,
+answers with its keyword instead.
+
+None of this asks Lean.  The server could answer it exactly, through
+the document symbols it already sends -- which is where VS Code's
+outline, breadcrumbs bar and go-to-symbol come from, and which reach
+Emacs as Imenu through Eglot.  But moving by structure has to work in a
+file that has not been elaborated, or has no server, or does not
+compile, which is precisely when one moves around by structure.  So
+this reads the buffer, as ~lean4-indent-line~ does.
+
+Declarations inside a =mutual= block count one by one.  Lean writes
+them flush with the =mutual=, so nothing short of counting =mutual= and
+=end= would tell them from top-level ones, and reaching one of them is
+worth more than reporting the block as a unit.
+
 ** Completion
 
 Completion is offered through ~completion-at-point-functions~, so any

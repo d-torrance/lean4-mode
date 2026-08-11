@@ -70,6 +70,7 @@ Usage
 * Searching Mathlib with Loogle::
 * The module hierarchy::
 * Other Lake operations::
+* Moving by declaration::
 * Completion::
 * Finding a symbol you cannot name::
 
@@ -311,6 +312,7 @@ buffer.  To put it in a side window on the right:
 * Searching Mathlib with Loogle::
 * The module hierarchy::
 * Other Lake operations::
+* Moving by declaration::
 * Completion::
 * Finding a symbol you cannot name::
 
@@ -943,7 +945,7 @@ to report.  Run ‘C-c C-p C-l’ (‘lean4-lake-build’), or ‘C-c C-p C-c’
 after a rebuild may be the one from before it; ‘g’ asks again.
 
 
-File: lean4-mode.info,  Node: Other Lake operations,  Next: Completion,  Prev: The module hierarchy,  Up: Usage
+File: lean4-mode.info,  Node: Other Lake operations,  Next: Moving by declaration,  Prev: The module hierarchy,  Up: Usage
 
 2.14 Other Lake operations
 ==========================
@@ -973,9 +975,54 @@ are the whole of it.  VS Code's "Open Local Project" exists because it
 has a window to point at a folder.
 
 
-File: lean4-mode.info,  Node: Completion,  Next: Finding a symbol you cannot name,  Prev: Other Lake operations,  Up: Usage
+File: lean4-mode.info,  Node: Moving by declaration,  Next: Completion,  Prev: Other Lake operations,  Up: Usage
 
-2.15 Completion
+2.15 Moving by declaration
+==========================
+
+The commands Emacs binds in every buffer for moving over a function work
+here over a declaration, so ‘C-M-a’ goes back to the start of the
+‘theorem’ or ‘def’ point is in, ‘C-M-e’ forward to its end, and ‘C-M-h’
+(‘mark-defun’) and ‘M-x narrow-to-defun’ take the whole of it.  A prefix
+argument repeats, and a negative one reverses.
+
+   A declaration for this purpose is a named one - ‘theorem’, ‘lemma’,
+‘def’, ‘abbrev’, ‘instance’, ‘example’, ‘structure’, ‘class’,
+‘inductive’, ‘opaque’, ‘axiom’, ‘macro’, ‘syntax’, ‘elab’, ‘notation’
+and their relatives.  ‘namespace’ and ‘section’ are not: they enclose
+declarations rather than being them, and a ‘C-M-a’ that stopped at
+‘namespace Foo’ would leave the theorem you were standing in.
+
+   It begins at whatever is attached above it - its attributes, and the
+doc comment those hang from - so ‘mark-defun’ does not leave the
+docstring behind.  A blank line detaches, a ‘/- -/’ with a gap under it
+being a note about the file rather than about what follows; a ‘--’
+comment never attaches, having no way to say whether it belongs to the
+line below or the one above.  The end is where the next declaration
+begins, with the blank lines between the two belonging to neither.
+
+   ‘which-function-mode’ and ‘M-x add-change-log-entry’ are told the
+name of the declaration point is in, which is what makes them work here
+as they do elsewhere.  An ‘example’, or an ‘instance’ not given a name,
+answers with its keyword instead.
+
+   None of this asks Lean.  The server could answer it exactly, through
+the document symbols it already sends - which is where VS Code's
+outline, breadcrumbs bar and go-to-symbol come from, and which reach
+Emacs as Imenu through Eglot.  But moving by structure has to work in a
+file that has not been elaborated, or has no server, or does not
+compile, which is precisely when one moves around by structure.  So this
+reads the buffer, as ‘lean4-indent-line’ does.
+
+   Declarations inside a ‘mutual’ block count one by one.  Lean writes
+them flush with the ‘mutual’, so nothing short of counting ‘mutual’ and
+‘end’ would tell them from top-level ones, and reaching one of them is
+worth more than reporting the block as a unit.
+
+
+File: lean4-mode.info,  Node: Completion,  Next: Finding a symbol you cannot name,  Prev: Moving by declaration,  Up: Usage
+
+2.16 Completion
 ===============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -999,7 +1046,7 @@ Lean input method replaces it as soon as it is unambiguous.
 
 File: lean4-mode.info,  Node: Finding a symbol you cannot name,  Prev: Completion,  Up: Usage
 
-2.16 Finding a symbol you cannot name
+2.17 Finding a symbol you cannot name
 =====================================
 
 Completion goes from an abbreviation to a symbol, which is no help when
@@ -1376,48 +1423,49 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2463
-Node: Requirements2688
-Node: From source3768
-Node: With a source-based package manager4256
-Node: Native vc (Emacs 30 or later)4767
-Node: Doom-Emacs5212
-Node: Straight5531
-Node: Upgrading from version 15888
-Node: Usage9057
-Node: Keys in a Lean buffer10916
-Node: Keys in the goal display13294
-Node: The tactic state17829
-Node: Copying what is on display19558
-Node: How much of a goal to show20585
-Node: Errors and warnings24096
-Node: Building dependencies28191
-Node: Starting a project29461
-Node: Building31253
-Node: Mathlib's build cache32445
-Node: Choosing which Lean to use33802
-Node: Elan itself36236
-Node: Git and curl37452
-Node: Searching Mathlib with Loogle39199
-Node: The module hierarchy41455
-Node: It needs a built project43498
-Node: Other Lake operations44148
-Node: Completion45573
-Node: Finding a symbol you cannot name46736
-Node: Configuration47987
-Node: Frequently used options48467
-Node: Finding the Lean programs50487
-Node: Tuning51429
-Node: The goal display's controls52231
-Node: Older Lean versions54086
-Node: Semantic highlighting55068
-Node: Optional packages56580
-Node: Troubleshooting57073
-Node: Where the documentation is58657
-Node: "Timed out after 30 seconds" opening a file outside a project59784
-Node: "Imports are out of date and must be rebuilt"60972
-Node: Common Pitfalls62495
-Node: Acknowledgements63096
+Node: Installation2489
+Node: Requirements2714
+Node: From source3794
+Node: With a source-based package manager4282
+Node: Native vc (Emacs 30 or later)4793
+Node: Doom-Emacs5238
+Node: Straight5557
+Node: Upgrading from version 15914
+Node: Usage9083
+Node: Keys in a Lean buffer10968
+Node: Keys in the goal display13346
+Node: The tactic state17881
+Node: Copying what is on display19610
+Node: How much of a goal to show20637
+Node: Errors and warnings24148
+Node: Building dependencies28243
+Node: Starting a project29513
+Node: Building31305
+Node: Mathlib's build cache32497
+Node: Choosing which Lean to use33854
+Node: Elan itself36288
+Node: Git and curl37504
+Node: Searching Mathlib with Loogle39251
+Node: The module hierarchy41507
+Node: It needs a built project43550
+Node: Other Lake operations44200
+Node: Moving by declaration45636
+Node: Completion48151
+Node: Finding a symbol you cannot name49314
+Node: Configuration50565
+Node: Frequently used options51045
+Node: Finding the Lean programs53065
+Node: Tuning54007
+Node: The goal display's controls54809
+Node: Older Lean versions56664
+Node: Semantic highlighting57646
+Node: Optional packages59158
+Node: Troubleshooting59651
+Node: Where the documentation is61235
+Node: "Timed out after 30 seconds" opening a file outside a project62362
+Node: "Imports are out of date and must be rebuilt"63550
+Node: Common Pitfalls65073
+Node: Acknowledgements65674
 
 End Tag Table
 

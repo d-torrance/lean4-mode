@@ -78,6 +78,7 @@ Usage
 * Searching Mathlib with Loogle::
 * The module hierarchy::
 * Other Lake operations::
+* Moving by declaration::
 * Completion::
 * Finding a symbol you cannot name::
 
@@ -313,6 +314,7 @@ buffer.  To put it in a side window on the right:
 * Searching Mathlib with Loogle::
 * The module hierarchy::
 * Other Lake operations::
+* Moving by declaration::
 * Completion::
 * Finding a symbol you cannot name::
 @end menu
@@ -1073,6 +1075,48 @@ Opening a project needs nothing from this package: a Lean file is served
 by whichever workspace encloses it, so @samp{C-x C-f} and @samp{project.el} are the
 whole of it.  VS Code's "Open Local Project" exists because it has a
 window to point at a folder.
+
+@node Moving by declaration
+@section Moving by declaration
+
+The commands Emacs binds in every buffer for moving over a function work
+here over a declaration, so @samp{C-M-a} goes back to the start of the
+@samp{theorem} or @samp{def} point is in, @samp{C-M-e} forward to its end, and
+@samp{C-M-h} (@code{mark-defun}) and @samp{M-x narrow-to-defun} take the whole of it.
+A prefix argument repeats, and a negative one reverses.
+
+A declaration for this purpose is a named one -- @samp{theorem}, @samp{lemma},
+@samp{def}, @samp{abbrev}, @samp{instance}, @samp{example}, @samp{structure}, @samp{class},
+@samp{inductive}, @samp{opaque}, @samp{axiom}, @samp{macro}, @samp{syntax}, @samp{elab}, @samp{notation}
+and their relatives.  @samp{namespace} and @samp{section} are not: they enclose
+declarations rather than being them, and a @samp{C-M-a} that stopped at
+@samp{namespace Foo} would leave the theorem you were standing in.
+
+It begins at whatever is attached above it -- its attributes, and the
+doc comment those hang from -- so @code{mark-defun} does not leave the
+docstring behind.  A blank line detaches, a @samp{/- -/} with a gap under it
+being a note about the file rather than about what follows; a @samp{--}
+comment never attaches, having no way to say whether it belongs to the
+line below or the one above.  The end is where the next declaration
+begins, with the blank lines between the two belonging to neither.
+
+@code{which-function-mode} and @samp{M-x add-change-log-entry} are told the name
+of the declaration point is in, which is what makes them work here as
+they do elsewhere.  An @samp{example}, or an @samp{instance} not given a name,
+answers with its keyword instead.
+
+None of this asks Lean.  The server could answer it exactly, through
+the document symbols it already sends -- which is where VS Code's
+outline, breadcrumbs bar and go-to-symbol come from, and which reach
+Emacs as Imenu through Eglot.  But moving by structure has to work in a
+file that has not been elaborated, or has no server, or does not
+compile, which is precisely when one moves around by structure.  So
+this reads the buffer, as @code{lean4-indent-line} does.
+
+Declarations inside a @samp{mutual} block count one by one.  Lean writes
+them flush with the @samp{mutual}, so nothing short of counting @samp{mutual} and
+@samp{end} would tell them from top-level ones, and reaching one of them is
+worth more than reporting the block as a unit.
 
 @node Completion
 @section Completion

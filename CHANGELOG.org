@@ -132,6 +132,21 @@ xref, project roots through =project.el=.
   the alternatives when the guess is wrong.  ~lean4-indent-offset~ sets
   the width of a level, and ~lean4-indent-function~ restores the
   previous cycle-only behaviour.
+- Movement by declaration, so that =C-M-a=, =C-M-e=, ~mark-defun~ and
+  ~narrow-to-defun~ mean in a Lean buffer what they mean everywhere
+  else; without ~beginning-of-defun-function~ they fell back to a
+  recipe meant for Lisp -- an open paren in column zero -- and ran to
+  the top of the file.  A declaration begins at its attributes and doc
+  comment rather than at its keyword, so ~mark-defun~ does not leave
+  the docstring behind.  ~which-function-mode~ and =M-x
+  add-change-log-entry= are told its name, through
+  ~add-log-current-defun-function~.  This reads the buffer rather than
+  asking Lean, since moving by structure has to work in a file that has
+  not been elaborated, or has no server, or does not compile.  VS Code
+  has no counterpart to these commands: its structural navigation is
+  the outline, the breadcrumbs bar and go-to-symbol, which come from
+  the server's document symbols and which Eglot already feeds to Imenu
+  here.
 - Completion through ~completion-at-point-functions~ from three sources:
   the Unicode abbreviations, so =\al= offers =\alpha=; Lean's keywords,
   which the server offers nothing towards for a bare word; and the
@@ -246,7 +261,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 337 unit tests, and 37 end-to-end tests that run against
+- A test suite: 373 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual is published at [[https://d-torrance.github.io/lean4-mode/][d-torrance.github.io/lean4-mode]],
   exported from the same README the Info manual is made from, so the two
