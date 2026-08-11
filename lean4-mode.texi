@@ -80,6 +80,7 @@ Usage
 * The module hierarchy::
 * Other Lake operations::
 * Moving by declaration::
+* Folding a file up::
 * Applying what Lean suggests::
 * Being told a suggestion is there::
 * What Lean filled in for you::
@@ -323,6 +324,7 @@ buffer.  To put it in a side window on the right:
 * The module hierarchy::
 * Other Lake operations::
 * Moving by declaration::
+* Folding a file up::
 * Applying what Lean suggests::
 * Being told a suggestion is there::
 * What Lean filled in for you::
@@ -1192,6 +1194,61 @@ Declarations inside a @samp{mutual} block count one by one.  Lean writes
 them flush with the @samp{mutual}, so nothing short of counting @samp{mutual} and
 @samp{end} would tell them from top-level ones, and reaching one of them is
 worth more than reporting the block as a unit.
+
+@node Folding a file up
+@section Folding a file up
+
+@samp{M-x outline-minor-mode} folds a Lean file by its structure: a namespace
+holds sections, a section holds declarations, and each folds away to its
+first line.  That is what VS Code's carets in the gutter do.
+
+The mode is not turned on for you -- which buffers have an outline is
+yours to decide -- and once it is on, its own keys apply.
+
+@multitable {aaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaa}
+@headitem Key
+@tab Folds
+@tab Command
+@item @samp{C-c @@ C-c}
+@tab the declaration point is in
+@tab @code{outline-hide-entry}
+@item @samp{C-c @@ C-d}
+@tab that and everything under it, so a whole namespace
+@tab @code{outline-hide-subtree}
+@item @samp{C-c @@ C-t}
+@tab every body in the file, VS Code's "Fold All"
+@tab @code{outline-hide-body}
+@item @samp{C-c @@ C-a}
+@tab nothing: shows it all again
+@tab @code{outline-show-all}
+@end multitable
+
+@samp{M-x outline-cycle} on a heading, or @samp{TAB} there if
+@code{outline-minor-mode-cycle} is on, cycles between folded and not.  To have
+the mode on in every Lean buffer:
+
+@lisp
+(add-hook 'lean4-mode-hook #'outline-minor-mode)
+@end lisp
+
+The structure is not guessed at.  Lean answers
+@samp{textDocument/foldingRange}, and what it folds is what is implemented
+here: namespaces and sections to their @samp{end}, and declarations spanning
+more than one line -- not single-line declarations, and not comments.  An
+end-to-end test asks the server and checks the two agree.
+
+The reading is done here rather than asked for, since outline works out
+where a fold ends from the next heading at the same level or above, which
+lands where the server's ranges do.  So folding works in a file that has
+not been elaborated, or has no server, or does not compile -- which is
+when finding one's way around a file by folding it is most useful.
+
+An @samp{end} counts as a heading, which reads oddly for a moment and is what
+stops a section's fold at its own @samp{end} rather than at the next section.
+
+One divergence: Lean folds a @samp{set_option ... in} together with the
+declaration it prefixes, starting the fold at the @samp{set_option}; here the
+heading is the declaration, and the prefix line stays outside the fold.
 
 @node Applying what Lean suggests
 @section Applying what Lean suggests

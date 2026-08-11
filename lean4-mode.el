@@ -57,6 +57,7 @@
 (require 'lean4-defun)
 (require 'lean4-hints)
 (require 'lean4-indent)
+(require 'lean4-outline)
 (require 'lean4-suggest)
 (require 'lean4-util)
 (require 'lean4-settings)
@@ -306,6 +307,9 @@ The page VS Code\='s \"Show Documentation Resources\" opens."
   (setq-local beginning-of-defun-function #'lean4-beginning-of-defun)
   (setq-local end-of-defun-function #'lean4-end-of-defun)
   (setq-local add-log-current-defun-function #'lean4-current-defun-name)
+  ;; So that `outline-minor-mode' folds namespaces, sections and
+  ;; declarations if the reader turns it on.  It is not turned on here.
+  (lean4-outline--setup)
   (require 'lean4-input)
   ;; `activate-input-method' rather than `set-input-method': the latter is
   ;; the interactive command, and it also assigns `default-input-method',

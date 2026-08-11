@@ -72,6 +72,7 @@ Usage
 * The module hierarchy::
 * Other Lake operations::
 * Moving by declaration::
+* Folding a file up::
 * Applying what Lean suggests::
 * Being told a suggestion is there::
 * What Lean filled in for you::
@@ -323,6 +324,7 @@ buffer.  To put it in a side window on the right:
 * The module hierarchy::
 * Other Lake operations::
 * Moving by declaration::
+* Folding a file up::
 * Applying what Lean suggests::
 * Being told a suggestion is there::
 * What Lean filled in for you::
@@ -1036,7 +1038,7 @@ are the whole of it.  VS Code's "Open Local Project" exists because it
 has a window to point at a folder.
 
 
-File: lean4-mode.info,  Node: Moving by declaration,  Next: Applying what Lean suggests,  Prev: Other Lake operations,  Up: Usage
+File: lean4-mode.info,  Node: Moving by declaration,  Next: Folding a file up,  Prev: Other Lake operations,  Up: Usage
 
 2.16 Moving by declaration
 ==========================
@@ -1081,9 +1083,56 @@ them flush with the ‘mutual’, so nothing short of counting ‘mutual’ and
 worth more than reporting the block as a unit.
 
 
-File: lean4-mode.info,  Node: Applying what Lean suggests,  Next: Being told a suggestion is there,  Prev: Moving by declaration,  Up: Usage
+File: lean4-mode.info,  Node: Folding a file up,  Next: Applying what Lean suggests,  Prev: Moving by declaration,  Up: Usage
 
-2.17 Applying what Lean suggests
+2.17 Folding a file up
+======================
+
+‘M-x outline-minor-mode’ folds a Lean file by its structure: a namespace
+holds sections, a section holds declarations, and each folds away to its
+first line.  That is what VS Code's carets in the gutter do.
+
+   The mode is not turned on for you - which buffers have an outline is
+yours to decide - and once it is on, its own keys apply.
+
+Key           Folds                                                Command
+--------------------------------------------------------------------------------------------
+‘C-c @ C-c’   the declaration point is in                          ‘outline-hide-entry’
+‘C-c @ C-d’   that and everything under it, so a whole namespace   ‘outline-hide-subtree’
+‘C-c @ C-t’   every body in the file, VS Code's "Fold All"         ‘outline-hide-body’
+‘C-c @ C-a’   nothing: shows it all again                          ‘outline-show-all’
+
+   ‘M-x outline-cycle’ on a heading, or ‘TAB’ there if
+‘outline-minor-mode-cycle’ is on, cycles between folded and not.  To
+have the mode on in every Lean buffer:
+
+     (add-hook 'lean4-mode-hook #'outline-minor-mode)
+
+   The structure is not guessed at.  Lean answers
+‘textDocument/foldingRange’, and what it folds is what is implemented
+here: namespaces and sections to their ‘end’, and declarations spanning
+more than one line - not single-line declarations, and not comments.  An
+end-to-end test asks the server and checks the two agree.
+
+   The reading is done here rather than asked for, since outline works
+out where a fold ends from the next heading at the same level or above,
+which lands where the server's ranges do.  So folding works in a file
+that has not been elaborated, or has no server, or does not compile -
+which is when finding one's way around a file by folding it is most
+useful.
+
+   An ‘end’ counts as a heading, which reads oddly for a moment and is
+what stops a section's fold at its own ‘end’ rather than at the next
+section.
+
+   One divergence: Lean folds a ‘set_option ... in’ together with the
+declaration it prefixes, starting the fold at the ‘set_option’; here the
+heading is the declaration, and the prefix line stays outside the fold.
+
+
+File: lean4-mode.info,  Node: Applying what Lean suggests,  Next: Being told a suggestion is there,  Prev: Folding a file up,  Up: Usage
+
+2.18 Applying what Lean suggests
 ================================
 
 Lean offers to write things for you in two quite different ways, and
@@ -1121,7 +1170,7 @@ way; a prompt offering a single answer is a keystroke spent on nothing.
 
 File: lean4-mode.info,  Node: Being told a suggestion is there,  Next: What Lean filled in for you,  Prev: Applying what Lean suggests,  Up: Usage
 
-2.18 Being told a suggestion is there
+2.19 Being told a suggestion is there
 =====================================
 
 ElDoc reports the inlay hint wherever there is one, as *note What Lean
@@ -1170,7 +1219,7 @@ about the key follows the keymap.
 
 File: lean4-mode.info,  Node: What Lean filled in for you,  Next: Completion,  Prev: Being told a suggestion is there,  Up: Usage
 
-2.19 What Lean filled in for you
+2.20 What Lean filled in for you
 ================================
 
 A declaration whose type mentions a variable never bound still compiles:
@@ -1224,7 +1273,7 @@ though: whatever the server sends is what is shown and inserted.
 
 File: lean4-mode.info,  Node: Completion,  Next: Finding a symbol you cannot name,  Prev: What Lean filled in for you,  Up: Usage
 
-2.20 Completion
+2.21 Completion
 ===============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -1248,7 +1297,7 @@ Lean input method replaces it as soon as it is unambiguous.
 
 File: lean4-mode.info,  Node: Finding a symbol you cannot name,  Prev: Completion,  Up: Usage
 
-2.21 Finding a symbol you cannot name
+2.22 Finding a symbol you cannot name
 =====================================
 
 Completion goes from an abbreviation to a symbol, which is no help when
@@ -1632,53 +1681,54 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2629
-Node: Requirements2854
-Node: From source4299
-Node: With a source-based package manager4787
-Node: Native vc (Emacs 30 or later)5298
-Node: Doom-Emacs5743
-Node: Straight6062
-Node: Upgrading from version 16419
-Node: Usage9588
-Node: Keys in a Lean buffer11613
-Node: Keys in the goal display14111
-Node: The tactic state18646
-Node: Copying what is on display20375
-Node: How much of a goal to show21402
-Node: Errors and warnings24913
-Node: Building dependencies29008
-Node: Starting a project30278
-Node: Building32070
-Node: Mathlib's build cache33262
-Node: Choosing which Lean to use34619
-Node: Elan itself37053
-Node: Git and curl38269
-Node: Searching Mathlib with Loogle40016
-Node: Following a name through a project42286
-Node: The module hierarchy45073
-Node: It needs a built project47121
-Node: Other Lake operations47771
-Node: Moving by declaration49207
-Node: Applying what Lean suggests51739
-Node: Being told a suggestion is there53628
-Node: What Lean filled in for you56082
-Node: Completion58487
-Node: Finding a symbol you cannot name59656
-Node: Configuration60907
-Node: Frequently used options61387
-Node: Finding the Lean programs63407
-Node: Tuning64349
-Node: The goal display's controls65151
-Node: Older Lean versions67006
-Node: Semantic highlighting67988
-Node: Optional packages69500
-Node: Troubleshooting69993
-Node: Where the documentation is72018
-Node: "Timed out after 30 seconds" opening a file outside a project73145
-Node: "Imports are out of date and must be rebuilt"74333
-Node: Common Pitfalls75856
-Node: Acknowledgements76457
+Node: Installation2651
+Node: Requirements2876
+Node: From source4321
+Node: With a source-based package manager4809
+Node: Native vc (Emacs 30 or later)5320
+Node: Doom-Emacs5765
+Node: Straight6084
+Node: Upgrading from version 16441
+Node: Usage9610
+Node: Keys in a Lean buffer11657
+Node: Keys in the goal display14155
+Node: The tactic state18690
+Node: Copying what is on display20419
+Node: How much of a goal to show21446
+Node: Errors and warnings24957
+Node: Building dependencies29052
+Node: Starting a project30322
+Node: Building32114
+Node: Mathlib's build cache33306
+Node: Choosing which Lean to use34663
+Node: Elan itself37097
+Node: Git and curl38313
+Node: Searching Mathlib with Loogle40060
+Node: Following a name through a project42330
+Node: The module hierarchy45117
+Node: It needs a built project47165
+Node: Other Lake operations47815
+Node: Moving by declaration49251
+Node: Folding a file up51773
+Node: Applying what Lean suggests54148
+Node: Being told a suggestion is there56033
+Node: What Lean filled in for you58487
+Node: Completion60892
+Node: Finding a symbol you cannot name62061
+Node: Configuration63312
+Node: Frequently used options63792
+Node: Finding the Lean programs65812
+Node: Tuning66754
+Node: The goal display's controls67556
+Node: Older Lean versions69411
+Node: Semantic highlighting70393
+Node: Optional packages71905
+Node: Troubleshooting72398
+Node: Where the documentation is74423
+Node: "Timed out after 30 seconds" opening a file outside a project75550
+Node: "Imports are out of date and must be rebuilt"76738
+Node: Common Pitfalls78261
+Node: Acknowledgements78862
 
 End Tag Table
 

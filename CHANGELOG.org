@@ -132,6 +132,17 @@ xref, project roots through =project.el=.
   the alternatives when the guess is wrong.  ~lean4-indent-offset~ sets
   the width of a level, and ~lean4-indent-function~ restores the
   previous cycle-only behaviour.
+- Folding by structure, so that =M-x outline-minor-mode= folds a Lean
+  file the way VS Code's carets in the gutter do: a namespace holding
+  sections holding declarations, each folding to its first line.  The
+  structure is Lean's own -- the server was asked what it folds through
+  =textDocument/foldingRange=, and namespaces and sections to their =end=
+  and multi-line declarations is the answer, with nothing for a one-line
+  declaration or a comment; an end-to-end test holds the two together.  It
+  is read from the buffer even so, outline deriving a fold's end from the
+  next heading at its level or above and landing where the server's ranges
+  do, so it works on a file that has not been elaborated or does not
+  compile.  The mode is not turned on for you.
 - Movement by declaration, so that =C-M-a=, =C-M-e=, ~mark-defun~ and
   ~narrow-to-defun~ mean in a Lean buffer what they mean everywhere
   else; without ~beginning-of-defun-function~ they fell back to a
@@ -294,7 +305,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 410 unit tests, and 47 end-to-end tests that run against
+- A test suite: 429 unit tests, and 48 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual says where VS Code's navigation commands went, none of which
   this package implements and all of which therefore appeared in no table

@@ -832,6 +832,49 @@ them flush with the =mutual=, so nothing short of counting =mutual= and
 =end= would tell them from top-level ones, and reaching one of them is
 worth more than reporting the block as a unit.
 
+** Folding a file up
+
+=M-x outline-minor-mode= folds a Lean file by its structure: a namespace
+holds sections, a section holds declarations, and each folds away to its
+first line.  That is what VS Code's carets in the gutter do.
+
+The mode is not turned on for you -- which buffers have an outline is
+yours to decide -- and once it is on, its own keys apply.
+
+| Key         | Folds                                          | Command                |
+|-------------+------------------------------------------------+------------------------|
+| =C-c @ C-c= | the declaration point is in                    | ~outline-hide-entry~   |
+| =C-c @ C-d= | that and everything under it, so a whole namespace | ~outline-hide-subtree~ |
+| =C-c @ C-t= | every body in the file, VS Code's "Fold All"    | ~outline-hide-body~    |
+| =C-c @ C-a= | nothing: shows it all again                    | ~outline-show-all~     |
+
+=M-x outline-cycle= on a heading, or =TAB= there if
+~outline-minor-mode-cycle~ is on, cycles between folded and not.  To have
+the mode on in every Lean buffer:
+
+#+begin_src elisp
+(add-hook 'lean4-mode-hook #'outline-minor-mode)
+#+end_src
+
+The structure is not guessed at.  Lean answers
+=textDocument/foldingRange=, and what it folds is what is implemented
+here: namespaces and sections to their =end=, and declarations spanning
+more than one line -- not single-line declarations, and not comments.  An
+end-to-end test asks the server and checks the two agree.
+
+The reading is done here rather than asked for, since outline works out
+where a fold ends from the next heading at the same level or above, which
+lands where the server's ranges do.  So folding works in a file that has
+not been elaborated, or has no server, or does not compile -- which is
+when finding one's way around a file by folding it is most useful.
+
+An =end= counts as a heading, which reads oddly for a moment and is what
+stops a section's fold at its own =end= rather than at the next section.
+
+One divergence: Lean folds a =set_option ... in= together with the
+declaration it prefixes, starting the fold at the =set_option=; here the
+heading is the declaration, and the prefix line stays outside the fold.
+
 ** Applying what Lean suggests
 
 Lean offers to write things for you in two quite different ways, and
