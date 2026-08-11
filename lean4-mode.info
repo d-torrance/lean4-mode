@@ -433,11 +433,20 @@ own wording for it; VS Code says ‘No goals’ there and counts nothing,
 and neither does this.
 
    In the Lean buffer itself, Lean tags two things and both are marked:
-a declaration whose goals are all discharged gets a ‘✓’ before it, and a
-line where an "unsolved goals" error ends gets a ‘🛠’ after it, away from
-the code.  ‘lean4-show-goals-accomplished’ and
+a declaration whose goals are all discharged gets a ‘✓’ in the fringe
+beside it, alongside Flymake's own indicators and on the same side of
+the window, and a line where an "unsolved goals" error ends gets a ‘🛠’
+after it, away from the code.  ‘lean4-show-goals-accomplished’ and
 ‘lean4-show-unsolved-goals’ turn them off; both default on, as VS Code's
-do.  A frame that cannot draw the tool gets ‘(goals)’ instead.
+do.  A terminal has no fringe to draw the check mark in and gets it in
+the text; a frame whose fonts do not run to the tool gets ‘⚒’, or
+‘(goals)’ where they run to neither.
+
+   Both take their colour from the theme in force rather than from a
+colour named here: the check mark from ‘success’ and the tool from
+‘warning’, through the ‘lean4-goals-accomplished’ and
+‘lean4-unsolved-goals’ faces.  Customize either face to overrule a theme
+that colours the two alike.
 
    The expected type at point follows, under ‘Expected type’, and is not
 counted - VS Code counts only the tactic state.  Neither heading takes a
@@ -1379,36 +1388,36 @@ Node: Usage9057
 Node: Keys in a Lean buffer10916
 Node: Keys in the goal display13294
 Node: The tactic state17829
-Node: Copying what is on display19048
-Node: How much of a goal to show20075
-Node: Errors and warnings23586
-Node: Building dependencies27681
-Node: Starting a project28951
-Node: Building30743
-Node: Mathlib's build cache31935
-Node: Choosing which Lean to use33292
-Node: Elan itself35726
-Node: Git and curl36942
-Node: Searching Mathlib with Loogle38689
-Node: The module hierarchy40945
-Node: It needs a built project42988
-Node: Other Lake operations43638
-Node: Completion45063
-Node: Finding a symbol you cannot name46226
-Node: Configuration47477
-Node: Frequently used options47957
-Node: Finding the Lean programs49977
-Node: Tuning50919
-Node: The goal display's controls51721
-Node: Older Lean versions53576
-Node: Semantic highlighting54558
-Node: Optional packages56070
-Node: Troubleshooting56563
-Node: Where the documentation is58147
-Node: "Timed out after 30 seconds" opening a file outside a project59274
-Node: "Imports are out of date and must be rebuilt"60462
-Node: Common Pitfalls61985
-Node: Acknowledgements62586
+Node: Copying what is on display19558
+Node: How much of a goal to show20585
+Node: Errors and warnings24096
+Node: Building dependencies28191
+Node: Starting a project29461
+Node: Building31253
+Node: Mathlib's build cache32445
+Node: Choosing which Lean to use33802
+Node: Elan itself36236
+Node: Git and curl37452
+Node: Searching Mathlib with Loogle39199
+Node: The module hierarchy41455
+Node: It needs a built project43498
+Node: Other Lake operations44148
+Node: Completion45573
+Node: Finding a symbol you cannot name46736
+Node: Configuration47987
+Node: Frequently used options48467
+Node: Finding the Lean programs50487
+Node: Tuning51429
+Node: The goal display's controls52231
+Node: Older Lean versions54086
+Node: Semantic highlighting55068
+Node: Optional packages56580
+Node: Troubleshooting57073
+Node: Where the documentation is58657
+Node: "Timed out after 30 seconds" opening a file outside a project59784
+Node: "Imports are out of date and must be rebuilt"60972
+Node: Common Pitfalls62495
+Node: Acknowledgements63096
 
 End Tag Table
 

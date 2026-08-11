@@ -482,11 +482,20 @@ wording for it; VS Code says @samp{No goals} there and counts nothing, and
 neither does this.
 
 In the Lean buffer itself, Lean tags two things and both are marked: a
-declaration whose goals are all discharged gets a @samp{✓} before it, and a
-line where an "unsolved goals" error ends gets a @samp{🛠} after it, away from
-the code.  @code{lean4-show-goals-accomplished} and
+declaration whose goals are all discharged gets a @samp{✓} in the fringe
+beside it, alongside Flymake's own indicators and on the same side of
+the window, and a line where an "unsolved goals" error ends gets a @samp{🛠}
+after it, away from the code.  @code{lean4-show-goals-accomplished} and
 @code{lean4-show-unsolved-goals} turn them off; both default on, as VS Code's
-do.  A frame that cannot draw the tool gets @samp{(goals)} instead.
+do.  A terminal has no fringe to draw the check mark in and gets it in
+the text; a frame whose fonts do not run to the tool gets @samp{⚒}, or
+@samp{(goals)} where they run to neither.
+
+Both take their colour from the theme in force rather than from a
+colour named here: the check mark from @code{success} and the tool from
+@code{warning}, through the @code{lean4-goals-accomplished} and
+@code{lean4-unsolved-goals} faces.  Customize either face to overrule a
+theme that colours the two alike.
 
 The expected type at point follows, under @samp{Expected type}, and is not
 counted -- VS Code counts only the tactic state.  Neither heading takes
