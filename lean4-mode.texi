@@ -76,6 +76,7 @@ Usage
 * Mathlib's build cache::
 * Choosing which Lean to use::
 * Searching Mathlib with Loogle::
+* Following a name through a project::
 * The module hierarchy::
 * Other Lake operations::
 * Moving by declaration::
@@ -136,9 +137,12 @@ The Emacs packages @uref{https://github.com/agda/agda, eri} and @uref{https://gi
 @end itemize
 
 Eglot is used for the language-server connection, and is built into
-Emacs 29 and later, so nothing needs installing for it.  See
-@ref{Semantic highlighting} for one feature that a newer Eglot than the
-bundled one provides.
+Emacs 29 and later, so nothing needs installing for it.  A newer Eglot
+than the bundled one adds three things, though, and @samp{M-x package-install
+RET eglot RET} is the whole of getting them: @ref{Semantic highlighting} (1.20),
+the call hierarchy under @ref{Following a name through a project} (1.19), and
+Eglot's own report that a code action is available, under @ref{Being told a suggestion is there} (1.19).  Emacs 29 bundles 1.12 and Emacs 30 bundles
+1.17; without any of it nothing is said and nothing breaks.
 
 magit-section 3.3.0 is enough, and is what Debian and Ubuntu ship as
 @samp{elpa-magit-section}.  If you have it, do not install a newer one on
@@ -315,6 +319,7 @@ buffer.  To put it in a side window on the right:
 * Mathlib's build cache::
 * Choosing which Lean to use::
 * Searching Mathlib with Loogle::
+* Following a name through a project::
 * The module hierarchy::
 * Other Lake operations::
 * Moving by declaration::
@@ -986,6 +991,67 @@ answers about Mathlib rather than about the code in hand.
 the module's name, its dots turned into slashes, and @samp{.html} are
 appended.
 
+@node Following a name through a project
+@section Following a name through a project
+
+Nothing here implements any of this: Lean answers it and Eglot puts the
+answers where Emacs keeps them, so the keys are the ones you already use.
+It is listed because the keys are not this package's and so appear in no
+table of its own -- and because the last two are easy to miss.
+
+@multitable {aaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@headitem Key
+@tab Finds
+@tab Command
+@item @samp{M-.}
+@tab where the name at point is defined
+@tab @code{xref-find-definitions}
+@item @samp{M-,}
+@tab the way back
+@tab @code{xref-go-back}
+@item @samp{M-?}
+@tab everywhere it is used
+@tab @code{xref-find-references}
+@item @samp{C-M-.}
+@tab a name anywhere in the project, by pattern
+@tab @code{xref-find-apropos}
+@item 
+@tab its type, rather than itself
+@tab @code{eglot-find-typeDefinition}
+@item 
+@tab its declaration
+@tab @code{eglot-find-declaration}
+@item 
+@tab who calls it, and whom it calls
+@tab @code{eglot-show-call-hierarchy}
+@end multitable
+
+@samp{M-.} on a type class projection offers the class and its instances, and
+looks through a reducible definition to what it stands for; on an
+@samp{import} it opens the file.  @code{eglot-find-declaration} adds the parser and
+the elaborator of the syntax at point, which is Lean's own answer to
+"where does this notation come from"; both are VS Code's "Go to
+Declaration" and "Go to Type Definition".
+
+@code{eglot-show-call-hierarchy} is VS Code's @samp{Alt+Shift+H}, and needs Eglot
+1.19 or later -- newer than the Eglot bundled with Emacs 29 or 30, so
+@samp{M-x package-install RET eglot RET} is what provides it, as it is for
+@ref{Semantic highlighting}.  It shows both directions in one tree, where
+VS Code has a button to swap between them; a prefix argument asks which
+one to show.  @samp{RET} on an entry goes there.  Lean offers no type
+hierarchy, so @code{eglot-show-type-hierarchy} has nothing to report.
+
+Occurrences of the name at point are highlighted where they mean the same
+name -- the parameter @samp{x}, and not another @samp{x} that shadows it, which is
+semantics rather than search, and Lean's to decide.  This is ElDoc's
+doing, so occurrences light up when point comes to rest rather than as it
+passes through; adding @samp{:documentHighlightProvider} to
+@code{eglot-ignored-server-capabilities} turns it off.
+
+Searching the project's text is @samp{M-x project-find-regexp}, and opening a
+file in it @samp{C-x p f}; the file tree is Dired.  VS Code has commands for
+each because it has a window to hang them in.
+
 @node The module hierarchy
 @section The module hierarchy
 
@@ -1548,6 +1614,13 @@ reports.
 Note that it is the file on disk that is compiled, not the buffer: save
 first, or what Lean reports will be about the previous version.  A buffer
 visiting no file at all is written to a temporary one instead.
+
+@samp{C-c C-r} (@code{eglot-reconnect}) restarts the server, which is VS Code's
+"Server: Restart Server".  To stop one without starting another --
+VS Code's "Server: Stop Server" -- @samp{M-x eglot-shutdown}; and a Lean
+buffer visited afterwards starts a new one, unless
+@code{lean4-auto-start-server} is off.  Neither is to be confused with
+@samp{C-c C-d}, which restarts the @emph{file}: see @ref{"Imports are out of date and must be rebuilt"}.
 
 @menu
 * Where the documentation is::

@@ -296,6 +296,16 @@ xref, project roots through =project.el=.
   opens.
 - A test suite: 410 unit tests, and 47 end-to-end tests that run against
   a real Lean server.  Both run in CI.
+- The manual says where VS Code's navigation commands went, none of which
+  this package implements and all of which therefore appeared in no table
+  of its own: =M-.=, =M-?= and =C-M-.= for definitions, uses and a name
+  anywhere in the project, ~eglot-find-declaration~ and
+  ~eglot-find-typeDefinition~ for VS Code's "Go to Declaration" and "Go to
+  Type Definition", ~eglot-show-call-hierarchy~ for its =Alt+Shift+H=, and
+  the occurrence highlighting Eglot drives through ElDoc.  It also gives
+  =M-x eglot-shutdown= as VS Code's "Server: Stop Server", and names all
+  three of the features a newer Eglot than the bundled one provides rather
+  than only semantic highlighting.
 - The manual is published at [[https://d-torrance.github.io/lean4-mode/][d-torrance.github.io/lean4-mode]],
   exported from the same README the Info manual is made from, so the two
   cannot disagree.  =make html= builds it locally.

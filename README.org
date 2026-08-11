@@ -28,9 +28,13 @@ as /Lean-Mode/).
 - The Emacs packages [[https://github.com/agda/agda][eri]] and [[https://github.com/magit/magit/blob/main/lisp/magit-section.el][magit-section]], both on [[https://melpa.org/#/getting-started][Melpa]]
 
 Eglot is used for the language-server connection, and is built into
-Emacs 29 and later, so nothing needs installing for it.  See
-[[*Semantic highlighting]] for one feature that a newer Eglot than the
-bundled one provides.
+Emacs 29 and later, so nothing needs installing for it.  A newer Eglot
+than the bundled one adds three things, though, and =M-x package-install
+RET eglot RET= is the whole of getting them: [[*Semantic highlighting]] (1.20),
+the call hierarchy under [[*Following a name through a project]] (1.19), and
+Eglot's own report that a code action is available, under [[*Being told a
+suggestion is there]] (1.19).  Emacs 29 bundles 1.12 and Emacs 30 bundles
+1.17; without any of it nothing is said and nothing breaks.
 
 magit-section 3.3.0 is enough, and is what Debian and Ubuntu ship as
 =elpa-magit-section=.  If you have it, do not install a newer one on
@@ -668,6 +672,49 @@ answers about Mathlib rather than about the code in hand.
 the module's name, its dots turned into slashes, and =.html= are
 appended.
 
+** Following a name through a project
+
+Nothing here implements any of this: Lean answers it and Eglot puts the
+answers where Emacs keeps them, so the keys are the ones you already use.
+It is listed because the keys are not this package's and so appear in no
+table of its own -- and because the last two are easy to miss.
+
+| Key       | Finds                                    | Command                    |
+|-----------+------------------------------------------+----------------------------|
+| =M-.=     | where the name at point is defined       | ~xref-find-definitions~    |
+| =M-,=     | the way back                             | ~xref-go-back~             |
+| =M-?=     | everywhere it is used                    | ~xref-find-references~     |
+| =C-M-.=   | a name anywhere in the project, by pattern | ~xref-find-apropos~      |
+|           | its type, rather than itself             | ~eglot-find-typeDefinition~ |
+|           | its declaration                          | ~eglot-find-declaration~   |
+|           | who calls it, and whom it calls          | ~eglot-show-call-hierarchy~ |
+
+=M-.= on a type class projection offers the class and its instances, and
+looks through a reducible definition to what it stands for; on an
+=import= it opens the file.  ~eglot-find-declaration~ adds the parser and
+the elaborator of the syntax at point, which is Lean's own answer to
+"where does this notation come from"; both are VS Code's "Go to
+Declaration" and "Go to Type Definition".
+
+~eglot-show-call-hierarchy~ is VS Code's =Alt+Shift+H=, and needs Eglot
+1.19 or later -- newer than the Eglot bundled with Emacs 29 or 30, so
+=M-x package-install RET eglot RET= is what provides it, as it is for
+[[*Semantic highlighting]].  It shows both directions in one tree, where
+VS Code has a button to swap between them; a prefix argument asks which
+one to show.  =RET= on an entry goes there.  Lean offers no type
+hierarchy, so ~eglot-show-type-hierarchy~ has nothing to report.
+
+Occurrences of the name at point are highlighted where they mean the same
+name -- the parameter =x=, and not another =x= that shadows it, which is
+semantics rather than search, and Lean's to decide.  This is ElDoc's
+doing, so occurrences light up when point comes to rest rather than as it
+passes through; adding =:documentHighlightProvider= to
+~eglot-ignored-server-capabilities~ turns it off.
+
+Searching the project's text is =M-x project-find-regexp=, and opening a
+file in it =C-x p f=; the file tree is Dired.  VS Code has commands for
+each because it has a window to hang them in.
+
 ** The module hierarchy
 
 What a module imports, and what imports it, as a tree in a
@@ -1142,6 +1189,14 @@ reports.
 Note that it is the file on disk that is compiled, not the buffer: save
 first, or what Lean reports will be about the previous version.  A buffer
 visiting no file at all is written to a temporary one instead.
+
+=C-c C-r= (~eglot-reconnect~) restarts the server, which is VS Code's
+"Server: Restart Server".  To stop one without starting another --
+VS Code's "Server: Stop Server" -- =M-x eglot-shutdown=; and a Lean
+buffer visited afterwards starts a new one, unless
+~lean4-auto-start-server~ is off.  Neither is to be confused with
+=C-c C-d=, which restarts the /file/: see [[*"Imports are out of date and
+must be rebuilt"]].
 
 ** Where the documentation is
 

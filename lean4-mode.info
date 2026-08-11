@@ -68,6 +68,7 @@ Usage
 * Mathlib's build cache::
 * Choosing which Lean to use::
 * Searching Mathlib with Loogle::
+* Following a name through a project::
 * The module hierarchy::
 * Other Lake operations::
 * Moving by declaration::
@@ -132,9 +133,14 @@ File: lean4-mode.info,  Node: Requirements,  Next: From source,  Up: Installatio
      both on Melpa (https://melpa.org/#/getting-started)
 
    Eglot is used for the language-server connection, and is built into
-Emacs 29 and later, so nothing needs installing for it.  See *note
-Semantic highlighting:: for one feature that a newer Eglot than the
-bundled one provides.
+Emacs 29 and later, so nothing needs installing for it.  A newer Eglot
+than the bundled one adds three things, though, and ‘M-x package-install
+RET eglot RET’ is the whole of getting them: *note Semantic
+highlighting:: (1.20), the call hierarchy under *note Following a name
+through a project:: (1.19), and Eglot's own report that a code action is
+available, under *note Being told a suggestion is there:: (1.19).  Emacs
+29 bundles 1.12 and Emacs 30 bundles 1.17; without any of it nothing is
+said and nothing breaks.
 
    magit-section 3.3.0 is enough, and is what Debian and Ubuntu ship as
 ‘elpa-magit-section’.  If you have it, do not install a newer one on
@@ -313,6 +319,7 @@ buffer.  To put it in a side window on the right:
 * Mathlib's build cache::
 * Choosing which Lean to use::
 * Searching Mathlib with Loogle::
+* Following a name through a project::
 * The module hierarchy::
 * Other Lake operations::
 * Moving by declaration::
@@ -847,7 +854,7 @@ instead, which is always current.
 environment it was started with is refreshed.
 
 
-File: lean4-mode.info,  Node: Searching Mathlib with Loogle,  Next: The module hierarchy,  Prev: Choosing which Lean to use,  Up: Usage
+File: lean4-mode.info,  Node: Searching Mathlib with Loogle,  Next: Following a name through a project,  Prev: Choosing which Lean to use,  Up: Usage
 
 2.12 Searching Mathlib with Loogle
 ==================================
@@ -892,9 +899,56 @@ which the module's name, its dots turned into slashes, and ‘.html’ are
 appended.
 
 
-File: lean4-mode.info,  Node: The module hierarchy,  Next: Other Lake operations,  Prev: Searching Mathlib with Loogle,  Up: Usage
+File: lean4-mode.info,  Node: Following a name through a project,  Next: The module hierarchy,  Prev: Searching Mathlib with Loogle,  Up: Usage
 
-2.13 The module hierarchy
+2.13 Following a name through a project
+=======================================
+
+Nothing here implements any of this: Lean answers it and Eglot puts the
+answers where Emacs keeps them, so the keys are the ones you already
+use.  It is listed because the keys are not this package's and so appear
+in no table of its own - and because the last two are easy to miss.
+
+Key       Finds                                        Command
+-------------------------------------------------------------------------------------
+‘M-.’     where the name at point is defined           ‘xref-find-definitions’
+‘M-,’     the way back                                 ‘xref-go-back’
+‘M-?’     everywhere it is used                        ‘xref-find-references’
+‘C-M-.’   a name anywhere in the project, by pattern   ‘xref-find-apropos’
+          its type, rather than itself                 ‘eglot-find-typeDefinition’
+          its declaration                              ‘eglot-find-declaration’
+          who calls it, and whom it calls              ‘eglot-show-call-hierarchy’
+
+   ‘M-.’ on a type class projection offers the class and its instances,
+and looks through a reducible definition to what it stands for; on an
+‘import’ it opens the file.  ‘eglot-find-declaration’ adds the parser
+and the elaborator of the syntax at point, which is Lean's own answer to
+"where does this notation come from"; both are VS Code's "Go to
+Declaration" and "Go to Type Definition".
+
+   ‘eglot-show-call-hierarchy’ is VS Code's ‘Alt+Shift+H’, and needs
+Eglot 1.19 or later - newer than the Eglot bundled with Emacs 29 or 30,
+so ‘M-x package-install RET eglot RET’ is what provides it, as it is for
+*note Semantic highlighting::.  It shows both directions in one tree,
+where VS Code has a button to swap between them; a prefix argument asks
+which one to show.  ‘RET’ on an entry goes there.  Lean offers no type
+hierarchy, so ‘eglot-show-type-hierarchy’ has nothing to report.
+
+   Occurrences of the name at point are highlighted where they mean the
+same name - the parameter ‘x’, and not another ‘x’ that shadows it,
+which is semantics rather than search, and Lean's to decide.  This is
+ElDoc's doing, so occurrences light up when point comes to rest rather
+than as it passes through; adding ‘:documentHighlightProvider’ to
+‘eglot-ignored-server-capabilities’ turns it off.
+
+   Searching the project's text is ‘M-x project-find-regexp’, and
+opening a file in it ‘C-x p f’; the file tree is Dired.  VS Code has
+commands for each because it has a window to hang them in.
+
+
+File: lean4-mode.info,  Node: The module hierarchy,  Next: Other Lake operations,  Prev: Following a name through a project,  Up: Usage
+
+2.14 The module hierarchy
 =========================
 
 What a module imports, and what imports it, as a tree in a ‘*Lean Module
@@ -939,7 +993,7 @@ and non-meta’ for one imported both ways.
 
 File: lean4-mode.info,  Node: It needs a built project,  Up: The module hierarchy
 
-2.13.1 It needs a built project
+2.14.1 It needs a built project
 -------------------------------
 
 The server answers these from its reference data, which it builds from
@@ -954,7 +1008,7 @@ after a rebuild may be the one from before it; ‘g’ asks again.
 
 File: lean4-mode.info,  Node: Other Lake operations,  Next: Moving by declaration,  Prev: The module hierarchy,  Up: Usage
 
-2.14 Other Lake operations
+2.15 Other Lake operations
 ==========================
 
 Two more commands live in the same ‘Project’ menu.
@@ -984,7 +1038,7 @@ has a window to point at a folder.
 
 File: lean4-mode.info,  Node: Moving by declaration,  Next: Applying what Lean suggests,  Prev: Other Lake operations,  Up: Usage
 
-2.15 Moving by declaration
+2.16 Moving by declaration
 ==========================
 
 The commands Emacs binds in every buffer for moving over a function work
@@ -1029,7 +1083,7 @@ worth more than reporting the block as a unit.
 
 File: lean4-mode.info,  Node: Applying what Lean suggests,  Next: Being told a suggestion is there,  Prev: Moving by declaration,  Up: Usage
 
-2.16 Applying what Lean suggests
+2.17 Applying what Lean suggests
 ================================
 
 Lean offers to write things for you in two quite different ways, and
@@ -1067,7 +1121,7 @@ way; a prompt offering a single answer is a keystroke spent on nothing.
 
 File: lean4-mode.info,  Node: Being told a suggestion is there,  Next: What Lean filled in for you,  Prev: Applying what Lean suggests,  Up: Usage
 
-2.17 Being told a suggestion is there
+2.18 Being told a suggestion is there
 =====================================
 
 ElDoc reports the inlay hint wherever there is one, as *note What Lean
@@ -1116,7 +1170,7 @@ about the key follows the keymap.
 
 File: lean4-mode.info,  Node: What Lean filled in for you,  Next: Completion,  Prev: Being told a suggestion is there,  Up: Usage
 
-2.18 What Lean filled in for you
+2.19 What Lean filled in for you
 ================================
 
 A declaration whose type mentions a variable never bound still compiles:
@@ -1170,7 +1224,7 @@ though: whatever the server sends is what is shown and inserted.
 
 File: lean4-mode.info,  Node: Completion,  Next: Finding a symbol you cannot name,  Prev: What Lean filled in for you,  Up: Usage
 
-2.19 Completion
+2.20 Completion
 ===============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -1194,7 +1248,7 @@ Lean input method replaces it as soon as it is unambiguous.
 
 File: lean4-mode.info,  Node: Finding a symbol you cannot name,  Prev: Completion,  Up: Usage
 
-2.20 Finding a symbol you cannot name
+2.21 Finding a symbol you cannot name
 =====================================
 
 Completion goes from an abbreviation to a symbol, which is no help when
@@ -1443,6 +1497,13 @@ reports.
 save first, or what Lean reports will be about the previous version.  A
 buffer visiting no file at all is written to a temporary one instead.
 
+   ‘C-c C-r’ (‘eglot-reconnect’) restarts the server, which is VS Code's
+"Server: Restart Server".  To stop one without starting another - VS
+Code's "Server: Stop Server" - ‘M-x eglot-shutdown’; and a Lean buffer
+visited afterwards starts a new one, unless ‘lean4-auto-start-server’ is
+off.  Neither is to be confused with ‘C-c C-d’, which restarts the
+_file_: see *note "Imports are out of date and must be rebuilt"::.
+
 * Menu:
 
 * Where the documentation is::
@@ -1571,52 +1632,53 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2590
-Node: Requirements2815
-Node: From source3895
-Node: With a source-based package manager4383
-Node: Native vc (Emacs 30 or later)4894
-Node: Doom-Emacs5339
-Node: Straight5658
-Node: Upgrading from version 16015
-Node: Usage9184
-Node: Keys in a Lean buffer11170
-Node: Keys in the goal display13668
-Node: The tactic state18203
-Node: Copying what is on display19932
-Node: How much of a goal to show20959
-Node: Errors and warnings24470
-Node: Building dependencies28565
-Node: Starting a project29835
-Node: Building31627
-Node: Mathlib's build cache32819
-Node: Choosing which Lean to use34176
-Node: Elan itself36610
-Node: Git and curl37826
-Node: Searching Mathlib with Loogle39573
-Node: The module hierarchy41829
-Node: It needs a built project43872
-Node: Other Lake operations44522
-Node: Moving by declaration45958
-Node: Applying what Lean suggests48490
-Node: Being told a suggestion is there50379
-Node: What Lean filled in for you52833
-Node: Completion55238
-Node: Finding a symbol you cannot name56407
-Node: Configuration57658
-Node: Frequently used options58138
-Node: Finding the Lean programs60158
-Node: Tuning61100
-Node: The goal display's controls61902
-Node: Older Lean versions63757
-Node: Semantic highlighting64739
-Node: Optional packages66251
-Node: Troubleshooting66744
-Node: Where the documentation is68328
-Node: "Timed out after 30 seconds" opening a file outside a project69455
-Node: "Imports are out of date and must be rebuilt"70643
-Node: Common Pitfalls72166
-Node: Acknowledgements72767
+Node: Installation2629
+Node: Requirements2854
+Node: From source4299
+Node: With a source-based package manager4787
+Node: Native vc (Emacs 30 or later)5298
+Node: Doom-Emacs5743
+Node: Straight6062
+Node: Upgrading from version 16419
+Node: Usage9588
+Node: Keys in a Lean buffer11613
+Node: Keys in the goal display14111
+Node: The tactic state18646
+Node: Copying what is on display20375
+Node: How much of a goal to show21402
+Node: Errors and warnings24913
+Node: Building dependencies29008
+Node: Starting a project30278
+Node: Building32070
+Node: Mathlib's build cache33262
+Node: Choosing which Lean to use34619
+Node: Elan itself37053
+Node: Git and curl38269
+Node: Searching Mathlib with Loogle40016
+Node: Following a name through a project42286
+Node: The module hierarchy45073
+Node: It needs a built project47121
+Node: Other Lake operations47771
+Node: Moving by declaration49207
+Node: Applying what Lean suggests51739
+Node: Being told a suggestion is there53628
+Node: What Lean filled in for you56082
+Node: Completion58487
+Node: Finding a symbol you cannot name59656
+Node: Configuration60907
+Node: Frequently used options61387
+Node: Finding the Lean programs63407
+Node: Tuning64349
+Node: The goal display's controls65151
+Node: Older Lean versions67006
+Node: Semantic highlighting67988
+Node: Optional packages69500
+Node: Troubleshooting69993
+Node: Where the documentation is72018
+Node: "Timed out after 30 seconds" opening a file outside a project73145
+Node: "Imports are out of date and must be rebuilt"74333
+Node: Common Pitfalls75856
+Node: Acknowledgements76457
 
 End Tag Table
 
