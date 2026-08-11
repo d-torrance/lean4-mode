@@ -19,3 +19,13 @@ example : Inhabited (Nat × Nat) := inferInstance
 -- line numbers asserted above stay valid.
 example {α : Type} [Inhabited α] (h : α) : True := by
   sorry
+
+-- An auto-bound implicit: `α` is never declared, so Lean binds it and offers
+-- an inlay hint saying so.  Appended at the end so the line numbers asserted
+-- above stay valid.
+def autoBound (a : α) : α := a
+
+-- `simp?` reports what it used as a "Try this" suggestion, which the server
+-- offers as a code action.  Appended at the end so the line numbers asserted
+-- above stay valid.
+example : 1 = 1 := by simp?

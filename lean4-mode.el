@@ -55,7 +55,9 @@
 
 (require 'eri)
 (require 'lean4-defun)
+(require 'lean4-hints)
 (require 'lean4-indent)
+(require 'lean4-suggest)
 (require 'lean4-util)
 (require 'lean4-settings)
 (require 'lean4-syntax)
@@ -138,6 +140,9 @@ the arguments to pass."
   "C-c C-p C-l" #'lean4-lake-build
   "C-c C-p C-c" #'lean4-lake-fetch-cache
   "C-c C-p C-f" #'lean4-lake-fetch-file-cache
+  ;; VS Code's `Ctrl+.', which offers the same code actions.  Most terminals
+  ;; cannot send `C-.' at all, so rebind this where that matters.
+  "C-c C-."     #'lean4-apply-suggestion
   "C-c C-d"     #'lean4-refresh-file-dependencies
   "C-c C-r"     #'eglot-reconnect
   "C-c C-s"     #'lean4-info-toggle-pin
@@ -177,6 +182,8 @@ the arguments to pass."
      ["Fetch cache for this file"      lean4-lake-fetch-file-cache
       buffer-file-name]
      ["Fetch cache for open files"     lean4-lake-fetch-open-file-caches t])
+    ["Apply what Lean suggests here..." lean4-apply-suggestion
+     (eglot-current-server)]
     ["Search Mathlib with Loogle..." lean4-loogle-search t]
     ("Unicode input"
      ["Insert a symbol..."          lean4-input-insert-symbol      t]
@@ -305,6 +312,7 @@ The page VS Code\='s \"Show Documentation Resources\" opens."
   (add-hook 'before-save-hook #'lean4-whitespace-cleanup nil 'local)
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-semantic-tokens nil 'local)
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-completion nil 'local)
+  (add-hook 'eglot-managed-mode-hook #'lean4-hints--setup nil 'local)
   ;; Before `eglot-ensure' below, which is what asks project.el where
   ;; this file's root is.
   (lean4-register-project-backend)

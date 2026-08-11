@@ -76,7 +76,11 @@
     eglot--capabilities
     eglot--managed-buffers
     eglot--signal-textDocument/didOpen
-    eglot--signal-textDocument/didClose)
+    eglot--signal-textDocument/didClose
+    eglot--signal-textDocument/didChange
+    eglot--apply-text-edits
+    eglot--format-markup
+    eglot--read-execute-code-action)
   "Private Eglot functions this package calls.
 Eglot exposes no public equivalent for any of these.")
 

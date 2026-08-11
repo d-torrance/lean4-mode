@@ -173,6 +173,7 @@ buffer.  To put it in a side window on the right:
 | Key                    | Description                                              | Command                                |
 |------------------------+----------------------------------------------------------+----------------------------------------|
 | =C-c C-i=              | Show or hide the goal display                            | ~lean4-toggle-info~                    |
+| =C-c C-.=              | Apply something Lean suggests at point                   | ~lean4-apply-suggestion~               |
 | =C-c C-s=              | Pin the goal display to point, or unpin it               | ~lean4-info-toggle-pin~                |
 | =C-c C-SPC=            | Pause or unpause the goal display                        | ~lean4-info-toggle-pause~              |
 | =C-c C-g=              | Bring a paused goal display up to date                   | ~lean4-info-refresh-paused~            |
@@ -783,6 +784,101 @@ Declarations inside a =mutual= block count one by one.  Lean writes
 them flush with the =mutual=, so nothing short of counting =mutual= and
 =end= would tell them from top-level ones, and reaching one of them is
 worth more than reporting the block as a unit.
+
+** Applying what Lean suggests
+
+Lean offers to write things for you in two quite different ways, and
+=C-c C-.= (~lean4-apply-suggestion~) asks for both and offers them in one
+list.  VS Code binds =Ctrl+.= to the first group, which is where the
+mnemonic comes from.
+
+Most suggestions arrive as LSP /code actions/:
+
+- the =Try this= of =simp?=, =exact?=, =apply?= and =rw?=, which is how
+  those tactics report what they found -- ="Try this: simp only"= and the
+  lemmas it used;
+- an import, or a spelling, offered for an unknown identifier;
+- the output =#guard_msgs= wants in place of the docstring above it;
+- whatever a project's own code actions provide -- Batteries offers
+  several, including an instance skeleton and the cases of an
+  =induction=.
+
+One arrives as an /inlay hint/ instead: see [[*What Lean filled in for you]].
+Both read the same way -- Lean worked something out and is offering to
+put it in the file -- so both are on the one key, the code actions first
+and the hint last.
+
+Point decides what is asked about: an active region, failing that any
+diagnostic covering point, so that a fix offered for an error is found
+from anywhere within it, failing that the term at point, and failing
+that point itself.  Where Lean offers nothing it says so and stops.
+
+Carrying out a code action is handed back to Eglot, which resolves it,
+applies its edit and runs its command; =M-x eglot-code-actions= is the
+same thing without the inlay hint.
+
+Most terminals cannot send =C-.= at all -- only those speaking one of
+the newer keyboard protocols can -- so in one of the others, rebind it:
+
+#+begin_src elisp
+(keymap-set lean4-mode-map "C-c C-y" #'lean4-apply-suggestion)
+#+end_src
+
+Nothing else needs changing: what the goal display and ElDoc say about
+the key follows the keymap.
+
+** What Lean filled in for you
+
+A declaration whose type mentions a variable never bound still compiles:
+
+#+begin_src lean
+def myId (a : α) : α := a
+#+end_src
+
+Lean binds =α= itself and reports having done so as an /inlay hint/, a
+greyed-out = {α}= drawn after the name without being in the file.  Eglot
+draws it.  Two things the server attaches to it are read here.
+
+With point on that line, ElDoc says what =α= was inferred to be, and
+names the key that writes the binder down:
+
+: Automatically-inserted implicit parameters:
+: α : Sort u_1
+: C-c C-. offers to insert " {α}"
+
+=C-c C-.= (~lean4-apply-suggestion~) then offers it, along with anything
+else Lean suggests here -- see [[*Applying what Lean suggests]].  Taking it
+makes the binder real, leaving point where it was:
+
+#+begin_src lean
+def myId {α} (a : α) : α := a
+#+end_src
+
+The text and its position are Lean's own rather than a guess, so the
+binders land in the order and place Lean chose.
+
+This is VS Code's hover on the hint, which shows the types, and its
+double-click, which inserts them.  Emacs has neither gesture, so the
+report goes through ElDoc -- where the type of the subterm under point
+already goes, and which Eglot has set to compose, so this is shown
+alongside the hover rather than instead of it -- and the insertion is a
+command.  Announcing a command in the report is how Eglot itself offers
+a code action, there being no lightbulb to click; the announcement is
+written with ~substitute-command-keys~, so it names whichever key you
+have bound and the command itself where none is.
+
+=M-x lean4-insert-inlay-hint= is the hint on its own, without the list,
+for a key of your own that means only this.
+
+Set ~lean4-inlay-hints-in-eldoc~ to =nil= to stop the report, and with it
+the request ElDoc would otherwise make each time point comes to rest;
+the command still works.  ~lean4-inlay-hint-timeout~ is how long that
+command waits for an answer.
+
+Auto-bound implicits are the only hint Lean sends as of 4.33, and
+Mathlib sets =autoImplicit= to false, so in a Mathlib file there are no
+hints and nothing to report.  Nothing here is particular to that hint,
+though: whatever the server sends is what is shown and inserted.
 
 ** Completion
 

@@ -45,6 +45,11 @@ so these tests place point at the start of the line's indentation.")
   "Line of the `sorry' whose goal has a hypothesis of every kind.
 A type, a typeclass instance and an ordinary one, which is what the
 goal display\\='s filters tell apart.")
+(defconst lean4-e2e--hint-line 25
+  "Line of the declaration Lean offers an inlay hint on in the fixture.
+Its type mentions an `α' never bound, so Lean binds it and says so.")
+(defconst lean4-e2e--suggestion-line 30
+  "Line of the `simp?' in the fixture, whose \"Try this\" is a code action.")
 
 (defconst lean4-e2e--timeout 180
   "Seconds to allow for the server to start and elaborate the fixture.
@@ -1184,6 +1189,152 @@ A goal buffer that has quietly stopped updating looks broken."
                  (string-search "pinned" (buffer-string))))))
         (setq lean4-info-paused nil)
         (lean4-info-unpin-all)))))
+
+;;;; Inlay hints
+
+(defun lean4-e2e--current-line ()
+  "Return the text of the line point is on."
+  (buffer-substring-no-properties
+   (line-beginning-position) (line-end-position)))
+
+(defun lean4-e2e--wait-for-hint ()
+  "Wait until the server offers an inlay hint on the current line.
+Hints arrive with elaboration, which the fixture's error only proves has
+reached the error."
+  (lean4-e2e--wait-until
+   "an inlay hint on the declaration"
+   (lambda ()
+     (lean4-hints--nearest
+      (jsonrpc-request (eglot-current-server) :textDocument/inlayHint
+                       (lean4-hints--params))
+      (point)))))
+
+(ert-deftest lean4-e2e-inlay-hint-is-offered ()
+  "The server sends a hint carrying both an edit and the inferred type."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--hint-line)
+    (end-of-line)
+    (let ((hint (lean4-e2e--wait-for-hint)))
+      (should (equal (string-trim (lean4-hints--label hint)) "{α}"))
+      (should (lean4-hints--insertion hint))
+      (should (string-search "α : Sort"
+                             (plist-get (plist-get hint :tooltip) :value))))))
+
+(ert-deftest lean4-e2e-inlay-hint-is-inserted ()
+  "The command writes what Lean inferred into the buffer.
+The fixture is left alone: the buffer is discarded unsaved."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--hint-line)
+    (end-of-line)
+    (lean4-e2e--wait-for-hint)
+    (should (equal (lean4-e2e--current-line) "def autoBound (a : α) : α := a"))
+    (lean4-insert-inlay-hint)
+    (should (equal (lean4-e2e--current-line)
+                   "def autoBound {α} (a : α) : α := a"))))
+
+(ert-deftest lean4-e2e-inlay-hint-reaches-eldoc ()
+  "ElDoc is told the inferred type and how to write it down."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--hint-line)
+    (end-of-line)
+    (lean4-e2e--wait-for-hint)
+    (let (report)
+      (should (lean4-hints-eldoc-function
+               (lambda (documentation &rest _) (setq report documentation))))
+      (lean4-e2e--wait-until "ElDoc to be told about the hint"
+                             (lambda () report))
+      (should (string-search "α : Sort" report))
+      ;; The key of `lean4-apply-suggestion', that being the one bound.
+      (should (string-search "C-c C-." report)))))
+
+(ert-deftest lean4-e2e-inlay-hint-eldoc-function-is-installed ()
+  "The report joins Eglot's own ElDoc functions rather than replacing them.
+Composed, and appended: what Lean inferred is a footnote to the type of
+the thing under point."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (should (eq eldoc-documentation-strategy #'eldoc-documentation-compose))
+    (should (memq #'lean4-hints-eldoc-function eldoc-documentation-functions))
+    (should (memq #'eglot-hover-eldoc-function eldoc-documentation-functions))
+    (should (> (seq-position eldoc-documentation-functions
+                             #'lean4-hints-eldoc-function)
+               (seq-position eldoc-documentation-functions
+                             #'eglot-hover-eldoc-function)))))
+
+(ert-deftest lean4-e2e-inlay-hint-declines-elsewhere ()
+  "Where Lean offers no hint, the command says so and changes nothing."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--sorry-line)
+    (back-to-indentation)
+    (should-error (lean4-insert-inlay-hint) :type 'user-error)
+    (should-not (buffer-modified-p))))
+
+;;;; Applying what Lean suggests
+
+(defun lean4-e2e--pick-first-suggestion ()
+  "Call `lean4-apply-suggestion', taking the first thing offered."
+  (cl-letf (((symbol-function 'completing-read)
+             (lambda (_prompt collection &rest _) (car (car collection)))))
+    (lean4-apply-suggestion)))
+
+(ert-deftest lean4-e2e-suggestion-offers-try-this ()
+  "A `simp?' suggestion reaches us as a code action."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--suggestion-line)
+    (search-forward "simp?")
+    (goto-char (match-beginning 0))
+    (let ((actions (lean4-e2e--wait-until
+                    "the \"Try this\" code action"
+                    (lambda () (lean4-suggest--code-actions)))))
+      (should (seq-find (lambda (action)
+                          (string-search "simp" (plist-get action :title)))
+                        actions)))))
+
+(ert-deftest lean4-e2e-suggestion-applies-try-this ()
+  "Choosing it rewrites the tactic, Eglot applying the edit."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--suggestion-line)
+    (search-forward "simp?")
+    (goto-char (match-beginning 0))
+    (lean4-e2e--wait-until "the \"Try this\" code action"
+                           (lambda () (lean4-suggest--code-actions)))
+    (lean4-e2e--pick-first-suggestion)
+    (should-not (string-search "simp?" (lean4-e2e--current-line)))
+    (should (string-search "simp" (lean4-e2e--current-line)))))
+
+(ert-deftest lean4-e2e-suggestion-offers-the-inlay-hint ()
+  "Where the only thing on offer is the hint, the same key inserts it."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--goto-line lean4-e2e--hint-line)
+    (end-of-line)
+    (lean4-e2e--wait-for-hint)
+    (should (equal (mapcar #'car (lean4-suggest--candidates
+                                  (lean4-suggest--code-actions)
+                                  (lean4-suggest--hint)))
+                   '("Insert \" {α}\"")))
+    (lean4-e2e--pick-first-suggestion)
+    (should (equal (lean4-e2e--current-line)
+                   "def autoBound {α} (a : α) : α := a"))))
+
+(ert-deftest lean4-e2e-suggestion-says-so-when-there-is-nothing ()
+  "Where Lean offers nothing, it says so rather than signalling."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (goto-char (point-min))
+    (let ((said nil))
+      (cl-letf (((symbol-function 'message)
+                 (lambda (format &rest arguments)
+                   (setq said (apply #'format format arguments)))))
+        (lean4-apply-suggestion))
+      (should (equal said "Lean suggests nothing here")))
+    (should-not (buffer-modified-p))))
 
 (provide 'lean4-e2e-test)
 ;;; lean4-e2e-test.el ends here

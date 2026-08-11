@@ -147,6 +147,29 @@ xref, project roots through =project.el=.
   the outline, the breadcrumbs bar and go-to-symbol, which come from
   the server's document symbols and which Eglot already feeds to Imenu
   here.
+- One key for everything Lean offers to write for you: =C-c C-.=
+  (~lean4-apply-suggestion~), which is VS Code's =Ctrl+.=.  It offers, in
+  one list, every code action at point -- the =Try this= of =simp?=,
+  =exact?=, =apply?= and =rw?=, an import or a spelling for an unknown
+  identifier, what =#guard_msgs= wants, and whatever a project's own code
+  actions provide -- and the inlay hint below.  Carrying out an action is
+  handed back to Eglot, which resolves it, applies its edit and runs its
+  command.  Version 1 offered none of this; =M-x eglot-code-actions= was
+  the only way to reach a =simp?= suggestion, and nothing said so.
+- What Lean filled in for you, from the inlay hints the server sends.
+  Eglot draws the greyed-out = {α}= on a declaration whose type mentions
+  a variable never bound, and discards the two things attached to it;
+  both are read here.  ElDoc reports what the variable was inferred to
+  be and names the command that writes the binder down, and =M-x
+  lean4-insert-inlay-hint= writes it, which is VS Code's hover and
+  double-click on the hint.  The report goes through
+  ~eldoc-documentation-functions~, which Eglot has already set to
+  compose, so it joins the hover rather than displacing it; announcing
+  the command in it is Eglot's own idiom for a code action, Emacs having
+  no lightbulb to click.  ~lean4-inlay-hints-in-eldoc~ turns the report
+  off.  Auto-bound implicits are the only hint Lean sends as of 4.33,
+  and Mathlib sets =autoImplicit= false, so this has nothing to say in a
+  Mathlib file.
 - Completion through ~completion-at-point-functions~ from three sources:
   the Unicode abbreviations, so =\al= offers =\alpha=; Lean's keywords,
   which the server offers nothing towards for a bare word; and the
@@ -261,7 +284,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 373 unit tests, and 37 end-to-end tests that run against
+- A test suite: 398 unit tests, and 46 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual is published at [[https://d-torrance.github.io/lean4-mode/][d-torrance.github.io/lean4-mode]],
   exported from the same README the Info manual is made from, so the two
