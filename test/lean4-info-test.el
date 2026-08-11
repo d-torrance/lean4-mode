@@ -1673,6 +1673,68 @@ A server too old for the interactive RPC sends them already rendered."
       ;; VS Code's wording, and no colon, as with "Tactic state".
       (should-not (string-search "Expected type:" (buffer-string))))))
 
+(defmacro lean4-info-test--recording-setter (symbol counter &rest body)
+  "Evaluate BODY with SYMBOL's custom setter counting calls in COUNTER.
+The real setter still runs, so whatever it maintains is maintained; this
+only notices that the custom machinery was reached at all.  Restored
+afterwards, since a `custom-set' property left behind would follow the
+option into every other test."
+  (declare (indent 2) (debug (form symbolp body)))
+  `(let ((original (get ,symbol 'custom-set)))
+     (unwind-protect
+         (progn
+           (put ,symbol 'custom-set
+                (lambda (name value)
+                  (setq ,counter (1+ ,counter))
+                  (if original
+                      (funcall original name value)
+                    (set-default name value))))
+           ,@body)
+       (if original
+           (put ,symbol 'custom-set original)
+         ;; `put' of nil is not the same as never having had the property,
+         ;; but it is what `custom-set' being absent means to `setopt'.
+         (put ,symbol 'custom-set nil)))))
+
+(ert-deftest lean4-info-toggle-goes-through-the-custom-setter ()
+  "A toggle sets its option the way Customize would, not with `setq'.
+
+None of the seven has a `:set' today, so nothing observable depends on
+it yet -- which is exactly why this is worth pinning.  Written with
+`setq', adding a `:set' to any of them later would have it silently
+ignored, and now that the seven share one definition it would be ignored
+at all seven at once."
+  (let ((ran 0))
+    (cl-letf (((symbol-function 'lean4-info--redisplay-source) #'ignore)
+              ((symbol-function 'message) #'ignore))
+      (lean4-info-test--recording-setter 'lean4-info-show-goal-names ran
+        (let ((lean4-info-show-goal-names t))
+          (lean4-info-toggle-goal-names)
+          (should (= ran 1))
+          ;; And it still does what it always did.
+          (should-not lean4-info-show-goal-names))))))
+
+(ert-deftest lean4-info-cycle-expected-type-lets-its-setter-do-the-work ()
+  "Cycling reaches the option's `:set' rather than repeating its body.
+
+`lean4-info-expected-type-visibility' has a `:set' that raises the
+pending flag, without which a change to the setting loses to the fold
+state `magit-section' remembers.  The command used to call that by hand
+after a `setq', so the rule was written both in the `defcustom' and in
+the command."
+  (let ((ran 0))
+    (cl-letf (((symbol-function 'lean4-info--redisplay-source) #'ignore)
+              ((symbol-function 'message) #'ignore))
+      (lean4-info-test--recording-setter
+          'lean4-info-expected-type-visibility ran
+        (let ((lean4-info-expected-type-visibility 'expanded)
+              (lean4-info--expected-type-pending nil))
+          (lean4-info-cycle-expected-type)
+          (should (= ran 1))
+          (should (eq lean4-info-expected-type-visibility 'collapsed))
+          ;; What the setter is for, reached without a call of its own.
+          (should lean4-info--expected-type-pending))))))
+
 (ert-deftest lean4-info-toggles-report-and-redisplay ()
   "Each toggle flips its option and asks for a redraw."
   (let ((redisplays 0))

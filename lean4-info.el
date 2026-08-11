@@ -535,12 +535,22 @@ Seven options say how much of a goal to show, and a command apiece to
 flip one is seven copies of the same three lines.  Written out, the
 copies drifted: the shape is stated here instead, so that changing how a
 toggle behaves is one edit rather than seven.  Each command is still
-autoloaded, by a cookie on the call below."
+autoloaded, by a cookie on the call below.
+
+`setopt' rather than `setq', so that an option\\='s `:set' runs.  None of
+these seven has one yet, but the option that does -- see
+`lean4-info-expected-type-visibility' -- had to have its setter called by
+hand from the command that changed it, which is one behaviour written
+twice.  Going through the custom machinery is what stops the next `:set'
+being added and silently ignored here, at all seven at once.  It reports
+nothing to Customize, so an option flipped by a keystroke stays a
+session\\='s worth of change rather than something a later \"save for
+future sessions\" could write out."
   (declare (indent 2) (doc-string 3))
   `(defun ,name ()
      ,(concat doc "\nSets `" (symbol-name variable) "' for this session.")
      (interactive)
-     (setq ,variable (not ,variable))
+     (setopt ,variable (not ,variable))
      (lean4-info--report-setting (if ,variable ,on ,off))))
 
 ;;;###autoload (autoload 'lean4-info-toggle-goal-names "lean4-info" nil t)
@@ -592,12 +602,15 @@ Sets `lean4-info-expected-type-visibility' for this session.  A cycle
 rather than a toggle because there are three states to reach; VS Code
 reaches them from a menu of three."
   (interactive)
-  (setq lean4-info-expected-type-visibility
-        (pcase lean4-info-expected-type-visibility
-          ('expanded 'collapsed)
-          ('collapsed 'hidden)
-          (_ 'expanded)))
-  (lean4-info--expected-type-changed)
+  ;; `setopt', so that the option's own `:set' raises the pending flag.
+  ;; Calling `lean4-info--expected-type-changed' from here as well would
+  ;; state in two places a rule the `defcustom' already states, and the
+  ;; copy is the one that goes stale.
+  (setopt lean4-info-expected-type-visibility
+          (pcase lean4-info-expected-type-visibility
+            ('expanded 'collapsed)
+            ('collapsed 'hidden)
+            (_ 'expanded)))
   (lean4-info--report-setting
    (pcase lean4-info-expected-type-visibility
      ('expanded "expected type shown")
