@@ -111,6 +111,31 @@ version =1.1.2= is tagged and continues to work.
 - Lean 3 autodetection is gone, along with ~lean4-autodetect-lean3~.  It
   ran =lean -v= every time a =.lean= file was opened.  Lean 3 users
   should use [[https://github.com/leanprover/lean3-mode][Lean3-Mode]].
+- Four abbreviations now insert something else, the table having been
+  refreshed from vscode-lean4: =\n= gives a literal =\n= rather than ¬,
+  =\!= gives ¬ rather than ¡, and =\dot= and =\cdot= give · rather than
+  ⬝.  Seven abbreviations are gone and thirty-one are new.  This is the
+  change most likely to catch your fingers out; =\not= is ¬ either way.
+- Indentation cycling comes from the =eri= package on Melpa, which is
+  the upstream of the copy this package used to vendor, so
+  ~lean4-eri-indent~ and ~lean4-eri-indent-reverse~ are now ~eri-indent~
+  and ~eri-indent-reverse~.  The mode no longer binds =TAB= itself, so
+  ~tab-always-indent~ means here what it means everywhere else.
+- Semantic highlighting needs Eglot 1.20 or later, which is newer than
+  the Eglot bundled with Emacs 29 or 30.  Version 1 had it
+  unconditionally, through lsp-mode.  See [[*Semantic highlighting]].
+- ~lean4-syntax-table~ is now ~lean4-mode-syntax-table~, with the old
+  name kept as an obsolete alias, and the empty ~lean4-abbrev-table~ is
+  gone in favour of the ~lean4-mode-abbrev-table~ that
+  ~define-derived-mode~ makes, which is where =M-x edit-abbrevs= looks.
+- The goal display's two debounce options,
+  ~lean4-info-buffer-debounce-delay-sec~ and
+  ~lean4-info-buffer-debounce-upper-bound-sec~, are replaced by the one
+  ~lean4-info-debounce-delay~.  ~lean4-memory-limit~ and
+  ~lean4-timeout-limit~ are gone; neither was read by anything.
+- =lean4-debug.el= and =lean4-dev.el= are gone, and with them =M-x
+  lean4-turn-on-debug-mode=, =M-x lean4-turn-off-debug-mode=, =M-x
+  lean4-diff-test-file= and the =*lean4-debug*= buffer.
 
 * Usage
 
@@ -842,6 +867,10 @@ it is not, so
 : M-x package-install RET eglot RET
 
 turns on semantic highlighting on any supported Emacs.
+
+Version 1 had it unconditionally, lsp-mode having supported semantic
+tokens throughout, so this is the one thing the move to Eglot can take
+away from a version 1 user who installs nothing.
 
 Expect keywords rather than colour for every identifier.  The server
 advertises the whole standard set of token types but, as of Lean 4.32,

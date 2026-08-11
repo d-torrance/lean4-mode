@@ -18,20 +18,25 @@
 
 ;;; Commentary:
 
-;; Lean adds four fields to the LSP `Diagnostic', each gated behind a client
-;; capability so that a client which does not understand them never sees
-;; them.  This library asks for them and acts on them.
+;; Lean adds four fields to the LSP `Diagnostic'.  Three of them this
+;; library acts on; the fourth is listed so that the next reader knows it
+;; was considered.
 ;;
 ;;   fullRange       the whole construct a message is about, as opposed to
-;;                   the span that gets underlined.  Read in `lean4-info'
+;;                   the span that gets underlined.  Sent unconditionally;
+;;                   read in `lean4-info'
+;;   leanTags        UnsolvedGoals and GoalsAccomplished, which drive the two
+;;                   decorations VS Code shows in the gutter.  Sent
+;;                   unconditionally
 ;;   isSilent        a diagnostic meant for the InfoView but not for the
 ;;                   editor.  Filtered out before Flymake sees it, or every
-;;                   completed proof would be underlined
-;;   leanTags        UnsolvedGoals and GoalsAccomplished, which drive the two
-;;                   decorations VS Code shows in the gutter
+;;                   completed proof would be underlined.  Gated behind
+;;                   `silentDiagnosticSupport', which is asked for in
+;;                   `lean4-client-capabilities'
 ;;   isIncremental   diagnostics to append to what is already displayed
-;;                   rather than replace it, so a long file does not flicker
-;;                   between partial results while it elaborates
+;;                   rather than replace it.  Gated behind
+;;                   `incrementalDiagnosticSupport', which is deliberately
+;;                   not asked for; see "Capabilities" below
 ;;
 ;; A server that predates any of these simply never sets it, and everything
 ;; here degrades to doing nothing.

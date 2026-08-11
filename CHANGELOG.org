@@ -25,6 +25,13 @@ xref, project roots through =project.el=.
   ~lean4-eri-indent-reverse~ are now ~eri-indent~ and
   ~eri-indent-reverse~.
 - Diagnostics come from Flymake rather than Flycheck.
+- Semantic highlighting now needs Eglot 1.20 or later, which is newer
+  than the Eglot bundled with Emacs 29 (1.12) or with Emacs 30 (1.17).
+  Version 1 had it unconditionally, lsp-mode having supported semantic
+  tokens throughout; =M-x package-install RET eglot RET= keeps it, and
+  without it nothing is said and nothing breaks.  What it colours is
+  unchanged: keywords, and =sorry= and its relatives through Lean's
+  ~leanSorryLike~ token type, rather than colour for every identifier.
 - The ~lean4-keybinding-*~ options are gone, and with them the
   =lean4-keybinding= customize group.  Keys live in ~lean4-mode-map~ and
   are rebound the ordinary way.
@@ -86,17 +93,19 @@ xref, project roots through =project.el=.
   position, and for the file's message list.  A paused section can be
   brought up to date without unpausing it, which is VS Code's "refresh
   paused state".
-- Messages are placed by Lean's own notion of which declaration they
-  belong to, so one about a multi-line declaration stays visible while
-  point moves through it.  Those covering point are listed under
-  =Messages= within the position's heading; every message in the file is
-  listed under =All messages=, ordered either by nearness to point, as
-  VS Code has it, or by position in the file
-  (~lean4-info-message-order~, or =C-c C-o=).  Both headings count what
-  is in them by severity -- =All messages (1 ⊗  5 ⓘ)=.  Each message is
-  a foldable section headed by its file, line and column, with a control
-  that sends point there, and terms inside a message are as interactive
-  as terms inside a goal.
+- Two message lists rather than three.  The messages covering point are
+  listed under =Messages= within the position's heading; every message
+  in the file is listed under =All messages=, ordered either by nearness
+  to point, as VS Code has it, or by position in the file
+  (~lean4-info-message-order~, or =C-c C-o=).  Version 1 split them into
+  "Messages here", "Messages below" and "Messages above".  Both headings
+  count what is in them by severity -- =All messages (1 ⊗  5 ⓘ)=.  Each
+  message is a foldable section headed by its file, line and column,
+  with a control that sends point there, and terms inside a message are
+  as interactive as terms inside a goal.  Which messages cover point is
+  still Lean's ~fullRange~ rather than the span that gets underlined, as
+  in version 1, so one about a multi-line declaration stays listed while
+  point moves through it.
 - Collapsible traces.  Lean does not send the children of a trace node
   until asked, so unfolding one fetches it; children are indented under
   the node they belong to.
@@ -110,11 +119,11 @@ xref, project roots through =project.el=.
   ~lean4-info-pin-icon~ and its six siblings override them.
 - Where there is nothing to report the display says =No info found.=
   rather than showing a bare heading.
-- Diagnostics understand Lean's own extensions: ~fullRange~, which is
-  what places a message against its declaration, ~isSilent~, so what
-  Lean means for the goal display alone -- the completed-proof report
-  among it -- is kept out of the editor, and ~leanTags~, which marks a
-  finished declaration.  ~lean4-flymake-minimum-severity~ decides what
+- Two more of Lean's own diagnostic extensions are understood, version 1
+  having read only ~fullRange~: ~isSilent~, so what Lean means for the
+  goal display alone -- the completed-proof report among it -- is kept
+  out of the editor, and ~leanTags~, which marks a finished
+  declaration.  ~lean4-flymake-minimum-severity~ decides what
   reaches Flymake at all, default =warning=, so trace output and notes
   no longer bury the errors; ~lean4-show-goals-accomplished~ puts a =✓=
   against a completed proof; and =M-x lean4-diagnostics-next-sorry=
@@ -128,10 +137,6 @@ xref, project roots through =project.el=.
   which the server offers nothing towards for a bare word; and the
   server's own, rewrapped so that it is not exclusive -- where Lean
   answers nothing, whatever else is configured is still reached.
-- Semantic highlighting, when the available Eglot provides it; Eglot
-  gained semantic tokens in version 1.20.  Expect keywords, and =sorry=
-  and its relatives through Lean's ~leanSorryLike~ token type, rather
-  than colour for every identifier.
 - Where the server is started from is worked out rather than guessed: a
   file inside a Lake package is served by =lake serve= from the
   workspace root, and one outside any package by =lean --server= with
@@ -241,7 +246,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 330 unit tests, and 37 end-to-end tests that run against
+- A test suite: 337 unit tests, and 37 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual is published at [[https://d-torrance.github.io/lean4-mode/][d-torrance.github.io/lean4-mode]],
   exported from the same README the Info manual is made from, so the two

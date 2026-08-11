@@ -232,6 +232,37 @@ still works.
 Lean 3 autodetection is gone, along with @code{lean4-autodetect-lean3}.  It
 ran @samp{lean -v} every time a @samp{.lean} file was opened.  Lean 3 users
 should use @uref{https://github.com/leanprover/lean3-mode, Lean3-Mode}.
+@item
+Four abbreviations now insert something else, the table having been
+refreshed from vscode-lean4: @samp{\n} gives a literal @samp{\n} rather than ¬,
+@samp{\!} gives ¬ rather than ¡, and @samp{\dot} and @samp{\cdot} give · rather than
+⬝.  Seven abbreviations are gone and thirty-one are new.  This is the
+change most likely to catch your fingers out; @samp{\not} is ¬ either way.
+@item
+Indentation cycling comes from the @samp{eri} package on Melpa, which is
+the upstream of the copy this package used to vendor, so
+@code{lean4-eri-indent} and @code{lean4-eri-indent-reverse} are now @code{eri-indent}
+and @code{eri-indent-reverse}.  The mode no longer binds @samp{TAB} itself, so
+@code{tab-always-indent} means here what it means everywhere else.
+@item
+Semantic highlighting needs Eglot 1.20 or later, which is newer than
+the Eglot bundled with Emacs 29 or 30.  Version 1 had it
+unconditionally, through lsp-mode.  See @ref{Semantic highlighting}.
+@item
+@code{lean4-syntax-table} is now @code{lean4-mode-syntax-table}, with the old
+name kept as an obsolete alias, and the empty @code{lean4-abbrev-table} is
+gone in favour of the @code{lean4-mode-abbrev-table} that
+@code{define-derived-mode} makes, which is where @samp{M-x edit-abbrevs} looks.
+@item
+The goal display's two debounce options,
+@code{lean4-info-buffer-debounce-delay-sec} and
+@code{lean4-info-buffer-debounce-upper-bound-sec}, are replaced by the one
+@code{lean4-info-debounce-delay}.  @code{lean4-memory-limit} and
+@code{lean4-timeout-limit} are gone; neither was read by anything.
+@item
+@samp{lean4-debug.el} and @samp{lean4-dev.el} are gone, and with them @samp{M-x
+  lean4-turn-on-debug-mode}, @samp{M-x lean4-turn-off-debug-mode}, @samp{M-x
+  lean4-diff-test-file} and the @samp{*lean4-debug*} buffer.
 @end itemize
 
 @node Usage
@@ -1198,6 +1229,10 @@ M-x package-install RET eglot RET
 
 
 turns on semantic highlighting on any supported Emacs.
+
+Version 1 had it unconditionally, lsp-mode having supported semantic
+tokens throughout, so this is the one thing the move to Eglot can take
+away from a version 1 user who installs nothing.
 
 Expect keywords rather than colour for every identifier.  The server
 advertises the whole standard set of token types but, as of Lean 4.32,
