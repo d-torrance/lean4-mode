@@ -92,10 +92,16 @@ FILE-NAME."
   (make-temp-file (or prefix "flymake") nil (file-name-extension file-name)))
 
 (defun lean4-execute (&optional arg)
-  "Execute Lean in the current buffer with an optional argument ARG."
-  (interactive)
-  (when (called-interactively-p 'any)
-    (setq arg (read-string "arg: " arg)))
+  "Execute Lean in the current buffer with an optional argument ARG.
+
+Interactively, asks what to pass; `lean4-std-exe' is the same thing
+without the question.  That difference used to be drawn with
+`called-interactively-p', which reads as though calling this from Lisp
+were an edge case rather than the way the other command works -- and hid
+the difference well enough that this looked like a redundant wrapper.
+An `interactive' spec says it where anyone reading either command can
+see it: ARG is nil when it is not asked for."
+  (interactive (list (read-string "arg: ")))
   (let* ((cc compile-command)
          (dd default-directory)
          (use-lake (lean4-lake-find-dir))
@@ -115,8 +121,12 @@ FILE-NAME."
     ;; let-bound above.
     (setq compile-command cc)))
 
-;;;###autoload
-(define-obsolete-function-alias 'lean4-std-exe #'lean4-execute "2.0.0")
+(defun lean4-std-exe ()
+  "Execute Lean in the current buffer, passing it no arguments.
+What \\[lean4-std-exe] runs.  `lean4-execute' is this with a prompt for
+the arguments to pass."
+  (interactive)
+  (lean4-execute))
 
 (defcustom lean4-indent-function #'lean4-indent-line
   "How TAB indents a line in a Lean buffer.
@@ -139,8 +149,8 @@ and which is what this mode did before."
 
 (defvar-keymap lean4-mode-map
   :doc "Keymap used in Lean 4 mode."
-  "C-c C-x"     #'lean4-execute
-  "C-c C-l"     #'lean4-execute
+  "C-c C-x"     #'lean4-std-exe
+  "C-c C-l"     #'lean4-std-exe
   "C-c C-k"     #'quail-show-key
   "C-c C-i"     #'lean4-toggle-info
   "C-c C-p C-l" #'lean4-lake-build

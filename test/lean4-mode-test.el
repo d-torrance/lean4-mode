@@ -38,6 +38,32 @@ which is what lets an item say what the next invocation will do."
   (when-let* ((item (assq command (lean4-mode-test--menu-items lean4-mode-menu))))
     (eval (cdr item) t)))
 
+(ert-deftest lean4-mode-std-exe-passes-no-arguments ()
+  "`C-c C-x' runs Lean without asking what to pass; `lean4-execute' asks.
+
+The two differ by exactly one prompt, which is the whole reason both
+exist.  It was drawn with `called-interactively-p' once, which made
+`lean4-std-exe' look like a redundant wrapper and got it briefly
+replaced by an alias -- putting a prompt on a key that never had one."
+  (let (prompted command)
+    (cl-letf (((symbol-function 'read-string)
+               (lambda (&rest _) (setq prompted t) ""))
+              ;; The point is the prompt, not the build.
+              ((symbol-function 'compile)
+               (lambda (string &rest _) (setq command string) nil)))
+      (with-temp-buffer
+        (setq buffer-file-name "/tmp/lean4-mode-test.lean")
+        (setq prompted nil)
+        (call-interactively #'lean4-std-exe)
+        (should-not prompted)
+        (should command)
+        (setq prompted nil)
+        (call-interactively #'lean4-execute)
+        (should prompted))))
+  ;; And it is what the keys actually run.
+  (should (eq (keymap-lookup lean4-mode-map "C-c C-x") 'lean4-std-exe))
+  (should (eq (keymap-lookup lean4-mode-map "C-c C-l") 'lean4-std-exe)))
+
 (ert-deftest lean4-mode-binds-the-goal-display-commands ()
   "Every goal-display command is reachable from the keyboard.
 
