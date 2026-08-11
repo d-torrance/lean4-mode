@@ -235,6 +235,32 @@ neither gets a word."
                             '("\N{HAMMER AND WRENCH}" "\N{HAMMER AND PICK}")
                             "(goals)")))
 
+(define-fringe-bitmap 'lean4-diagnostics-accomplished-bitmap
+  [#b00000011
+   #b00000110
+   #b00001100
+   #b11011000
+   #b01110000
+   #b00110000]
+  nil nil 'center)
+
+(defun lean4-diagnostics--accomplished-marker ()
+  "Return the marker to draw against a finished proof.
+
+In the fringe, beside the line, where Flymake draws its own indicators
+and where VS Code puts this one: a marker in the text pushes the
+declaration across and takes the indentation of everything under it
+along, which is a poor reward for having proved something.
+
+A frame with no fringe to draw in -- a terminal -- gets the check mark
+itself, there being nowhere else to put it."
+  (if (display-graphic-p)
+      (propertize "✓" 'display
+                  (list (or flymake-fringe-indicator-position 'left-fringe)
+                        'lean4-diagnostics-accomplished-bitmap
+                        'lean4-goals-accomplished))
+    (propertize "✓ " 'face 'lean4-goals-accomplished)))
+
 (defvar-local lean4-diagnostics--accomplished-overlays nil
   "Overlays marking what Lean has tagged: finished proofs and unproved goals.
 
@@ -279,7 +305,7 @@ before they are filtered away."
                              (plist-get diagnostic :range))))
                   (overlay (make-overlay (car region) (car region))))
         (overlay-put overlay 'before-string
-                     (propertize "✓ " 'face 'lean4-goals-accomplished))
+                     (lean4-diagnostics--accomplished-marker))
         (push overlay lean4-diagnostics--accomplished-overlays)))
      ((and lean4-show-unsolved-goals
            (lean4-diagnostics-unsolved-goals-p diagnostic))

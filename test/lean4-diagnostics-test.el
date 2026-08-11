@@ -195,6 +195,31 @@ did nothing at all."
       (should (seq-every-p #'overlay-buffer
                           lean4-diagnostics--accomplished-overlays)))))
 
+(ert-deftest lean4-diagnostics-accomplished-marker-goes-in-the-fringe ()
+  "The completed-proof marker is drawn beside the line, not inside it.
+
+Regression test.  A check mark inserted before the declaration pushed
+the whole line across and took the indentation of the proof under it
+along, where Flymake's own indicators -- the ones against a `sorry' and
+against an error -- sit in the fringe and disturb nothing.  It is drawn
+on whichever side Flymake is drawing on, so the two read as one column."
+  (should (fringe-bitmap-p 'lean4-diagnostics-accomplished-bitmap))
+  (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t)))
+    (let ((flymake-fringe-indicator-position 'left-fringe))
+      (should (equal (get-text-property
+                      0 'display (lean4-diagnostics--accomplished-marker))
+                     '(left-fringe lean4-diagnostics-accomplished-bitmap
+                                   lean4-goals-accomplished))))
+    (let ((flymake-fringe-indicator-position 'right-fringe))
+      (should (eq (car (get-text-property
+                        0 'display (lean4-diagnostics--accomplished-marker)))
+                  'right-fringe))))
+  ;; A terminal has no fringe to draw in, and gets the check mark itself.
+  (cl-letf (((symbol-function 'display-graphic-p) #'ignore))
+    (let ((marker (lean4-diagnostics--accomplished-marker)))
+      (should-not (get-text-property 0 'display marker))
+      (should (string-search "✓" marker)))))
+
 (ert-deftest lean4-diagnostics-markers-are-never-evaporating ()
   "No marker may carry `evaporate': see the regression test above."
   (with-temp-buffer
