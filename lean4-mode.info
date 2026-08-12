@@ -1362,6 +1362,15 @@ have bound and the command itself where none is.
    ‘M-x lean4-insert-inlay-hint’ is the hint on its own, without the
 list, for a key of your own that means only this.
 
+   Clicking the greyed-out = {α}= itself does nothing, and deliberately.
+It is Eglot that draws it, from a string carrying a face and nothing
+else - no keymap, no tooltip - and Eglot rebuilds that string whenever
+the window is redrawn, so nothing can be added to it from here that
+would survive.  Drawing the hints in this package instead would buy the
+click and the tooltip on hover, at the cost of taking over a rendering
+path Eglot maintains; the key and the report are held to be enough, as
+they are for every other control here.
+
    Set ‘lean4-inlay-hints-in-eldoc’ to ‘nil’ to stop the report, and
 with it the request ElDoc would otherwise make each time point comes to
 rest; the command still works.  ‘lean4-inlay-hint-timeout’ is how long
@@ -1904,24 +1913,24 @@ Node: Folding a file up56861
 Node: Applying what Lean suggests59342
 Node: Being told a suggestion is there61227
 Node: What Lean filled in for you63681
-Node: Completion66086
-Node: Finding a symbol you cannot name68295
-Node: Configuration69546
-Node: Frequently used options70026
-Node: Finding the Lean programs72046
-Node: Tuning72988
-Node: The goal display's controls73790
-Node: Older Lean versions76064
-Node: Semantic highlighting77046
-Node: Optional packages78558
-Node: Troubleshooting79051
-Node: What is checked before Lean starts79416
-Node: Reporting on the setup82514
-Node: Where the documentation is84511
-Node: "Timed out after 30 seconds" opening a file outside a project85669
-Node: "Imports are out of date and must be rebuilt"86857
-Node: Common Pitfalls88380
-Node: Acknowledgements88981
+Node: Completion66622
+Node: Finding a symbol you cannot name68831
+Node: Configuration70082
+Node: Frequently used options70562
+Node: Finding the Lean programs72582
+Node: Tuning73524
+Node: The goal display's controls74326
+Node: Older Lean versions76600
+Node: Semantic highlighting77582
+Node: Optional packages79094
+Node: Troubleshooting79587
+Node: What is checked before Lean starts79952
+Node: Reporting on the setup83050
+Node: Where the documentation is85047
+Node: "Timed out after 30 seconds" opening a file outside a project86205
+Node: "Imports are out of date and must be rebuilt"87393
+Node: Common Pitfalls88916
+Node: Acknowledgements89517
 
 End Tag Table
 

@@ -264,7 +264,11 @@ xref, project roots through =project.el=.
   ~eldoc-documentation-functions~, which Eglot has already set to
   compose, so it joins the hover rather than displacing it; announcing
   the command in it is Eglot's own idiom for a code action, Emacs having
-  no lightbulb to click.  ~lean4-inlay-hints-in-eldoc~ turns the report
+  no lightbulb to click.  Clicking the greyed-out = {α}= does nothing:
+  Eglot draws it from a string carrying a face and nothing else, and
+  rebuilds that string on every redisplay, so the alternative is drawing
+  the hints here instead -- a rendering path Eglot maintains, for a gesture
+  the key already covers.  ~lean4-inlay-hints-in-eldoc~ turns the report
   off.  Auto-bound implicits are the only hint Lean sends as of 4.33,
   and Mathlib sets =autoImplicit= false, so this has nothing to say in a
   Mathlib file.

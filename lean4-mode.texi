@@ -1487,6 +1487,15 @@ have bound and the command itself where none is.
 @samp{M-x lean4-insert-inlay-hint} is the hint on its own, without the list,
 for a key of your own that means only this.
 
+Clicking the greyed-out = @{α@}= itself does nothing, and deliberately.  It
+is Eglot that draws it, from a string carrying a face and nothing else --
+no keymap, no tooltip -- and Eglot rebuilds that string whenever the window
+is redrawn, so nothing can be added to it from here that would survive.
+Drawing the hints in this package instead would buy the click and the
+tooltip on hover, at the cost of taking over a rendering path Eglot
+maintains; the key and the report are held to be enough, as they are for
+every other control here.
+
 Set @code{lean4-inlay-hints-in-eldoc} to @samp{nil} to stop the report, and with it
 the request ElDoc would otherwise make each time point comes to rest;
 the command still works.  @code{lean4-inlay-hint-timeout} is how long that
