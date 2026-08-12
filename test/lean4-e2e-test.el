@@ -1377,15 +1377,11 @@ the trace children it fetched.
 ;;;; Folding, against what the server folds
 
 (ert-deftest lean4-e2e-outline-headings-cover-the-servers-ranges ()
-  "Every region Lean would fold begins at a heading, or just above one.
+  "Every region Lean would fold begins at a heading here.
 This is the check that the outline model is Lean's and not an invention:
 `textDocument/foldingRange' is asked what it would fold, and each answer
-has to line up with a heading here.
-
-\"Just above one\" is one known divergence, and the reason the test is
-written this loosely: Lean folds `set_option ... in' together with the
-declaration it prefixes, beginning the region at the `set_option', where
-this puts the heading on the declaration itself."
+has to line up with a heading.  Exactly, now that a `set_option ... in'
+counts as the start of the command it wraps, as Lean has it."
   :tags '(:e2e)
   (lean4-e2e--with-fixture
     (let ((ranges (lean4-e2e--wait-until
@@ -1399,10 +1395,7 @@ this puts the heading on the declaration itself."
                        (and (not (seq-empty-p answer)) answer))))))
       (seq-doseq (range ranges)
         (lean4-e2e--goto-line (plist-get range :startLine))
-        (should (or (lean4-outline-search nil nil nil t)
-                    (save-excursion
-                      (forward-line 1)
-                      (lean4-outline-search nil nil nil t))))))))
+        (should (lean4-outline-search nil nil nil t))))))
 
 ;;;; Applying what Lean suggests
 

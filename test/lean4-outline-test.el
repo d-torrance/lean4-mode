@@ -238,5 +238,51 @@ VS Code's \"Fold All\"."
     (should (lean4-outline-test--invisible-p "  constructor"))
     (should (lean4-outline-test--invisible-p "  x : Nat"))))
 
+;;;; A command with a prefix folds as one
+
+(defconst lean4-outline-test--prefixed "\
+set_option maxHeartbeats 400000 in
+theorem a : True := by
+  trivial
+
+open Nat in
+theorem b : True := by
+  trivial
+
+theorem c : True := by
+  trivial
+"
+  "Text whose folding ranges were captured from Lean 4.32.2.
+It answers with three regions, each beginning at the line the command
+begins on -- the `set_option', the `open', and `theorem c' -- rather than
+at the declaration a prefix wraps.")
+
+(ert-deftest lean4-outline-a-prefix-is-the-heading ()
+  "The command begins at the prefix, so that is where the fold begins."
+  (lean4-outline-test--with-lean lean4-outline-test--prefixed
+    (lean4-outline-test--goto "set_option maxHeartbeats 400000 in")
+    (should (lean4-outline-search nil nil nil t))
+    (lean4-outline-test--goto "open Nat in")
+    (should (lean4-outline-search nil nil nil t))))
+
+(ert-deftest lean4-outline-a-prefixed-declaration-is-not-another-heading ()
+  "Two headings would fold the prefix line alone, which hides nothing."
+  (lean4-outline-test--with-lean lean4-outline-test--prefixed
+    (lean4-outline-test--goto "theorem a : True := by")
+    (should-not (lean4-outline-search nil nil nil t))
+    ;; The one with no prefix above it is a heading as ever.
+    (lean4-outline-test--goto "theorem c : True := by")
+    (should (lean4-outline-search nil nil nil t))))
+
+(ert-deftest lean4-outline-folding-a-prefixed-command-hides-all-of-it ()
+  "Including the declaration the prefix wraps."
+  (lean4-outline-test--with-lean lean4-outline-test--prefixed
+    (outline-minor-mode 1)
+    (lean4-outline-test--goto "set_option maxHeartbeats 400000 in")
+    (outline-hide-subtree)
+    (should (lean4-outline-test--invisible-p "theorem a : True := by"))
+    (should (lean4-outline-test--invisible-p "  trivial"))
+    (should-not (lean4-outline-test--invisible-p "open Nat in"))))
+
 (provide 'lean4-outline-test)
 ;;; lean4-outline-test.el ends here

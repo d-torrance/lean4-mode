@@ -1261,9 +1261,10 @@ and their relatives.  @samp{namespace} and @samp{section} are not: they enclose
 declarations rather than being them, and a @samp{C-M-a} that stopped at
 @samp{namespace Foo} would leave the theorem you were standing in.
 
-It begins at whatever is attached above it -- its attributes, and the
-doc comment those hang from -- so @code{mark-defun} does not leave the
-docstring behind.  A blank line detaches, a @samp{/- -/} with a gap under it
+It begins at whatever is attached above it -- its attributes, the doc
+comment those hang from, and a @samp{set_option ... in} or @samp{open ... in}
+wrapping the whole thing -- so @code{mark-defun} leaves behind neither the
+docstring nor the option the proof needed.  A blank line detaches, a @samp{/- -/} with a gap under it
 being a note about the file rather than about what follows; a @samp{--}
 comment never attaches, having no way to say whether it belongs to the
 line below or the one above.  The end is where the next declaration
@@ -1338,9 +1339,11 @@ when finding one's way around a file by folding it is most useful.
 An @samp{end} counts as a heading, which reads oddly for a moment and is what
 stops a section's fold at its own @samp{end} rather than at the next section.
 
-One divergence: Lean folds a @samp{set_option ... in} together with the
-declaration it prefixes, starting the fold at the @samp{set_option}; here the
-heading is the declaration, and the prefix line stays outside the fold.
+A @samp{set_option ... in} or an @samp{open ... in} is folded with the declaration it
+wraps, the fold beginning where the command does, which is what Lean's own
+ranges say.  Those two are the only commands that can wrap another:
+@samp{Lean.Parser.Command.«in»} is a trailing parser over @samp{withOpen} and
+@samp{withSetOption}.
 
 @node Applying what Lean suggests
 @section Applying what Lean suggests

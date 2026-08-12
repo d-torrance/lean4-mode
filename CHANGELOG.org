@@ -132,6 +132,13 @@ xref, project roots through =project.el=.
   the alternatives when the guess is wrong.  ~lean4-indent-offset~ sets
   the width of a level, and ~lean4-indent-function~ restores the
   previous cycle-only behaviour.
+- A =set_option ... in= or =open ... in= counts as part of the declaration
+  it wraps, for folding and for =C-M-a= alike: Lean folds the pair as one
+  command, and those two are the only commands which can wrap another,
+  =Lean.Parser.Command.«in»= being a trailing parser over =withOpen= and
+  =withSetOption=.  Written on the line above or on the same line, both
+  ways.  The end-to-end test which holds the folding model against the
+  server's own ranges no longer has to allow for this as a divergence.
 - A Lean file under =.lake= or =.elan= opens read-only, those holding the
   packages Lake fetched and the toolchains elan installed.  Reading them is
   how one finds out what a lemma says; editing them is overwritten by the
@@ -373,7 +380,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 483 unit tests, and 50 end-to-end tests that run against
+- A test suite: 492 unit tests, and 50 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual says where VS Code's navigation commands went, none of which
   this package implements and all of which therefore appeared in no table

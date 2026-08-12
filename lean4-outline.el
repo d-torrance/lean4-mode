@@ -77,12 +77,25 @@ one.")
     (and (not (lean4-indent--in-string-or-comment-p))
          (looking-at-p lean4-indent--block-end-regexp))))
 
+(defun lean4-outline--prefixed-p ()
+  "Return non-nil if the line above prefixes this declaration.
+A `set_option ... in' or an `open ... in' wraps the command under it, and
+Lean folds the pair as one: the heading is the prefix, so the declaration
+itself is not another one.  Two headings would fold the prefix line alone,
+which hides nothing."
+  (save-excursion
+    (and (zerop (forward-line -1))
+         (lean4-defun--at-prefix-p))))
+
 (defun lean4-outline--at-heading-p ()
   "Return non-nil if this line is an outline heading.
-That is a namespace, a section, an `end', or a declaration."
+That is a namespace, a section, an `end', a declaration, or the
+`set_option ... in' standing before one."
   (or (lean4-outline--at-opener-p)
       (lean4-outline--at-end-p)
-      (lean4-defun--at-start-p)))
+      (lean4-defun--at-prefix-p)
+      (and (lean4-defun--at-start-p)
+           (not (lean4-outline--prefixed-p)))))
 
 (defconst lean4-outline--block-regexp
   (rx bol (* space) (group (or "namespace" "section" "mutual" "end"))

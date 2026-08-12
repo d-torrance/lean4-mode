@@ -261,5 +261,51 @@ whole comment rather than stopping at the declaration inside it."
   (lean4-defun-test--with-lean "import Fo|o\n\ntheorem a : True := trivial\n"
     (should-not (lean4-current-defun-name))))
 
+;;;; What wraps a declaration
+
+(ert-deftest lean4-defun-a-set-option-prefix-belongs-to-the-declaration ()
+  "`set_option ... in' wraps the command under it, and Lean folds the pair
+as one, so a declaration begins at the option rather than under it."
+  (lean4-defun-test--with-lean
+      "set_option maxHeartbeats 400000 in\ntheorem a : True := tri|vial\n"
+    (beginning-of-defun)
+    (should (equal (lean4-defun-test--line)
+                   "set_option maxHeartbeats 400000 in"))))
+
+(ert-deftest lean4-defun-an-open-prefix-does-too ()
+  "And so does `open ... in', the other of the two Lean allows."
+  (lean4-defun-test--with-lean
+      "open Nat in\ntheorem a : True := tri|vial\n"
+    (beginning-of-defun)
+    (should (equal (lean4-defun-test--line) "open Nat in"))))
+
+(ert-deftest lean4-defun-a-prefix-above-a-docstring ()
+  "Doc comment, prefix, keyword: all one declaration, whatever the order."
+  (lean4-defun-test--with-lean
+      "/-- Doc. -/\nset_option foo true in\ntheorem a : True := tri|vial\n"
+    (beginning-of-defun)
+    (should (equal (lean4-defun-test--line) "/-- Doc. -/"))))
+
+(ert-deftest lean4-defun-a-prefix-on-the-same-line ()
+  "Written on one line it is one line, and the declaration starts there."
+  (lean4-defun-test--with-lean
+      "theorem a : True := trivial\nset_option foo true in theorem b : True := by\n  tri|vial\n"
+    (beginning-of-defun)
+    (should (equal (lean4-defun-test--line)
+                   "set_option foo true in theorem b : True := by"))))
+
+(ert-deftest lean4-defun-a-prefix-ends-the-declaration-above-it ()
+  "It begins a command, so what precedes it has ended."
+  (lean4-defun-test--with-lean
+      "theorem a| : True := trivial\n\nset_option foo true in\ntheorem b : True := trivial\n"
+    (end-of-defun)
+    (should (equal (lean4-defun-test--before-point)
+                   "theorem a : True := trivial\n"))))
+
+(ert-deftest lean4-defun-in-is-not-mistaken-for-a-name ()
+  "A declaration whose name begins with `in' is not the connective."
+  (lean4-defun-test--with-lean "theorem in_range : True := tri|vial\n"
+    (should (equal (lean4-current-defun-name) "in_range"))))
+
 (provide 'lean4-defun-test)
 ;;; lean4-defun-test.el ends here

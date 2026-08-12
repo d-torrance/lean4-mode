@@ -1149,13 +1149,15 @@ and their relatives.  ‘namespace’ and ‘section’ are not: they enclose
 declarations rather than being them, and a ‘C-M-a’ that stopped at
 ‘namespace Foo’ would leave the theorem you were standing in.
 
-   It begins at whatever is attached above it - its attributes, and the
-doc comment those hang from - so ‘mark-defun’ does not leave the
-docstring behind.  A blank line detaches, a ‘/- -/’ with a gap under it
-being a note about the file rather than about what follows; a ‘--’
-comment never attaches, having no way to say whether it belongs to the
-line below or the one above.  The end is where the next declaration
-begins, with the blank lines between the two belonging to neither.
+   It begins at whatever is attached above it - its attributes, the doc
+comment those hang from, and a ‘set_option ... in’ or ‘open ... in’
+wrapping the whole thing - so ‘mark-defun’ leaves behind neither the
+docstring nor the option the proof needed.  A blank line detaches, a ‘/-
+-/’ with a gap under it being a note about the file rather than about
+what follows; a ‘--’ comment never attaches, having no way to say
+whether it belongs to the line below or the one above.  The end is where
+the next declaration begins, with the blank lines between the two
+belonging to neither.
 
    ‘which-function-mode’ and ‘M-x add-change-log-entry’ are told the
 name of the declaration point is in, which is what makes them work here
@@ -1218,9 +1220,11 @@ useful.
 what stops a section's fold at its own ‘end’ rather than at the next
 section.
 
-   One divergence: Lean folds a ‘set_option ... in’ together with the
-declaration it prefixes, starting the fold at the ‘set_option’; here the
-heading is the declaration, and the prefix line stays outside the fold.
+   A ‘set_option ... in’ or an ‘open ... in’ is folded with the
+declaration it wraps, the fold beginning where the command does, which
+is what Lean's own ranges say.  Those two are the only commands that can
+wrap another: ‘Lean.Parser.Command.«in»’ is a trailing parser over
+‘withOpen’ and ‘withSetOption’.
 
 
 File: lean4-mode.info,  Node: Applying what Lean suggests,  Next: Being told a suggestion is there,  Prev: Folding a file up,  Up: Usage
@@ -1891,28 +1895,28 @@ Node: The module hierarchy49800
 Node: It needs a built project51848
 Node: Other Lake operations52498
 Node: Moving by declaration53934
-Node: Folding a file up56456
-Node: Applying what Lean suggests58831
-Node: Being told a suggestion is there60716
-Node: What Lean filled in for you63170
-Node: Completion65575
-Node: Finding a symbol you cannot name67784
-Node: Configuration69035
-Node: Frequently used options69515
-Node: Finding the Lean programs71535
-Node: Tuning72477
-Node: The goal display's controls73279
-Node: Older Lean versions75553
-Node: Semantic highlighting76535
-Node: Optional packages78047
-Node: Troubleshooting78540
-Node: What is checked before Lean starts78905
-Node: Reporting on the setup82003
-Node: Where the documentation is84000
-Node: "Timed out after 30 seconds" opening a file outside a project85158
-Node: "Imports are out of date and must be rebuilt"86346
-Node: Common Pitfalls87869
-Node: Acknowledgements88470
+Node: Folding a file up56561
+Node: Applying what Lean suggests59042
+Node: Being told a suggestion is there60927
+Node: What Lean filled in for you63381
+Node: Completion65786
+Node: Finding a symbol you cannot name67995
+Node: Configuration69246
+Node: Frequently used options69726
+Node: Finding the Lean programs71746
+Node: Tuning72688
+Node: The goal display's controls73490
+Node: Older Lean versions75764
+Node: Semantic highlighting76746
+Node: Optional packages78258
+Node: Troubleshooting78751
+Node: What is checked before Lean starts79116
+Node: Reporting on the setup82214
+Node: Where the documentation is84211
+Node: "Timed out after 30 seconds" opening a file outside a project85369
+Node: "Imports are out of date and must be rebuilt"86557
+Node: Common Pitfalls88080
+Node: Acknowledgements88681
 
 End Tag Table
 

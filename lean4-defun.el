@@ -74,6 +74,14 @@ declarations rather than being ones.")
   "Words which may stand between an attribute list and a declaration keyword.
 `public' and `meta' are the module system\\='s; the rest are older.")
 
+(defconst lean4-defun--prefix-keywords '("set_option" "open")
+  "Commands which can stand before a declaration, joined to it by `in'.
+Exactly these two.  `Lean.Parser.Command.«in»' is a trailing parser over
+`withOpen' and `withSetOption', so an `open' and a `set_option' are what
+may wrap a command -- and Lean folds the pair as one, its
+`textDocument/foldingRange' beginning the region at the `set_option'
+rather than at the declaration under it.")
+
 ;; Matched with `looking-at' at a line's indentation, never at its beginning,
 ;; so this must not be anchored with `bol': that assertion holds only in
 ;; column zero and would quietly stop matching on any indented line.
@@ -81,7 +89,9 @@ declarations rather than being ones.")
 
 (defconst lean4-defun--declaration-regexp
   (rx-to-string
-   `(seq (? "@[" (* nonl) "]" (* space))
+   `(seq (? (seq (or ,@lean4-defun--prefix-keywords) symbol-end
+                 (+ nonl) symbol-start "in" symbol-end (+ space)))
+         (? "@[" (* nonl) "]" (* space))
          (* (seq (or ,@lean4-defun--modifiers) (+ space)))
          (group (or ,@lean4-defun--keywords))
          symbol-end
@@ -94,6 +104,15 @@ Group 1 is the keyword and group 2 the name, which is absent from an
 `example' and from an anonymous `instance'.  The attribute list is
 matched greedily and the match backtracks, so that the `]' meant in
 `@[simp] theorem foo : p [x] := h' is the first one and not the last.")
+
+(defconst lean4-defun--prefix-regexp
+  (rx-to-string
+   `(seq (or ,@lean4-defun--prefix-keywords) symbol-end
+         (+ nonl) symbol-start "in" symbol-end (* space) eol)
+   t)
+  "A line which prefixes the declaration below it and holds nothing else.
+The `in' is matched at a symbol boundary, so a declaration named
+`in_range' on the same line is not mistaken for the connective.")
 
 (defconst lean4-defun--attribute-regexp
   (rx "@[")
@@ -126,6 +145,17 @@ declaration above it does not reach past."
     (and (not (lean4-indent--in-string-or-comment-p))
          (looking-at-p lean4-defun--attribute-regexp)
          (not (looking-at-p lean4-defun--declaration-regexp)))))
+
+(defun lean4-defun--at-prefix-p ()
+  "Return non-nil if this line prefixes the declaration below it.
+That is a `set_option ... in' or an `open ... in' with the declaration on
+the next line; one with the declaration on the same line is a declaration
+start in its own right, `lean4-defun--declaration-regexp' allowing the
+prefix."
+  (save-excursion
+    (back-to-indentation)
+    (and (not (lean4-indent--in-string-or-comment-p))
+         (looking-at-p lean4-defun--prefix-regexp))))
 
 (defun lean4-defun--blank-line-p ()
   "Return non-nil if the current line is empty or all whitespace."
@@ -161,6 +191,11 @@ that is neither, stops the walk."
             (cond
              ((lean4-defun--blank-line-p) (setq done t))
              ((lean4-defun--at-attribute-p) (setq start (point)))
+             ;; `set_option ... in' and `open ... in' belong to what they
+             ;; wrap: Lean folds the pair as one command, and a
+             ;; `mark-defun' which took the theorem and left the option
+             ;; behind would leave neither half meaning what it did.
+             ((lean4-defun--at-prefix-p) (setq start (point)))
              (comment (goto-char comment)
                       (forward-line 0)
                       (setq start (point)))

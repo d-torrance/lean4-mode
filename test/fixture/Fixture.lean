@@ -29,3 +29,10 @@ def autoBound (a : α) : α := a
 -- offers as a code action.  Appended at the end so the line numbers asserted
 -- above stay valid.
 example : 1 = 1 := by simp?
+
+-- A command with a `set_option ... in' prefix, which Lean folds as one and
+-- which therefore begins where the option does.  Appended at the end so the
+-- line numbers asserted above stay valid.
+set_option maxHeartbeats 400000 in
+theorem prefixed : True := by
+  trivial
