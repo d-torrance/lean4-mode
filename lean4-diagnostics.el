@@ -238,6 +238,28 @@ gives comments: the one thing a marker sitting after the code must not
 look like."
   :group 'lean4)
 
+(defcustom lean4-unsolved-goals-icon nil
+  "Marker drawn after the line where an \"unsolved goals\" error ends.
+Nil means pick whichever candidate the frame can display.  The
+counterpart of VS Code\='s `goalsAccomplishedDecorationKind' for the other
+of the two markers, and the same kind of option as the goal display\='s
+controls each have."
+  :group 'lean4
+  :type '(choice (const :tag "Choose to suit the frame" nil) string))
+
+(defcustom lean4-goals-accomplished-icon nil
+  "Marker drawn against a declaration whose goals are all discharged.
+Nil means pick whichever candidate the frame can display -- which on a
+graphical frame is not a character at all but a bitmap in the fringe,
+where VS Code puts its double check-mark and where a character would push
+the declaration across.  Setting this to a string asks for that string
+instead, in the text, on every frame.
+
+VS Code\='s `goalsAccomplishedDecorationKind', which likewise chooses
+between drawings of the same thing."
+  :group 'lean4
+  :type '(choice (const :tag "A bitmap in the fringe" nil) string))
+
 (defun lean4-diagnostics--unsolved-goals-marker ()
   "Return the marker to draw for goals left unproved.
 
@@ -246,7 +268,7 @@ emoji fonts that carry the rest of the block, Noto Color Emoji among
 them, so the frame is asked before it is used.  U+2692 is the same idea
 in a font a great many more machines have, and a frame that can draw
 neither gets a word."
-  (concat " " (lean4--glyph nil
+  (concat " " (lean4--glyph lean4-unsolved-goals-icon
                             '("\N{HAMMER AND WRENCH}" "\N{HAMMER AND PICK}")
                             "(goals)")))
 
@@ -269,12 +291,18 @@ along, which is a poor reward for having proved something.
 
 A frame with no fringe to draw in -- a terminal -- gets the check mark
 itself, there being nowhere else to put it."
-  (if (display-graphic-p)
-      (propertize "✓" 'display
-                  (list (or flymake-fringe-indicator-position 'left-fringe)
-                        'lean4-diagnostics-accomplished-bitmap
-                        'lean4-goals-accomplished))
-    (propertize "✓ " 'face 'lean4-goals-accomplished)))
+  (cond
+   ;; A string asked for by name goes in the text on every frame: someone
+   ;; who names one has said where they want it.
+   (lean4-goals-accomplished-icon
+    (propertize (concat lean4-goals-accomplished-icon " ")
+                'face 'lean4-goals-accomplished))
+   ((display-graphic-p)
+    (propertize "✓" 'display
+                (list (or flymake-fringe-indicator-position 'left-fringe)
+                      'lean4-diagnostics-accomplished-bitmap
+                      'lean4-goals-accomplished)))
+   (t (propertize "✓ " 'face 'lean4-goals-accomplished))))
 
 (defvar-local lean4-diagnostics--accomplished-overlays nil
   "Overlays marking what Lean has tagged: finished proofs and unproved goals.

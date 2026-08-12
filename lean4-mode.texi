@@ -552,6 +552,14 @@ colour named here: the check mark from @code{success} and the tool from
 @code{lean4-unsolved-goals} faces.  Customize either face to overrule a
 theme that colours the two alike.
 
+Either marker can be something else: @code{lean4-unsolved-goals-icon} and
+@code{lean4-goals-accomplished-icon} take a string of your own, as the goal
+display's controls do, and VS Code's
+@samp{goalsAccomplishedDecorationKind} likewise chooses between drawings of
+the same thing.  Naming a string for the check mark also moves it out of
+the fringe and into the text, on every frame: someone who names one has
+said where they want it.
+
 The expected type at point follows, under @samp{Expected type}, and is not
 counted -- VS Code counts only the tactic state.  Neither heading takes
 a colon, as neither does in VS Code.
@@ -1758,11 +1766,23 @@ the first time one of its files is opened.
 @tab error
 @item A project with no @samp{lean-toolchain} at all
 @tab warning
+@item A project pinning a Lean version elan has not got
+@tab warning
 @end multitable
 
 Each says what to do about it, naming the command that does it -- @samp{M-x
 lean4-install-dependencies}, @samp{M-x lean4-install-elan}, @samp{M-x
 lean4-select-project-toolchain} and so on.
+
+The last of them is the answer to @ref{"Timed out after 30 seconds" opening a file outside a project} and to
+its cousin inside one: a version pinned but not installed is downloaded
+whole before the server starts, which on a first connection can outlast
+~eglot-connect-timeout= and look like a hang.  Being told beforehand,
+with @samp{M-x lean4-install-toolchain} named, is the difference.  Only a
+version is reported on; a project pinning a channel such as
+@samp{leanprover/lean4:stable} is pinning whatever that resolves to today,
+which is elan's to decide.  VS Code asks about the same thing from the
+other end, with its @samp{alwaysAskBeforeInstallingLeanVersions}.
 
 They go through @code{display-warning}, so they land in a @samp{*Warnings*} buffer
 that waits to be read rather than in an echo area that scrolls away, and

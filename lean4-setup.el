@@ -50,6 +50,11 @@
 (require 'lean4-toolchain)
 (require 'lean4-util)
 
+;; Defined in lean4-mode.el, which requires this file rather than the other
+;; way round; the mode body is the only caller of anything here, so it is
+;; loaded by the time any of this runs.
+(declare-function lean4--toolchain-string "lean4-mode")
+
 (defcustom lean4-show-setup-warnings t
   "Whether to say so when something about the Lean setup looks wrong.
 Reported through `display-warning' when a Lean file is visited: what is
@@ -129,6 +134,30 @@ replaced; a directory with one and no \"lean-toolchain\" is Lean 3\\='s."
   (and (file-readable-p (expand-file-name "leanpkg.toml" root))
        (not (file-readable-p (expand-file-name "lean-toolchain" root)))))
 
+(defun lean4-setup--uninstalled-toolchain ()
+  "Return the Lean this buffer's project pins and the machine has not got.
+Nil if it has it, or if there is nothing pinned to have.
+
+Only a version can be answered for.  A project pinning a channel --
+`leanprover/lean4:stable' -- is pinning whatever that resolves to today,
+which is elan's to decide and may be a version nobody has yet; there is
+nothing to warn about that would still be true tomorrow.
+
+Compared by version rather than by name, a `lean-toolchain' being free to
+say `4.33.0' where elan reports `v4.33.0'.  If elan cannot be asked at
+all, nothing is claimed: that is a warning of its own, from the machine
+check."
+  (when-let* ((pinned (lean4--toolchain-string))
+              (parsed (lean4-toolchain--parse pinned))
+              ((not (eq (car parsed) 'unknown)))
+              (installed (ignore-errors (lean4-toolchain-installed)))
+              ((not (seq-some
+                     (lambda (version)
+                       (equal (cadr parsed)
+                              (cadr (lean4-toolchain--parse version))))
+                     installed))))
+    pinned))
+
 (defun lean4-setup--project-problems (root)
   "Return what is wrong with the project at ROOT, as a list of level and text."
   (cond
@@ -141,7 +170,16 @@ Lean3-Mode, at https://github.com/leanprover/lean3-mode" root))))
     (list (list :warning
                 (format "%s has no `lean-toolchain', so its files are served \
 by whatever elan's default resolves to rather than by a version the project \
-pins.  `M-x lean4-select-project-toolchain' writes one" root))))))
+pins.  `M-x lean4-select-project-toolchain' writes one" root))))
+   (t
+    ;; Asked once: it runs elan.
+    (when-let* ((pinned (lean4-setup--uninstalled-toolchain)))
+      (list (list :warning
+                  (format "%s pins %s, which elan has not got.  Opening a \
+file here downloads the whole toolchain first, which on a first connection \
+can outlast `eglot-connect-timeout' and look like a hang; `M-x \
+lean4-install-toolchain' fetches it now instead"
+                          root pinned)))))))
 
 (defun lean4-setup--check-machine ()
   "Say what is wrong with this machine, once a session."

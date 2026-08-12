@@ -503,6 +503,13 @@ colour named here: the check mark from ‘success’ and the tool from
 ‘lean4-unsolved-goals’ faces.  Customize either face to overrule a theme
 that colours the two alike.
 
+   Either marker can be something else: ‘lean4-unsolved-goals-icon’ and
+‘lean4-goals-accomplished-icon’ take a string of your own, as the goal
+display's controls do, and VS Code's ‘goalsAccomplishedDecorationKind’
+likewise chooses between drawings of the same thing.  Naming a string
+for the check mark also moves it out of the fringe and into the text, on
+every frame: someone who names one has said where they want it.
+
    The expected type at point follows, under ‘Expected type’, and is not
 counted - VS Code counts only the tactic state.  Neither heading takes a
 colon, as neither does in VS Code.
@@ -1628,10 +1635,22 @@ No ‘lake’, so a file in a package goes unserved                             
 Elan missing, or older than 4                                                  warning
 A project with a ‘leanpkg.toml’ and no ‘lean-toolchain’, so a Lean 3 project   error
 A project with no ‘lean-toolchain’ at all                                      warning
+A project pinning a Lean version elan has not got                              warning
 
    Each says what to do about it, naming the command that does it - ‘M-x
 lean4-install-dependencies’, ‘M-x lean4-install-elan’, ‘M-x
 lean4-select-project-toolchain’ and so on.
+
+   The last of them is the answer to *note "Timed out after 30 seconds"
+opening a file outside a project:: and to its cousin inside one: a
+version pinned but not installed is downloaded whole before the server
+starts, which on a first connection can outlast ~eglot-connect-timeout=
+and look like a hang.  Being told beforehand, with ‘M-x
+lean4-install-toolchain’ named, is the difference.  Only a version is
+reported on; a project pinning a channel such as
+‘leanprover/lean4:stable’ is pinning whatever that resolves to today,
+which is elan's to decide.  VS Code asks about the same thing from the
+other end, with its ‘alwaysAskBeforeInstallingLeanVersions’.
 
    They go through ‘display-warning’, so they land in a ‘*Warnings*’
 buffer that waits to be read rather than in an echo area that scrolls
@@ -1822,44 +1841,44 @@ Node: Keys in a Lean buffer11772
 Node: Keys in the goal display14270
 Node: Searching a trace19059
 Node: The tactic state20211
-Node: Copying what is on display21940
-Node: How much of a goal to show22967
-Node: Errors and warnings27274
-Node: Building dependencies31369
-Node: Starting a project32639
-Node: Building34431
-Node: Mathlib's build cache35623
-Node: Choosing which Lean to use37235
-Node: Elan itself39669
-Node: Git and curl40885
-Node: Searching Mathlib with Loogle42632
-Node: Following a name through a project44902
-Node: The module hierarchy47689
-Node: It needs a built project49737
-Node: Other Lake operations50387
-Node: Moving by declaration51823
-Node: Folding a file up54345
-Node: Applying what Lean suggests56720
-Node: Being told a suggestion is there58605
-Node: What Lean filled in for you61059
-Node: Completion63464
-Node: Finding a symbol you cannot name65673
-Node: Configuration66924
-Node: Frequently used options67404
-Node: Finding the Lean programs69424
-Node: Tuning70366
-Node: The goal display's controls71168
-Node: Older Lean versions73442
-Node: Semantic highlighting74424
-Node: Optional packages75936
-Node: Troubleshooting76429
-Node: What is checked before Lean starts76794
-Node: Reporting on the setup79133
-Node: Where the documentation is81130
-Node: "Timed out after 30 seconds" opening a file outside a project82288
-Node: "Imports are out of date and must be rebuilt"83476
-Node: Common Pitfalls84999
-Node: Acknowledgements85600
+Node: Copying what is on display22374
+Node: How much of a goal to show23401
+Node: Errors and warnings27708
+Node: Building dependencies31803
+Node: Starting a project33073
+Node: Building34865
+Node: Mathlib's build cache36057
+Node: Choosing which Lean to use37669
+Node: Elan itself40103
+Node: Git and curl41319
+Node: Searching Mathlib with Loogle43066
+Node: Following a name through a project45336
+Node: The module hierarchy48123
+Node: It needs a built project50171
+Node: Other Lake operations50821
+Node: Moving by declaration52257
+Node: Folding a file up54779
+Node: Applying what Lean suggests57154
+Node: Being told a suggestion is there59039
+Node: What Lean filled in for you61493
+Node: Completion63898
+Node: Finding a symbol you cannot name66107
+Node: Configuration67358
+Node: Frequently used options67838
+Node: Finding the Lean programs69858
+Node: Tuning70800
+Node: The goal display's controls71602
+Node: Older Lean versions73876
+Node: Semantic highlighting74858
+Node: Optional packages76370
+Node: Troubleshooting76863
+Node: What is checked before Lean starts77228
+Node: Reporting on the setup80326
+Node: Where the documentation is82323
+Node: "Timed out after 30 seconds" opening a file outside a project83481
+Node: "Imports are out of date and must be rebuilt"84669
+Node: Common Pitfalls86192
+Node: Acknowledgements86793
 
 End Tag Table
 

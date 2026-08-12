@@ -132,6 +132,17 @@ xref, project roots through =project.el=.
   the alternatives when the guess is wrong.  ~lean4-indent-offset~ sets
   the width of a level, and ~lean4-indent-function~ restores the
   previous cycle-only behaviour.
+- Two more setup checks and two more glyph options.  A project pinning a
+  Lean version elan has not got is a warning now, that being downloaded
+  whole before the server starts and able to outlast
+  ~eglot-connect-timeout= on a first connection -- the thing the manual
+  otherwise explains after the fact, and what VS Code asks about from the
+  other end with its =alwaysAskBeforeInstallingLeanVersions=.  A channel is
+  not reported on, resolving to whatever elan decides today.  And
+  ~lean4-unsolved-goals-icon~ and ~lean4-goals-accomplished-icon~ take a
+  string of your own, as the goal display's controls already did, which is
+  VS Code's =goalsAccomplishedDecorationKind=; naming one for the check
+  mark also moves it from the fringe into the text.
 - ~lean4-input-leader~, which is what an abbreviation begins with: VS
   Code's =Input: Leader=.  Quail has no notion of one -- it knows key
   sequences, and the leader is the first character of every one -- so
@@ -345,7 +356,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 468 unit tests, and 49 end-to-end tests that run against
+- A test suite: 473 unit tests, and 49 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual says where VS Code's navigation commands went, none of which
   this package implements and all of which therefore appeared in no table

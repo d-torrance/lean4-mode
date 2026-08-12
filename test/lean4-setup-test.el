@@ -155,6 +155,57 @@ the checks can tell."
   (lean4-setup-test--with-project '("leanpkg.toml" "lean-toolchain")
     (should-not (lean4-setup-test--recording (lean4-setup--check-project)))))
 
+;;;; The Lean a project pins
+
+(defmacro lean4-setup-test--pinning (pinned installed &rest body)
+  "Evaluate BODY with a project pinning PINNED and elan holding INSTALLED."
+  (declare (indent 2) (debug (form form body)))
+  `(cl-letf (((symbol-function 'lean4--toolchain-string) (lambda () ,pinned))
+             ((symbol-function 'lean4-toolchain-installed) (lambda () ,installed)))
+     ,@body))
+
+(ert-deftest lean4-setup-reports-a-toolchain-not-installed ()
+  "A project pinning a version elan has not got downloads it on the first
+file opened, which can outlast the connection timeout and look like a hang."
+  (lean4-setup-test--with-project '("lean-toolchain")
+    (lean4-setup-test--pinning "leanprover/lean4:v4.33.0"
+        '("leanprover/lean4:v4.32.2")
+      (let ((warnings (lean4-setup-test--recording
+                        (lean4-setup--check-project))))
+        (should (equal (lean4-setup-test--levels warnings) '(:warning)))
+        (should (lean4-setup-test--says warnings "v4.33.0"))
+        (should (lean4-setup-test--says warnings "lean4-install-toolchain"))))))
+
+(ert-deftest lean4-setup-says-nothing-when-the-toolchain-is-there ()
+  "Having it is the ordinary case and not worth a word."
+  (lean4-setup-test--with-project '("lean-toolchain")
+    (lean4-setup-test--pinning "leanprover/lean4:v4.33.0"
+        '("leanprover/lean4:v4.33.0" "leanprover/lean4:v4.32.2")
+      (should-not (lean4-setup-test--recording (lean4-setup--check-project))))))
+
+(ert-deftest lean4-setup-compares-versions-not-names ()
+  "A `lean-toolchain' may say `4.33.0' where elan reports `v4.33.0'."
+  (lean4-setup-test--with-project '("lean-toolchain")
+    (lean4-setup-test--pinning "leanprover/lean4:4.33.0"
+        '("leanprover/lean4:v4.33.0")
+      (should-not (lean4-setup-test--recording (lean4-setup--check-project))))))
+
+(ert-deftest lean4-setup-says-nothing-about-a-channel ()
+  "A project pinning a channel is pinning whatever it resolves to today,
+which is elan's to decide and may be a version nobody has yet."
+  (lean4-setup-test--with-project '("lean-toolchain")
+    (lean4-setup-test--pinning "leanprover/lean4:stable"
+        '("leanprover/lean4:v4.33.0")
+      (should-not (lean4-setup-test--recording (lean4-setup--check-project))))))
+
+(ert-deftest lean4-setup-says-nothing-when-elan-cannot-be-asked ()
+  "Without elan there is no list to compare against, and the machine check
+has already said so."
+  (lean4-setup-test--with-project '("lean-toolchain")
+    (lean4-setup-test--pinning "leanprover/lean4:v4.33.0"
+        (error "No elan here")
+      (should-not (lean4-setup-test--recording (lean4-setup--check-project))))))
+
 (ert-deftest lean4-setup-checks-a-project-once ()
   "Once per project, however many of its files are opened."
   (lean4-setup-test--with-project '("lakefile.toml")
