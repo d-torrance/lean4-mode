@@ -357,18 +357,52 @@ other names in it."
           (lean4-render--hypothesis-names hypothesis settings)))
    (append hypotheses nil)))
 
+(defun lean4-render--locate (string kind &optional fvar-id)
+  "Return STRING with the goal-location context of KIND on every character.
+
+A `GoalsLocation' names a place inside a goal, and Lean\\='s
+`SubExpr.GoalLocation' distinguishes four: a hypothesis itself, a
+subexpression of its type, one of its value, and one of the target.
+`lean4-render-tagged-text' has already put the subexpression on each
+character as `lean4-subexpr-pos'; this says which of the four it is a
+subexpression *of*, which the position alone does not.
+
+KIND is `hyp', `hypType', `hypValue' or `target', spelt as Lean spells
+its constructors, since that is what goes on the wire.  FVAR-ID names the
+hypothesis for the three that have one.  The goal\\='s own `mvarId' is put
+on by `lean4-render-goal', which is the only place that knows it."
+  (let ((string (copy-sequence string)))
+    (put-text-property 0 (length string) 'lean4-goal-part kind string)
+    (when fvar-id
+      (put-text-property 0 (length string) 'lean4-fvar-id fvar-id string))
+    string))
+
 (defun lean4-render-hypothesis (hypothesis &optional settings)
   "Render HYPOTHESIS, an `InteractiveHypothesisBundle', as one line.
 Names sharing a type are reported together and are shown together, the
-way Lean itself prints them.  SETTINGS is as described above."
+way Lean itself prints them.  SETTINGS is as described above.
+
+Each part is marked with the goal location it stands for, so that a
+reader can select a subexpression of the type without selecting the name
+beside it.  A bundle names several hypotheses at once and carries an
+`fvarIds' for each; the type is one expression shared between them, and
+Lean\\='s own InfoView attributes it to the first, there being no way to
+say \"the type of all of these\"."
   (let* ((names (lean4-render--hypothesis-names hypothesis settings))
-         (type (lean4-render-tagged-text (plist-get hypothesis :type)))
+         (fvar-id (elt (append (plist-get hypothesis :fvarIds) nil) 0))
+         (type (lean4-render--locate
+                (lean4-render-tagged-text (plist-get hypothesis :type))
+                "hypType" fvar-id))
          (value (unless (plist-get settings :hide-let-values)
                   (plist-get hypothesis :val))))
-    (concat (mapconcat #'lean4-render--name names " ")
+    (concat (lean4-render--locate
+             (mapconcat #'lean4-render--name names " ") "hyp" fvar-id)
             " : " type
             (when value
-              (concat " := " (lean4-render-tagged-text value)))
+              (concat " := "
+                      (lean4-render--locate
+                       (lean4-render-tagged-text value)
+                       "hypValue" fvar-id)))
             "\n")))
 
 (defun lean4-render-goal (goal &optional settings)
@@ -385,7 +419,8 @@ perfectly good goals.  Only per-subterm `diffStatus', which
          (prefix (or (plist-get goal :goalPrefix) "⊢ "))
          (hypotheses (lean4-render-visible-hypotheses
                       (plist-get goal :hyps) settings))
-         (type (lean4-render-tagged-text (plist-get goal :type)))
+         (type (lean4-render--locate
+                (lean4-render-tagged-text (plist-get goal :type)) "target"))
          (target (concat prefix type))
          ;; VS Code reverses the hypotheses as well as moving the target
          ;; above them, so that the two lines which were adjacent -- the
@@ -395,20 +430,29 @@ perfectly good goals.  Only per-subterm `diffStatus', which
                        hypotheses))
          (body (mapconcat (lambda (hypothesis)
                             (lean4-render-hypothesis hypothesis settings))
-                          hypotheses "")))
-    (concat
-     (when case-label
-       (concat (propertize (format "case %s" case-label)
-                           'font-lock-face 'lean4-goal-case)
-               "\n"))
-     (if (plist-get settings :target-first)
-         ;; Each hypothesis ends in a newline and the target does not, so
-         ;; swapping them means moving one newline as well -- and there is
-         ;; none to move when every hypothesis has been filtered away.
-         (if (string-empty-p body)
-             target
-           (concat target "\n" (string-remove-suffix "\n" body)))
-       (concat body target)))))
+                          hypotheses ""))
+         (rendered
+          (concat
+           (when case-label
+             (concat (propertize (format "case %s" case-label)
+                                 'font-lock-face 'lean4-goal-case)
+                     "\n"))
+           (if (plist-get settings :target-first)
+               ;; Each hypothesis ends in a newline and the target does
+               ;; not, so swapping them means moving one newline as well --
+               ;; and there is none to move when every hypothesis has been
+               ;; filtered away.
+               (if (string-empty-p body)
+                   target
+                 (concat target "\n" (string-remove-suffix "\n" body)))
+             (concat body target)))))
+    ;; The goal this text belongs to, on all of it.  A `GoalsLocation' is
+    ;; an `mvarId' and a place within that goal, and this is the only
+    ;; place that knows which goal is being rendered: the parts below
+    ;; have said which *kind* of place they are, but not of what.
+    (when-let* ((mvar-id (plist-get goal :mvarId)))
+      (put-text-property 0 (length rendered) 'lean4-mvar-id mvar-id rendered))
+    rendered))
 
 (defun lean4-render-goals (goals &optional settings)
   "Render GOALS, a sequence of `InteractiveGoal', separated by blank lines.

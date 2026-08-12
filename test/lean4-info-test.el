@@ -2159,5 +2159,226 @@ makes saving them mean what the menu entry says."
   (dolist (option lean4-info--goal-options)
     (should (custom-variable-p option))))
 
+;;;; Selecting locations in a goal
+
+(defconst lean4-info-test--goal
+  '(:mvarId "_uniq.42" :goalPrefix "⊢ "
+    :hyps [(:names ["h"] :fvarIds ["_uniq.7"]
+            :type (:tag [(:subexprPos "/") (:text "Nat")]))]
+    :type (:append [(:tag [(:subexprPos "/1") (:text "aa")])
+                    (:text " + ")
+                    (:tag [(:subexprPos "/2") (:text "bb")])]))
+  "An `InteractiveGoal' shaped as the server sends one.
+Carries the three things a `GoalsLocation' is built from: the goal's
+`mvarId', a hypothesis bundle's `fvarIds', and tagged subexpressions with
+their `subexprPos'.")
+
+(defmacro lean4-info-test--with-goal (&rest body)
+  "Render `lean4-info-test--goal' into a display buffer and run BODY."
+  (declare (indent 0) (debug (body)))
+  `(with-temp-buffer
+     (lean4-info-mode)
+     (let ((inhibit-read-only t))
+       (insert (lean4-render-goal lean4-info-test--goal)))
+     ,@body))
+
+(defun lean4-info-test--goto (text)
+  "Put point on the first occurrence of TEXT."
+  (goto-char (point-min))
+  (search-forward text)
+  (goto-char (match-beginning 0)))
+
+(ert-deftest lean4-info-a-location-names-which-part-of-a-goal-it-is ()
+  "The four `SubExpr.GoalLocation' constructors are told apart.
+A subexpression position alone cannot say whether it is a position in the
+target or in some hypothesis's type, and Lean's own type does not let one
+be passed for the other."
+  (lean4-info-test--with-goal
+    (lean4-info-test--goto "h ")
+    (should (equal (lean4-info--goals-location-at)
+                   '(:mvarId "_uniq.42" :loc (:hyp "_uniq.7"))))
+    (lean4-info-test--goto "Nat")
+    (should (equal (lean4-info--goals-location-at)
+                   '(:mvarId "_uniq.42" :loc (:hypType ["_uniq.7" "/"]))))
+    (lean4-info-test--goto "aa")
+    (should (equal (lean4-info--goals-location-at)
+                   '(:mvarId "_uniq.42" :loc (:target "/1"))))
+    (lean4-info-test--goto "bb")
+    (should (equal (lean4-info--goals-location-at)
+                   '(:mvarId "_uniq.42" :loc (:target "/2"))))))
+
+(ert-deftest lean4-info-a-location-is-encoded-as-lean-encodes-one ()
+  "A selection is worth having only if it can be sent, and Lean's derived
+`ToJson' for `GoalLocation' puts the constructor's name at the head: a
+one-field constructor takes its field bare, a two-field one takes an
+array.  `SubExpr.Pos' rides as a string."
+  (should (equal (json-serialize '(:mvarId "m" :loc (:target "/1")))
+                 "{\"mvarId\":\"m\",\"loc\":{\"target\":\"/1\"}}"))
+  (should (equal (json-serialize '(:mvarId "m" :loc (:hypType ["f" "/"])))
+                 "{\"mvarId\":\"m\",\"loc\":{\"hypType\":[\"f\",\"/\"]}}"))
+  (should (equal (json-serialize '(:mvarId "m" :loc (:hyp "f")))
+                 "{\"mvarId\":\"m\",\"loc\":{\"hyp\":\"f\"}}")))
+
+(ert-deftest lean4-info-nothing-outside-a-goal-is-selectable ()
+  "Point on text that is not part of a goal names no location."
+  (with-temp-buffer
+    (lean4-info-mode)
+    (let ((inhibit-read-only t)) (insert "not a goal\n"))
+    (goto-char (point-min))
+    (should-not (lean4-info--goals-location-at))))
+
+(ert-deftest lean4-info-selecting-faces-only-what-was-selected ()
+  "The face covers the subterm selected and not the line holding it.
+Which is the point of a selection being a location rather than a region:
+`bb' inside `aa + bb' is a subexpression, and selecting it must not take
+the `aa' with it."
+  (lean4-info-test--with-goal
+    (lean4-info-test--goto "bb")
+    (setq lean4-info--selected (list (lean4-info--goals-location-at)))
+    (let ((inhibit-read-only t))
+      (lean4-info--apply-selection-face (point-min) (point-max)))
+    (let ((faced nil))
+      (goto-char (point-min))
+      (while (< (point) (point-max))
+        (let ((face (get-text-property (point) 'font-lock-face)))
+          (when (or (eq face 'lean4-info-selected)
+                    (and (listp face) (memq 'lean4-info-selected face)))
+            (push (char-to-string (char-after)) faced)))
+        (forward-char 1))
+      (should (equal (apply #'concat (nreverse faced)) "bb")))))
+
+(ert-deftest lean4-info-marking-does-not-take-the-scroll-keys ()
+  "Selecting is bound where marking is bound, and `SPC' still scrolls.
+
+Regression test.  The goal display descends from `special-mode', where
+`SPC' pages forward and `DEL' pages back, and binding the selection to
+`SPC' took half of that pair away -- leaving a read-only buffer that
+scrolled backward but not forward, which nothing announced.  Dired,
+Ibuffer and the package menu all spell this operation `m', `u' and `U',
+and those were free."
+  (with-temp-buffer
+    (lean4-info-mode)
+    (should (eq (key-binding (kbd "m")) #'lean4-info-select))
+    (should (eq (key-binding (kbd "u")) #'lean4-info-unselect))
+    (should (eq (key-binding (kbd "U")) #'lean4-info-unselect-all))
+    (should (eq (key-binding (kbd "SPC")) #'scroll-up-command))
+    (should (eq (key-binding (kbd "DEL")) #'scroll-down-command))))
+
+(ert-deftest lean4-info-selecting-twice-unselects ()
+  "One key does both, as pressing it again is what a reader tries first."
+  (lean4-info-test--with-goal
+    (lean4-info-test--goto "bb")
+    (lean4-info-select)
+    (should (equal (length lean4-info--selected) 1))
+    (lean4-info-select)
+    (should-not lean4-info--selected)))
+
+(ert-deftest lean4-info-a-selection-goes-when-its-goal-does ()
+  "A location names a subexpression of one metavariable, so a selection
+made in a goal that is no longer on display is about nothing.  Left
+alone it would be sent to a consumer as a set of places that do not
+exist."
+  (lean4-info-test--with-goal
+    (lean4-info-test--goto "bb")
+    (lean4-info-select)
+    (should lean4-info--selected)
+    ;; The same goal again: the selection stands.
+    (lean4-info--prune-selection (list lean4-info-test--goal))
+    (should lean4-info--selected)
+    ;; A different metavariable: it goes.
+    (lean4-info--prune-selection '((:mvarId "_uniq.99")))
+    (should-not lean4-info--selected)))
+
+(ert-deftest lean4-info-plain-goals-leave-a-selection-alone ()
+  "A server without the interactive RPC sends rendered strings, which have
+no `mvarId' to compare and in which nothing could have been selected."
+  (lean4-info-test--with-goal
+    (lean4-info-test--goto "bb")
+    (lean4-info-select)
+    (lean4-info--prune-selection '("⊢ aa + bb"))
+    (should lean4-info--selected)))
+
+;;;; The context menu
+
+(defun lean4-info-test--menu-labels (menu)
+  "Return the labels of the items of MENU, in order.
+A separator answers with \"--\", so that grouping shows up too."
+  (let ((labels nil))
+    (map-keymap (lambda (_key binding)
+                  (cond ((equal binding menu-bar-separator) (push "--" labels))
+                        ((and (consp binding) (eq (car binding) 'menu-item))
+                         (push (nth 1 binding) labels))))
+                menu)
+    (nreverse labels)))
+
+(defun lean4-info-test--context-menu (position)
+  "Return the labels the display\\='s context menu offers at POSITION."
+  (lean4-info-test--menu-labels
+   (lean4-info-context-menu
+    (make-sparse-keymap "Context Menu")
+    ;; The shape `posn-point' reads: a click in this window at POSITION.
+    (list 'mouse-3 (list (selected-window) position '(0 . 0) 0)))))
+
+(ert-deftest lean4-info-context-menu-offers-the-message-clicked ()
+  "Right-clicking a message offers what can be done to that message.
+VS Code gates each of these on an id saying what was clicked --
+`copyMessageId', `goToMessageLocationId' -- so the menu offers what the
+thing under the pointer can do, and this is the same gate."
+  (let ((source (get-buffer-create "*lean4-info-test-source*")))
+    (unwind-protect
+        (progn
+          (lean4-info-test--insert-message
+           '(:range (:start (:line 1 :character 0)) :message "boom") source)
+          (with-current-buffer lean4-info-buffer-name
+            (goto-char (point-min))
+            (should (search-forward "boom" nil t))
+            (let ((labels (lean4-info-test--context-menu (point))))
+              (should (member "Copy Message" labels))
+              ;; The whole-display items stand alongside them, as in VS Code.
+              (should (member "Copy State" labels))
+              (should (member "Pin State to Top" labels)))))
+      (kill-buffer source))))
+
+(ert-deftest lean4-info-context-menu-omits-message-items-elsewhere ()
+  "Away from a message it offers only what acts on the display.
+A menu naming a message where there is none to name would be four items
+that error when chosen."
+  (with-current-buffer (get-buffer-create lean4-info-buffer-name)
+    (let ((inhibit-read-only t))
+      (unless (derived-mode-p 'magit-section-mode) (magit-section-mode))
+      (erase-buffer)
+      (insert "no sections here\n"))
+    (let ((labels (lean4-info-test--context-menu (point-min))))
+      (should-not (member "Copy Message" labels))
+      (should-not (member "Show Search..." labels))
+      (should (member "Copy State" labels)))))
+
+(ert-deftest lean4-info-context-menu-offers-the-trace-search-only-on-a-trace ()
+  "The search is offered over a message with a trace and over no other.
+VS Code puts its search icon on exactly those messages, and its
+`showTraceSearchId' gates the menu entry the same way.  Both halves are
+asserted: a test that only checked the absence would pass just as well
+against a menu that never offered the search at all."
+  (let ((source (get-buffer-create "*lean4-info-test-source*")))
+    (unwind-protect
+        (progn
+          (lean4-info-test--insert-message
+           (list :range '(:start (:line 1 :character 0))
+                 :message lean4-info-test--trace-message)
+           source)
+          (with-current-buffer lean4-info-buffer-name
+            (goto-char (point-min))
+            (should (search-forward "Trying to prove" nil t))
+            (should (member "Show Search..."
+                            (lean4-info-test--context-menu (point)))))
+          (lean4-info-test--insert-message
+           '(:range (:start (:line 1 :character 0)) :message "boom") source)
+          (with-current-buffer lean4-info-buffer-name
+            (goto-char (point-min))
+            (should (search-forward "boom" nil t))
+            (should-not (member "Show Search..."
+                                (lean4-info-test--context-menu (point))))))
+      (kill-buffer source))))
+
 (provide 'lean4-info-test)
 ;;; lean4-info-test.el ends here

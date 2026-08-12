@@ -62,6 +62,12 @@ slashes, then \".html\"."
 (defvar-local lean4-loogle--query nil
   "The query the results on display answer.")
 
+(defvar lean4-loogle-history nil
+  "Minibuffer history of Loogle queries.
+A history of its own rather than the default one: a Loogle query is a
+shape rather than a word, retyping one is a nuisance, and a reader who
+turns on `savehist-mode' gets them back in the next session.")
+
 ;;;; Faces
 
 (defface lean4-loogle-name
@@ -294,7 +300,7 @@ VS Code\\='s \"Search With Loogle\"."
           (when (use-region-p)
             (string-trim (buffer-substring-no-properties
                           (region-beginning) (region-end))))
-          nil nil
+          'lean4-loogle-history nil
           ;; Inherit the input method: this is the whole reason the prompt
           ;; is worth having rather than a browser tab.
           t)))

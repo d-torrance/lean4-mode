@@ -96,6 +96,9 @@ The new file has prefix PREFIX (defaults to `flymake') and the same extension as
 FILE-NAME."
   (make-temp-file (or prefix "flymake") nil (file-name-extension file-name)))
 
+(defvar lean4-execute-history nil
+  "Minibuffer history of arguments passed to `lean4-execute'.")
+
 (defun lean4-execute (&optional arg)
   "Execute Lean in the current buffer with an optional argument ARG.
 
@@ -106,7 +109,7 @@ were an edge case rather than the way the other command works -- and hid
 the difference well enough that this looked like a redundant wrapper.
 An `interactive' spec says it where anyone reading either command can
 see it: ARG is nil when it is not asked for."
-  (interactive (list (read-string "arg: ")))
+  (interactive (list (read-string "Argument: " nil 'lean4-execute-history)))
   (let* ((cc compile-command)
          (dd default-directory)
          (use-lake (lean4-lake-find-dir))
@@ -169,6 +172,9 @@ the arguments to pass."
   ;; VS Code's `Ctrl+Shift+Alt+Enter', which folds the same list from the
   ;; editor.  `TAB' does it with point on the heading, which needs the
   ;; display to be the selected window first.
+  ;; Where the selection is used, which is in the Lean buffer beside the
+  ;; `conv?' it rewrites, rather than in the display where it was made.
+  "C-c C-w"     #'lean4-info-apply-selection
   "C-c C-b"     #'lean4-info-toggle-all-messages
   "C-c C-g"     #'lean4-info-refresh-paused)
 
@@ -293,6 +299,38 @@ The page VS Code\='s \"Show Documentation Resources\" opens."
   (browse-url "https://lean-lang.org/learn/"))
 
 ;;;###autoload
+(defun lean4-mode-context-menu (menu _click)
+  "Populate MENU with the Lean commands offered over a Lean file.
+
+The four VS Code declares in `editor/context' for a Lean file, in its
+order and its two groups: the module hierarchy both ways, then restarting
+the file and searching with Loogle.  Not the code actions -- VS Code
+leaves those to its lightbulb, which here is
+\\[lean4-apply-suggestion].
+
+`prog-mode' has already put xref\\='s own items on this menu, and
+`prog-context-menu' hands a click inside a comment or a string on to
+`text-mode-context-menu'; this only adds what is Lean\\='s.
+
+The click itself is not read, and VS Code does not read it either: all
+four of these are gated on the language alone, and each acts on the file
+or on the region rather than on whatever the pointer was over."
+  (define-key-after menu [lean4-navigation-separator] menu-bar-separator)
+  (define-key-after menu [lean4-module-hierarchy]
+    '(menu-item "Show Module Hierarchy" lean4-module-hierarchy
+                :help "List what this file imports, and what those import"))
+  (define-key-after menu [lean4-module-hierarchy-inverse]
+    '(menu-item "Show Inverse Module Hierarchy" lean4-module-hierarchy-inverse
+                :help "List what imports this file"))
+  (define-key-after menu [lean4-commands-separator] menu-bar-separator)
+  (define-key-after menu [lean4-restart-file]
+    '(menu-item "Restart File" lean4-refresh-file-dependencies
+                :help "Rebuild the imports which are out of date and reload"))
+  (define-key-after menu [lean4-loogle-search]
+    '(menu-item "Search With Loogle..." lean4-loogle-search
+                :help "Search Mathlib by shape rather than by name"))
+  menu)
+
 (define-derived-mode lean4-mode prog-mode "Lean 4"
   "Major mode for Lean language.
 
@@ -318,6 +356,10 @@ The page VS Code\='s \"Show Documentation Resources\" opens."
   (setq-local beginning-of-defun-function #'lean4-beginning-of-defun)
   (setq-local end-of-defun-function #'lean4-end-of-defun)
   (setq-local add-log-current-defun-function #'lean4-current-defun-name)
+  ;; So that `M-x imenu' and `which-function-mode' work before a server is
+  ;; up, or where there is none.  Eglot substitutes its own index, built
+  ;; from the server's symbols, while it manages the buffer.
+  (lean4-defun--imenu-setup)
   ;; A dependency's own sources are for reading: they are rebuilt from
   ;; upstream, and an edit here is overwritten by the next build.
   (when (and lean4-read-only-dependencies (lean4--dependency-file-p))
@@ -343,6 +385,10 @@ The page VS Code\='s \"Show Documentation Resources\" opens."
   ;; variable Emacs provides for a mode to say that reindenting on a
   ;; newline does not suit its language.
   (setq-local electric-indent-inhibit t)
+  ;; Depth 10 and buffer-local, as every mode in Emacs adds its own: that
+  ;; puts Lean's items below the generic ones `prog-context-menu' has
+  ;; already added rather than above them.
+  (add-hook 'context-menu-functions #'lean4-mode-context-menu 10 'local)
   (add-hook 'before-save-hook #'lean4-whitespace-cleanup nil 'local)
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-semantic-tokens nil 'local)
   (add-hook 'eglot-managed-mode-hook #'lean4--setup-completion nil 'local)

@@ -54,6 +54,7 @@
 (require 'lean4-diagnostics)
 (require 'lean4-render)
 (require 'lean4-rpc)
+(require 'lean4-widget)
 (require 'lean4-settings)
 (require 'lean4-syntax)
 (require 'lean4-util)
@@ -85,10 +86,12 @@ Held as `lean4-goals' is; see there.")
 (defvar lean4-info-paused nil
   "Non-nil while the goal display is paused.")
 
-(defvar lean4-info--imports-stale nil
+(defvar-local lean4-info--imports-stale nil
   "Non-nil while Lean says this file's imports want rebuilding.
-Worked out in the Lean buffer as the display is rebuilt, and read while
-the controls are drawn, which happens in the display's own buffer.")
+Worked out in the Lean buffer as the display is rebuilt, and set and read
+in the display's own buffer, where the controls are drawn -- so it is
+buffer-local, as `lean4-info--handle' and `lean4-info--source-buffer'
+are, and for the same reason.")
 
 (cl-defstruct (lean4-info-pin (:constructor lean4-info--pin-create))
   "A position the goal display goes on showing, whatever point does."
@@ -144,6 +147,11 @@ diagnostics repeatedly without anything the reader would see changing.")
   "Interactive diagnostics for this buffer, as raw LSP plists.
 Nil until the first RPC refresh, and while running without RPC, in
 which case the display falls back to what Flymake holds.")
+
+(defvar lean4-info-search-history nil
+  "Minibuffer history of trace searches.
+The same query is often wanted on the next message down, and the search
+is a request rather than an `isearch', so nothing else remembers it.")
 
 (defvar lean4-info--search nil
   "The trace search in force, or nil.
@@ -203,7 +211,25 @@ whatever the reader\\='s Magit does."
   ;; `C-s' is `isearch' and stays so: what this searches is not in the
   ;; buffer.  `C-c C-f' is find, and free.
   "C-c C-f" #'lean4-info-search-trace
-  "C-c C-e" #'lean4-info-clear-trace-search)
+  "C-c C-e" #'lean4-info-clear-trace-search
+  ;; Marking, spelt as Dired, Ibuffer and the package menu spell it: `m'
+  ;; marks, `u' unmarks, `U' unmarks everything.  A selection is that
+  ;; operation, so it takes those keys rather than new ones.
+  ;;
+  ;; `SPC' is deliberately not one of them.  This mode descends from
+  ;; `special-mode', where `SPC' scrolls up and `DEL' scrolls down, and
+  ;; taking half of that pair away leaves a read-only buffer that pages
+  ;; backward but not forward.
+  ;;
+  ;; Single letters rather than `C-c C-'-something, unlike the pin and
+  ;; pause commands above: those are bound in the Lean buffer too and want
+  ;; a key that is safe there, whereas these act on a subterm of a goal
+  ;; and exist only here.  The Loogle and module buffers read the same way.
+  "m" #'lean4-info-select
+  "u" #'lean4-info-unselect
+  "U" #'lean4-info-unselect-all
+  ;; VS Code selects with a shift-click, and this is that.
+  "S-<mouse-1>" #'lean4-info-select-at-mouse)
 
 (define-derived-mode lean4-info-mode magit-section-mode "Lean Goal"
   "Major mode for the *Lean Goal* buffer.
@@ -231,6 +257,10 @@ Read-only and undo-less already, from `magit-section-mode'.
             #'lean4-info-eldoc-function nil 'local)
   (add-hook 'xref-backend-functions
             #'lean4-info-xref-backend nil 'local)
+  ;; Depth 10 and buffer-local, as everything else on this hook is, so the
+  ;; display's items come below the ones `magit-section-context-menu' has
+  ;; already added.
+  (add-hook 'context-menu-functions #'lean4-info-context-menu 10 'local)
   (add-hook 'post-command-hook #'lean4-info-highlight-subterm nil 'local)
   (add-hook 'post-command-hook #'lean4-info--fetch-open-traces nil 'local)
   ;; Ahead of `magit-section-cached-visibility', which the global value
@@ -671,13 +701,16 @@ One search at a time, on the message it was asked about, as in VS Code.
 `lean4-info-clear-trace-search' puts the message back as it was.  With no
 QUERY -- an empty answer to the prompt -- it does that too."
   (interactive
-   (progn
-     (unless (derived-mode-p 'lean4-info-mode)
-       (user-error "Not in the goal display"))
-     (list (read-string
-            (format-prompt "Search the trace for"
-                           (plist-get lean4-info--search :query))
-            nil nil (plist-get lean4-info--search :query)))))
+   (list (read-string
+          (format-prompt "Search the trace for"
+                         (plist-get lean4-info--search :query))
+          nil 'lean4-info-search-history
+          (plist-get lean4-info--search :query))))
+  ;; Checked in the body rather than in the `interactive' form, so that a
+  ;; caller from Lisp meets the same refusal as one who typed the key
+  ;; rather than a stranger error further in.
+  (unless (derived-mode-p 'lean4-info-mode)
+    (user-error "Not in the goal display"))
   (let* ((place (or (lean4-info--message-place-at-point)
                     (user-error "No message at point")))
          (handle lean4-info--handle)
@@ -1035,8 +1068,16 @@ BUFFER is the Lean buffer the messages belong to."
       (lean4-info--section-body
         (if (eq goals 'accomplished)
             (lean4-info--insert "goals accomplished\n\n")
-          (lean4-info--insert (lean4-info--goal-count goals) "\n"
-                              (lean4-info--goals-text goals) "\n\n")))))
+          (let ((start (point)))
+            ;; Before the face is applied, so that a location belonging to
+            ;; a goal that has gone neither draws nor lingers.
+            (lean4-info--prune-selection goals)
+            (lean4-info--insert (lean4-info--goal-count goals) "\n"
+                                (lean4-info--goals-text goals) "\n\n")
+            ;; After insertion rather than on the string: the selection is
+            ;; held as locations, and finding them means reading the
+            ;; properties back off the text they were rendered onto.
+            (lean4-info--apply-selection-face start (point)))))))
   (when (and term-goal
              (not (eq lean4-info-expected-type-visibility 'hidden)))
     (magit-insert-section (lean4-info-section 'term-goal
@@ -1389,11 +1430,8 @@ Looked for from the root rather than from point: this is asked from the
 Lean buffer as readily as from the display, where point says nothing
 about it."
   (when magit-root-section
-    (let ((found nil))
-      (dolist (section (oref magit-root-section children))
-        (when (and (not found) (equal (oref section value) value))
-          (setq found section)))
-      found)))
+    (seq-find (lambda (section) (equal (oref section value) value))
+              (oref magit-root-section children))))
 
 (defcustom lean4-info-message-order 'point
   "How the file's messages are ordered in the goal display.
@@ -1571,6 +1609,11 @@ anything the reader would see changing."
         ;; much of one to show has to be part of what a rebuild compares:
         ;; without this a toggle would change nothing on screen.
         (lean4-info--goal-settings)
+        ;; Likewise the selection, which is drawn as the goals are
+        ;; inserted: without this, selecting something would leave the
+        ;; display convinced it had nothing new to show.  Read from the
+        ;; display, which is where it lives; this runs in the Lean buffer.
+        (lean4-info--selection)
         lean4-info-expected-type-visibility
         ;; Grows when a trace's children arrive, which is a rebuild's
         ;; cue to show them.  Folding is not in here at all: that is
@@ -2540,6 +2583,258 @@ whole of `1 + 1' when point is on the `+' rather than just the operator."
           (make-overlay (car bounds) (cdr bounds)))
     (overlay-put lean4-info--subterm-overlay 'face 'lean4-info-subterm)))
 
+;;;; Selecting locations in a goal
+
+;; A selection is a set of `GoalsLocation', the type Lean uses to name a
+;; place inside a goal: an `mvarId' saying which goal, and a
+;; `SubExpr.GoalLocation' saying where in it.  The renderer has put the
+;; three parts of that on the text -- `lean4-mvar-id', `lean4-goal-part'
+;; and `lean4-fvar-id', beside the `lean4-subexpr-pos' it already carried
+;; -- so a location is read off the buffer rather than tracked alongside
+;; it.
+;;
+;; Held as the wire shape rather than as buffer positions.  The display is
+;; erased and rebuilt whenever anything changes, so positions would not
+;; survive a keystroke; a location survives because it names something in
+;; the goal rather than something on the screen.  It is also what a
+;; consumer would have to send, and the whole point of a selection is to
+;; be sent somewhere.
+
+(defface lean4-info-selected
+  '((t :inherit region))
+  "Face marking a subterm selected in the goal display.
+`region' is what Emacs uses for a selection everywhere else, so a
+selected subterm looks selected."
+  :group 'lean4-info)
+
+(defvar-local lean4-info--selected nil
+  "The `GoalsLocation's selected in the goal display, newest first.
+Emptied when the goals being shown are not the goals they were selected
+in: a location names a subexpression of a particular metavariable, and
+once that goal is gone the location is about nothing.")
+
+(defun lean4-info--goals-location-at (&optional position)
+  "Return the `GoalsLocation' at POSITION, or nil if there is none.
+
+Built from what the renderer left on the text.  A hypothesis name has no
+subexpression -- the location is the hypothesis itself -- and the other
+three are a subexpression of something, so want a position as well."
+  (let* ((position (or position (point)))
+         (mvar-id (get-text-property position 'lean4-mvar-id))
+         (part (get-text-property position 'lean4-goal-part))
+         (fvar-id (get-text-property position 'lean4-fvar-id))
+         (pos (get-text-property position 'lean4-subexpr-pos)))
+    (when (and mvar-id part)
+      (pcase part
+        ("hyp" (when fvar-id
+                 (list :mvarId mvar-id :loc (list :hyp fvar-id))))
+        ("target" (when pos
+                    (list :mvarId mvar-id :loc (list :target pos))))
+        ((or "hypType" "hypValue")
+         (when (and fvar-id pos)
+           (list :mvarId mvar-id
+                 :loc (list (intern (concat ":" part)) (vector fvar-id pos)))))))))
+
+(defun lean4-info--selection ()
+  "Return the selection, whichever buffer this is asked from.
+It lives in the display, and the rebuild that draws it is decided in the
+Lean buffer, so the question is asked from both."
+  (if (derived-mode-p 'lean4-info-mode)
+      lean4-info--selected
+    (when-let* ((buffer (get-buffer lean4-info-buffer-name)))
+      (buffer-local-value 'lean4-info--selected buffer))))
+
+(defun lean4-info--selected-p (location)
+  "Return non-nil if LOCATION is among the selected ones."
+  (member location (lean4-info--selection)))
+
+(defun lean4-info--redisplay-selection ()
+  "Rebuild the display so that the selection shows.
+The face is applied as the goals are inserted, so this is what makes a
+selection appear -- and `lean4-info--render-key' counts the selection,
+without which the rebuild would find nothing changed and do nothing."
+  (lean4-info-buffer-redisplay))
+
+;;;###autoload
+(defun lean4-info-select ()
+  "Select the subterm at point, as input for something that reads a selection.
+
+VS Code selects with a shift-click or with the `Select' entry of the
+InfoView\\='s own context menu, and what it selects is a `GoalsLocation':
+a subexpression of the target, of a hypothesis\\='s type or value, or a
+hypothesis itself.  This is the same act.
+
+Bound to \\[lean4-info-select], as marking is in Dired and Ibuffer.
+Selecting an already selected location unselects it, so the one key does
+both; \\[lean4-info-unselect] unselects without toggling and
+\\[lean4-info-unselect-all] clears the lot."
+  (interactive)
+  (unless (derived-mode-p 'lean4-info-mode)
+    (user-error "Not in the goal display"))
+  (let ((location (or (lean4-info--goals-location-at)
+                      (user-error "No part of a goal at point"))))
+    (if (lean4-info--selected-p location)
+        (progn (setq lean4-info--selected
+                     (delete location lean4-info--selected))
+               (message "Unselected"))
+      (push location lean4-info--selected)
+      (message "Selected (%d in all)" (length lean4-info--selected)))
+    (lean4-info--redisplay-selection)))
+
+(defun lean4-info-select-at-mouse (event)
+  "Select the subterm clicked, as VS Code\\='s shift-click does.
+EVENT is the click."
+  (interactive "e")
+  (let ((start (event-start event)))
+    (with-selected-window (posn-window start)
+      (goto-char (posn-point start))
+      (lean4-info-select))))
+
+;;;###autoload
+(defun lean4-info-unselect ()
+  "Unselect the subterm at point."
+  (interactive)
+  (unless (derived-mode-p 'lean4-info-mode)
+    (user-error "Not in the goal display"))
+  (let ((location (or (lean4-info--goals-location-at)
+                      (user-error "No part of a goal at point"))))
+    (unless (lean4-info--selected-p location)
+      (user-error "That is not selected"))
+    (setq lean4-info--selected (delete location lean4-info--selected))
+    (lean4-info--redisplay-selection)
+    (message "Unselected")))
+
+;;;###autoload
+(defun lean4-info-unselect-all ()
+  "Unselect every selected subterm."
+  (interactive)
+  (unless (derived-mode-p 'lean4-info-mode)
+    (user-error "Not in the goal display"))
+  (if (null lean4-info--selected)
+      (message "Nothing is selected")
+    (setq lean4-info--selected nil)
+    (lean4-info--redisplay-selection)
+    (message "Selection cleared")))
+
+;;;###autoload
+(defun lean4-info-apply-selection ()
+  "Hand the selection to the widget at point and apply what it answers.
+
+This is what a selection is for.  Mathlib\\='s `conv?' is the example:
+write `conv?', select a subexpression of the goal, and run this -- Lean
+answers with the `conv' invocation that zooms to what was selected, and
+it is put in place of the `conv?'.  `gcongr?' and `calc?' are the same
+shape.
+
+VS Code does this with a JavaScript widget in a webview, which receives
+the selection and draws a link to click.  There is no webview here and
+the JavaScript is not run; the widget\\='s server half is asked directly
+and its answer read for the edit the link would have applied.  See
+`lean4-widget.el'.
+
+Run from the Lean buffer, where the widget and the position are; the
+selection is read from the goal display.  Nothing happens, and nothing is
+changed, if the widget offers nothing for what is selected -- an empty
+selection, or one it rejects, comes back as help text rather than as an
+edit."
+  (interactive)
+  (unless (derived-mode-p 'lean4-mode)
+    (user-error "Not in a Lean buffer"))
+  (let* ((selection (or (lean4-info--selection)
+                        (user-error "Nothing is selected in the goal display")))
+         (goals (or (and (consp lean4-goals) (not (stringp (car lean4-goals)))
+                         lean4-goals)
+                    (user-error "No interactive goals here")))
+         (handle (or (ignore-errors (lean4-rpc-open))
+                     (user-error "No interactive session to ask")))
+         (position (eglot--pos-to-lsp-position))
+         (buffer (current-buffer)))
+    (lean4-rpc-get-widgets
+     handle
+     (lambda (result)
+       (let ((widgets (seq-filter #'lean4-widget--rpc-method
+                                  (append (plist-get result :widgets) nil))))
+         (if (null widgets)
+             (message "No widget here to hand the selection to")
+           (lean4-info--collect-offers
+            handle widgets position goals selection buffer))))
+     (lambda (error)
+       (message "Lean could not say what widgets are here: %s"
+                (plist-get error :message))))))
+
+(defun lean4-info--collect-offers (handle widgets position goals selection
+                                          buffer)
+  "Ask each of WIDGETS what it offers, and apply the choice in BUFFER.
+HANDLE, POSITION, GOALS and SELECTION are the parameters they are asked
+with.  Asked all at once and gathered as they answer, since a widget that
+answers nothing must not hold up one that answers something."
+  (let ((outstanding (length widgets))
+        (offers nil))
+    (dolist (widget widgets)
+      (lean4-rpc-call
+       handle (lean4-widget--rpc-method widget)
+       (lean4-widget--params widget position goals selection)
+       (lambda (html)
+         (setq offers (append offers (lean4-widget--offers html)))
+         (when (zerop (setq outstanding (1- outstanding)))
+           (lean4-info--apply-offers offers buffer)))
+       (lambda (_error)
+         ;; A widget with no server half, or one that will not take this
+         ;; selection, is not an error to report: the others may answer.
+         (when (zerop (setq outstanding (1- outstanding)))
+           (lean4-info--apply-offers offers buffer)))))))
+
+(defun lean4-info--apply-offers (offers buffer)
+  "Apply one of OFFERS in BUFFER, asking which when there are several.
+Each offer is a (LABEL . EDIT), the label being what the link would have
+read as -- \"Generate conv\" and the like -- which is what there is to
+choose between."
+  (with-current-buffer buffer
+    (pcase (length offers)
+      (0 (message "The widget offers nothing for what is selected"))
+      (1 (lean4-widget-apply-edit (cdar offers))
+         (message "%s" (caar offers)))
+      (_ (let ((choice (completing-read "Apply: " (mapcar #'car offers) nil t)))
+           (lean4-widget-apply-edit (cdr (assoc choice offers)))
+           (message "%s" choice))))))
+
+(defun lean4-info--prune-selection (goals)
+  "Drop selected locations that GOALS no longer contains.
+
+A `GoalsLocation' names a subexpression of a particular metavariable.
+Move point in the Lean buffer and the goals are different ones with
+different `mvarId's, so the selection is about nothing: it would not
+draw, and would be sent to a consumer as a set of places that no longer
+exist.  VS Code likewise drops a selection when the goals change.
+
+Only interactive goals can be judged.  Plain text from a server without
+the RPC has no `mvarId' to compare, and nothing there could have been
+selected in the first place."
+  (when (and lean4-info--selected (consp goals) (not (stringp (car goals))))
+    (let ((live (delq nil (mapcar (lambda (goal) (plist-get goal :mvarId))
+                                  (append goals nil)))))
+      (setq lean4-info--selected
+            (seq-filter (lambda (location)
+                          (member (plist-get location :mvarId) live))
+                        lean4-info--selected)))))
+
+(defun lean4-info--apply-selection-face (start end)
+  "Face every selected location between START and END.
+Walked character by character over the runs the renderer left, which is
+what lets a selection of `b + a' inside `a + b = b + a' show as itself
+rather than as the whole line."
+  (save-excursion
+    (goto-char start)
+    (while (< (point) end)
+      (let ((next (or (next-single-property-change
+                       (point) 'lean4-subexpr-pos nil end)
+                      end)))
+        (when-let* ((location (lean4-info--goals-location-at (point)))
+                    ((lean4-info--selected-p location)))
+          (font-lock-prepend-text-property
+           (point) next 'font-lock-face 'lean4-info-selected))
+        (goto-char next)))))
+
 (defun lean4-info--live-handle ()
   "Return a usable RPC handle for the goals on display, or nil.
 
@@ -2781,7 +3076,8 @@ its menu lists them.")
   "Keep the present goal-display settings for future sessions.
 The toggles change a setting for the session only, which is what makes
 them worth pressing to see what a goal looks like the other way; this
-writes whatever they have arrived at to your `custom-file', as VS Code\\='s
+writes whatever they have arrived at to wherever Customize saves -- your
+`custom-file', or your init file where that is nil -- as VS Code\\='s
 \"Save Current Settings to Default Settings\" does.
 
 Written once rather than eight times: `customize-set-variable' tells the
@@ -2837,8 +3133,114 @@ Shared by `lean4-mode-menu' and `lean4-info-mode-menu', as
     "--"
     ["Copy the message at point" lean4-info-copy-message t]
     ["Go to type definition" lean4-info-goto-type-definition t]
+    "--"
+    ;; Only in the display: a selection is of a subterm on show there.
+    ["Select the subterm at point" lean4-info-select
+     :label (if (and (lean4-info--goals-location-at)
+                     (lean4-info--selected-p (lean4-info--goals-location-at)))
+                "Unselect the subterm at point"
+              "Select the subterm at point")
+     :enable (lean4-info--goals-location-at)]
+    ["Unselect all" lean4-info-unselect-all :enable (lean4-info--selection)]
     ["Close goal display" lean4-toggle-info t]
     ["Customize goal display" (customize-group 'lean4-info) t]))
+
+;;;; The context menu
+
+(defun lean4-info--context-command (position command)
+  "Return a command running COMMAND with point at POSITION.
+Building a context menu does not move point -- `context-menu-map' reads
+the click through `mouse-posn-property' and leaves point alone -- so a
+command which acts on the section it was invoked in has to be told where
+the click was.  Without this, copying a message would copy whichever one
+point happened to be resting in rather than the one clicked."
+  (lambda ()
+    (interactive)
+    (goto-char position)
+    (call-interactively command)))
+
+(defun lean4-info-context-menu (menu click)
+  "Populate MENU with what can be done to the part of the display at CLICK.
+
+VS Code declares the same commands in `webview/context', each gated on an
+id saying what was clicked -- `copyMessageId', `pinId', `showTraceSearchId'
+and the rest -- so that the menu offers what the thing under the pointer
+can actually do.  A section is what stands for that here, so the message
+items appear only over a message, and the trace search only over a
+message with a trace in it.
+
+The whole-display items are always offered, as they are in VS Code: they
+act on the display rather than on anything clicked."
+  (when-let* ((position (posn-point (event-start click))))
+    (define-key-after menu [lean4-info-separator] menu-bar-separator)
+    (save-excursion
+      (goto-char position)
+      ;; The selection items, gated on there being a location under the
+      ;; pointer, as VS Code gates its own on `selectableLocationId' and
+      ;; `selectedLocationsId'.
+      (when-let* ((location (lean4-info--goals-location-at position)))
+        (if (lean4-info--selected-p location)
+            (define-key-after menu [lean4-info-unselect]
+              `(menu-item "Unselect"
+                          ,(lean4-info--context-command
+                            position #'lean4-info-unselect)
+                          :help "Drop this subterm from the selection"))
+          (define-key-after menu [lean4-info-select]
+            `(menu-item "Select"
+                        ,(lean4-info--context-command
+                          position #'lean4-info-select)
+                        :help "Add this subterm to the selection"))))
+      (when (lean4-info--selection)
+        (define-key-after menu [lean4-info-unselect-all]
+          '(menu-item "Unselect All" lean4-info-unselect-all
+                      :help "Clear the selection")))
+      (when-let* ((section (lean4-info--message-section-at-point)))
+        (define-key-after menu [lean4-info-copy-message]
+          `(menu-item "Copy Message"
+                      ,(lean4-info--context-command
+                        position #'lean4-info-copy-message)
+                      :help "Put the message clicked in the kill ring"))
+        (when (get-text-property position 'lean4-info-position)
+          (define-key-after menu [lean4-info-goto-message]
+            `(menu-item "Go to Source Location of Message"
+                        ,(lean4-info--context-command
+                          position #'lean4-info-return)
+                        :help "Go to where this message was reported")))
+        (let* ((place (nth 1 (oref section value)))
+               (message (lean4-info--message-at-place place)))
+          (when (lean4-info--has-trace-p message)
+            (if (equal place (plist-get lean4-info--search :place))
+                (define-key-after menu [lean4-info-hide-search]
+                  `(menu-item "Hide Search"
+                              ,(lean4-info--context-command
+                                position #'lean4-info-clear-trace-search)
+                              :help "Put the message back as it was"))
+              (define-key-after menu [lean4-info-show-search]
+                `(menu-item "Show Search..."
+                            ,(lean4-info--context-command
+                              position #'lean4-info-search-trace)
+                            :help "Search this message's traces")))))))
+    (define-key-after menu [lean4-info-state-separator] menu-bar-separator)
+    (define-key-after menu [lean4-info-toggle-pin]
+      `(menu-item ,(if (lean4-info--pinned-here-p) "Unpin State"
+                     "Pin State to Top")
+                  lean4-info-toggle-pin))
+    (define-key-after menu [lean4-info-toggle-pause]
+      `(menu-item ,(if (lean4-info--paused-here-p) "Unpause State"
+                     "Pause State")
+                  lean4-info-toggle-pause))
+    (when (lean4-info--paused-here-p)
+      (define-key-after menu [lean4-info-refresh]
+        '(menu-item "Refresh Paused State" lean4-info-refresh-paused)))
+    (define-key-after menu [lean4-info-toggle-all-messages-pause]
+      `(menu-item ,(if lean4-info-all-messages-paused
+                       "Unpause 'All Messages'"
+                     "Pause 'All Messages'")
+                  lean4-info-toggle-all-messages-pause))
+    (define-key-after menu [lean4-info-copy-state]
+      '(menu-item "Copy State" lean4-info-copy-state
+                  :help "Put the tactic state in the kill ring")))
+  menu)
 
 (provide 'lean4-info)
 ;;; lean4-info.el ends here

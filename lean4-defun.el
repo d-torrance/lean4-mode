@@ -57,6 +57,7 @@
 
 ;;; Code:
 
+(require 'imenu)
 (require 'rx)
 (require 'lean4-indent)
 
@@ -361,6 +362,46 @@ This is the `add-log-current-defun-function' of `lean4-mode'."
               (setq keyword (match-string-no-properties 1)
                     name (match-string-no-properties 2))))
           (or name keyword))))))
+
+(defun lean4-defun--imenu-previous-index-position ()
+  "Move to where the declaration before point begins, for Imenu.
+The `imenu-prev-index-position-function' of `lean4-mode', whose contract
+`lean4-defun--previous-start' already keeps: move point to the previous
+item and return non-nil, or return nil having moved nowhere."
+  (lean4-defun--previous-start))
+
+(defun lean4-defun--imenu-extract-index-name ()
+  "Return the name of the declaration point begins, for Imenu.
+The `imenu-extract-index-name-function' of `lean4-mode'.
+
+Point is where the previous function left it, which is where the
+declaration begins -- and that is not the keyword line: a declaration
+begins at its doc comment, at its attributes, or at the
+`set_option ... in' wrapping it.  So walk down to the keyword first.
+Without that the name comes back nil for every wrapped declaration, and
+Imenu drops the entries whose name is nil, which loses them from the
+index in silence."
+  (save-excursion
+    (while (and (not (lean4-defun--at-start-p)) (zerop (forward-line 1))))
+    (lean4-current-defun-name)))
+
+(defun lean4-defun--imenu-setup ()
+  "Teach Imenu to list a Lean file\\='s declarations.
+Called from the mode body.  Eglot replaces
+`imenu-create-index-function' with its own while it manages the buffer,
+so this serves the times there is no server: a file outside any package,
+one opened before the server has connected, and a session with
+`lean4-auto-start-server' nil.  Without it `M-x imenu' answers that the
+buffer cannot use it at all, and `which-function-mode' says nothing.
+
+Through the two-function protocol rather than `imenu-generic-expression':
+a declaration is found by the same walk \\[beginning-of-defun] uses,
+which knows about doc comments, attributes and a `set_option ... in'
+prefix, and a regexp matched line by line would not."
+  (setq-local imenu-prev-index-position-function
+              #'lean4-defun--imenu-previous-index-position)
+  (setq-local imenu-extract-index-name-function
+              #'lean4-defun--imenu-extract-index-name))
 
 (provide 'lean4-defun)
 ;;; lean4-defun.el ends here

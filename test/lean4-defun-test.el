@@ -307,5 +307,28 @@ as one, so a declaration begins at the option rather than under it."
   (lean4-defun-test--with-lean "theorem in_range : True := tri|vial\n"
     (should (equal (lean4-current-defun-name) "in_range"))))
 
+(ert-deftest lean4-defun-imenu-lists-every-declaration ()
+  "Imenu indexes a Lean file without help from a server.
+Eglot substitutes its own index while it manages the buffer, so this is
+what `M-x imenu' and `which-function-mode' have to work with in a file
+outside any package, in one opened before the server has connected, and
+in a session with `lean4-auto-start-server' nil.  Without it Imenu
+refuses the buffer outright."
+  (lean4-defun-test--with-lean
+      "theorem a : True := trivial\n\n/-- Doc. -/\ndef b : Nat := 0\n\n@[simp]\ntheorem c : True := trivial\n"
+    (should (equal (mapcar #'car (cdr (imenu--make-index-alist)))
+                   '("a" "b" "c")))))
+
+(ert-deftest lean4-defun-imenu-keeps-a-wrapped-declaration ()
+  "A declaration wrapped in `set_option ... in' is indexed under its own name.
+It begins at the wrapping, which is not the keyword line, so reading the
+name where the declaration begins finds none.  Imenu drops an entry whose
+name is nil, so the declaration went missing from the index in silence --
+the one failure of this kind that does not announce itself."
+  (lean4-defun-test--with-lean
+      "theorem a : True := trivial\n\nset_option foo true in\ntheorem b : True := trivial\n\nopen Nat in\ntheorem c : True := trivial\n"
+    (should (equal (mapcar #'car (cdr (imenu--make-index-alist)))
+                   '("a" "b" "c")))))
+
 (provide 'lean4-defun-test)
 ;;; lean4-defun-test.el ends here
