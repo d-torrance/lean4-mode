@@ -388,8 +388,8 @@ buffer.  To put it in a side window on the right:
 @tab -- the same command under the name Lean's messages use
 @tab @code{lean4-restart-file}
 @item @samp{C-c C-r}
-@tab Restart the language server
-@tab @code{eglot-reconnect}
+@tab Restart the language server, or start a stopped one
+@tab @code{lean4-restart-server}
 @item @samp{C-c C-x} or @samp{C-c C-l}
 @tab Execute Lean in stand-alone mode
 @tab @code{lean4-std-exe}
@@ -1995,11 +1995,16 @@ Note that it is the file on disk that is compiled, not the buffer: save
 first, or what Lean reports will be about the previous version.  A buffer
 visiting no file at all is written to a temporary one instead.
 
-@samp{C-c C-r} (@code{eglot-reconnect}) restarts the server, which is VS Code's
-"Server: Restart Server".  To stop one without starting another --
-VS Code's "Server: Stop Server" -- @samp{M-x eglot-shutdown}, which is @samp{Stop
-the Lean server} in the @samp{Lean} menu; and a Lean
-buffer visited afterwards starts a new one, unless
+@samp{C-c C-r} (@code{lean4-restart-server}) restarts the server, which is VS
+Code's "Server: Restart Server".  It starts one where none is running, as
+VS Code's does and for the same reason: there is no separate "Start"
+command, so the restart has to be the way back.  The menu entry says
+which of the two the next press would be, reading @samp{Start the Lean server}
+while none is running.
+
+To stop one without starting another -- VS Code's "Server: Stop Server"
+-- @samp{M-x eglot-shutdown}, which is @samp{Stop the Lean server} in the @samp{Lean}
+menu; and a Lean buffer visited afterwards starts a new one, unless
 @code{lean4-auto-start-server} is off.  Neither is to be confused with
 @samp{C-c C-d}, which restarts the @emph{file}: see @ref{"Imports are out of date and must be rebuilt"}.
 

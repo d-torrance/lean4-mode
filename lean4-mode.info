@@ -363,7 +363,7 @@ Key                      Description                                            
 ‘C-c C-k’                Echo the keystroke needed to input the symbol at point        ‘quail-show-key’
 ‘C-c C-d’                Rebuild changed imports and reload the file                   ‘lean4-refresh-file-dependencies’
                          - the same command under the name Lean's messages use         ‘lean4-restart-file’
-‘C-c C-r’                Restart the language server                                   ‘eglot-reconnect’
+‘C-c C-r’                Restart the language server, or start a stopped one           ‘lean4-restart-server’
 ‘C-c C-x’ or ‘C-c C-l’   Execute Lean in stand-alone mode                              ‘lean4-std-exe’
 ‘C-c C-p C-l’            Build the package, fetching the cache first                   ‘lean4-lake-build’
 ‘C-c C-p C-c’            Fetch Mathlib's build cache for the package                   ‘lean4-lake-fetch-cache’
@@ -1865,13 +1865,19 @@ reports.
 save first, or what Lean reports will be about the previous version.  A
 buffer visiting no file at all is written to a temporary one instead.
 
-   ‘C-c C-r’ (‘eglot-reconnect’) restarts the server, which is VS Code's
-"Server: Restart Server".  To stop one without starting another - VS
-Code's "Server: Stop Server" - ‘M-x eglot-shutdown’, which is ‘Stop the
-Lean server’ in the ‘Lean’ menu; and a Lean buffer visited afterwards
-starts a new one, unless ‘lean4-auto-start-server’ is off.  Neither is
-to be confused with ‘C-c C-d’, which restarts the _file_: see *note
-"Imports are out of date and must be rebuilt"::.
+   ‘C-c C-r’ (‘lean4-restart-server’) restarts the server, which is VS
+Code's "Server: Restart Server".  It starts one where none is running,
+as VS Code's does and for the same reason: there is no separate "Start"
+command, so the restart has to be the way back.  The menu entry says
+which of the two the next press would be, reading ‘Start the Lean
+server’ while none is running.
+
+   To stop one without starting another - VS Code's "Server: Stop
+Server" - ‘M-x eglot-shutdown’, which is ‘Stop the Lean server’ in the
+‘Lean’ menu; and a Lean buffer visited afterwards starts a new one,
+unless ‘lean4-auto-start-server’ is off.  Neither is to be confused with
+‘C-c C-d’, which restarts the _file_: see *note "Imports are out of date
+and must be rebuilt"::.
 
 
 File: lean4-mode.info,  Node: Where the documentation is,  Next: "Timed out after 30 seconds" opening a file outside a project,  Prev: Reporting on the setup,  Up: Troubleshooting
@@ -2005,51 +2011,51 @@ Node: Straight6301
 Node: Upgrading from version 16658
 Node: Usage9827
 Node: Keys in a Lean buffer11924
-Node: The right-click menu14670
-Node: Keys in the goal display16026
-Node: Selecting parts of a goal20546
-Node: Using a selection21743
-Node: Searching a trace24303
-Node: The tactic state25781
-Node: Copying what is on display27944
-Node: How much of a goal to show28971
-Node: Errors and warnings33278
-Node: Building dependencies37963
-Node: Starting a project39233
-Node: Building41025
-Node: Mathlib's build cache42219
-Node: Choosing which Lean to use43831
-Node: Elan itself46265
-Node: Git and curl47481
-Node: Searching Mathlib with Loogle49228
-Node: Reading a dependency51811
-Node: Following a name through a project52743
-Node: The module hierarchy55521
-Node: It needs a built project57569
-Node: Other Lake operations58219
-Node: Moving by declaration59655
-Node: Folding a file up62816
-Node: Applying what Lean suggests65297
-Node: Being told a suggestion is there67182
-Node: What Lean filled in for you69636
-Node: Completion72577
-Node: Finding a symbol you cannot name74786
-Node: Configuration76037
-Node: Frequently used options76517
-Node: Finding the Lean programs78537
-Node: Tuning79479
-Node: The goal display's controls80281
-Node: Older Lean versions82555
-Node: Semantic highlighting83537
-Node: Optional packages85049
-Node: Troubleshooting85542
-Node: What is checked before Lean starts85907
-Node: Reporting on the setup89176
-Node: Where the documentation is91173
-Node: "Timed out after 30 seconds" opening a file outside a project92331
-Node: "Imports are out of date and must be rebuilt"93519
-Node: Common Pitfalls95042
-Node: Acknowledgements95643
+Node: The right-click menu14675
+Node: Keys in the goal display16031
+Node: Selecting parts of a goal20551
+Node: Using a selection21748
+Node: Searching a trace24308
+Node: The tactic state25786
+Node: Copying what is on display27949
+Node: How much of a goal to show28976
+Node: Errors and warnings33283
+Node: Building dependencies37968
+Node: Starting a project39238
+Node: Building41030
+Node: Mathlib's build cache42224
+Node: Choosing which Lean to use43836
+Node: Elan itself46270
+Node: Git and curl47486
+Node: Searching Mathlib with Loogle49233
+Node: Reading a dependency51816
+Node: Following a name through a project52748
+Node: The module hierarchy55526
+Node: It needs a built project57574
+Node: Other Lake operations58224
+Node: Moving by declaration59660
+Node: Folding a file up62821
+Node: Applying what Lean suggests65302
+Node: Being told a suggestion is there67187
+Node: What Lean filled in for you69641
+Node: Completion72582
+Node: Finding a symbol you cannot name74791
+Node: Configuration76042
+Node: Frequently used options76522
+Node: Finding the Lean programs78542
+Node: Tuning79484
+Node: The goal display's controls80286
+Node: Older Lean versions82560
+Node: Semantic highlighting83542
+Node: Optional packages85054
+Node: Troubleshooting85547
+Node: What is checked before Lean starts85912
+Node: Reporting on the setup89181
+Node: Where the documentation is91466
+Node: "Timed out after 30 seconds" opening a file outside a project92624
+Node: "Imports are out of date and must be rebuilt"93812
+Node: Common Pitfalls95335
+Node: Acknowledgements95936
 
 End Tag Table
 

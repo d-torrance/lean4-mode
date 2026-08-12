@@ -301,5 +301,37 @@ crashes afterwards does not set the build going again."
                                        :params)
                             :dependencyBuildMode)))
 
+(ert-deftest lean4-eglot-restarting-starts-a-stopped-server ()
+  "Restarting works with no server running, which is when it is wanted.
+
+Regression test.  `C-c C-r' and the menu entry beside it were
+`eglot-reconnect', whose `interactive' form calls
+`eglot--current-server-or-lose' and so signals where nothing is running.
+Stopping the server therefore took away the only offered way of getting
+one back: the menu invited the reader to stop it and then had nothing but
+a command that errored."
+  (let (started reconnected)
+    (with-temp-buffer
+      (setq buffer-file-name "/tmp/lean4-eglot-test.lean")
+      (cl-letf (((symbol-function 'eglot-current-server) (lambda (&rest _) nil))
+                ((symbol-function 'eglot-ensure)
+                 (lambda (&rest _) (setq started t))))
+        (lean4-restart-server))
+      (should started)
+      ;; With one running it is the reconnect it always was.
+      (cl-letf (((symbol-function 'eglot-current-server)
+                 (lambda (&rest _) 'server))
+                ((symbol-function 'eglot-reconnect)
+                 (lambda (server &rest _) (setq reconnected server))))
+        (lean4-restart-server))
+      (should (eq reconnected 'server)))))
+
+(ert-deftest lean4-eglot-restarting-needs-a-file-to-serve ()
+  "A buffer with no file behind it cannot be served, and says so plainly
+rather than failing somewhere inside Eglot."
+  (with-temp-buffer
+    (cl-letf (((symbol-function 'eglot-current-server) (lambda (&rest _) nil)))
+      (should-error (lean4-restart-server) :type 'user-error))))
+
 (provide 'lean4-eglot-test)
 ;;; lean4-eglot-test.el ends here

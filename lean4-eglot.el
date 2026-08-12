@@ -540,6 +540,29 @@ VS Code calls this \"Server: Restart File\"."
     (eglot--signal-textDocument/didOpen)))
 
 ;;;###autoload
+(defun lean4-restart-server ()
+  "Restart the Lean server for this buffer, starting one if none is running.
+
+`eglot-reconnect' is the restart, and it wants a server to reconnect to:
+its `interactive' form calls `eglot--current-server-or-lose', so with none
+running it signals rather than starting one.  That left no way back from
+\\[eglot-shutdown] short of `M-x eglot' or reopening the file -- the menu
+offered to stop the server and then had nothing to offer but a command
+which errored.
+
+VS Code has the same two commands and no third: its `Restart Server'
+starts a stopped one, and so does this."
+  (interactive)
+  (if-let* ((server (eglot-current-server)))
+      (eglot-reconnect server t)
+    (unless buffer-file-name
+      (user-error "This buffer has no file for Lean to serve"))
+    ;; As the mode body starts one, so that a server begun by hand is the
+    ;; same server begun by opening the file.  The connection is made from
+    ;; `post-command-hook', which runs as soon as this returns.
+    (eglot-ensure)))
+
+;;;###autoload
 (defalias 'lean4-restart-file #'lean4-refresh-file-dependencies
   "Rebuild this file's changed imports and reload it on the server.
 

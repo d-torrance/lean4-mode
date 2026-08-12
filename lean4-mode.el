@@ -164,7 +164,9 @@ the arguments to pass."
   ;; differently from the other would be stranger than either behaviour.
   "<remap> <eglot-code-actions-at-mouse>" #'lean4-apply-suggestion-at-mouse
   "C-c C-d"     #'lean4-refresh-file-dependencies
-  "C-c C-r"     #'eglot-reconnect
+  ;; Not `eglot-reconnect' itself: that signals where no server is running,
+  ;; so this key died along with the server it was meant to bring back.
+  "C-c C-r"     #'lean4-restart-server
   "C-c C-s"     #'lean4-info-toggle-pin
   "C-c C-SPC"   #'lean4-info-toggle-pause
   "C-c C-o"     #'lean4-info-toggle-message-order
@@ -192,7 +194,13 @@ the arguments to pass."
     ;; Labelled as Lean's own message asks for it: the server says to use
     ;; the "Restart File" command when a file's imports are stale.
     ["Restart File"         lean4-refresh-file-dependencies    t]
-    ["Restart lean process" eglot-reconnect                   t]
+    ;; One entry for both, as VS Code has one: its "Restart Server" starts
+    ;; a stopped server, there being no separate "Start".  The label says
+    ;; which of the two this press would be, so that stopping the server
+    ;; leaves the way back named in the menu rather than only in the manual.
+    ["Restart the Lean server" lean4-restart-server
+     :label (if (eglot-current-server) "Restart the Lean server"
+              "Start the Lean server")]
     ["Stop the Lean server"  eglot-shutdown            (eglot-current-server)]
     "--"
     ("Project"

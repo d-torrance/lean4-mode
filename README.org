@@ -188,7 +188,7 @@ buffer.  To put it in a side window on the right:
 | =C-c C-k=              | Echo the keystroke needed to input the symbol at point    | ~quail-show-key~                      |
 | =C-c C-d=              | Rebuild changed imports and reload the file              | ~lean4-refresh-file-dependencies~      |
 |                        | -- the same command under the name Lean's messages use    | ~lean4-restart-file~                  |
-| =C-c C-r=              | Restart the language server                              | ~eglot-reconnect~                      |
+| =C-c C-r=              | Restart the language server, or start a stopped one      | ~lean4-restart-server~                 |
 | =C-c C-x= or =C-c C-l= | Execute Lean in stand-alone mode                         | ~lean4-std-exe~                        |
 | =C-c C-p C-l=          | Build the package, fetching the cache first              | ~lean4-lake-build~                     |
 | =C-c C-p C-c=          | Fetch Mathlib's build cache for the package              | ~lean4-lake-fetch-cache~               |
@@ -1496,11 +1496,16 @@ Note that it is the file on disk that is compiled, not the buffer: save
 first, or what Lean reports will be about the previous version.  A buffer
 visiting no file at all is written to a temporary one instead.
 
-=C-c C-r= (~eglot-reconnect~) restarts the server, which is VS Code's
-"Server: Restart Server".  To stop one without starting another --
-VS Code's "Server: Stop Server" -- =M-x eglot-shutdown=, which is =Stop
-the Lean server= in the =Lean= menu; and a Lean
-buffer visited afterwards starts a new one, unless
+=C-c C-r= (~lean4-restart-server~) restarts the server, which is VS
+Code's "Server: Restart Server".  It starts one where none is running, as
+VS Code's does and for the same reason: there is no separate "Start"
+command, so the restart has to be the way back.  The menu entry says
+which of the two the next press would be, reading =Start the Lean server=
+while none is running.
+
+To stop one without starting another -- VS Code's "Server: Stop Server"
+-- =M-x eglot-shutdown=, which is =Stop the Lean server= in the =Lean=
+menu; and a Lean buffer visited afterwards starts a new one, unless
 ~lean4-auto-start-server~ is off.  Neither is to be confused with
 =C-c C-d=, which restarts the /file/: see [[*"Imports are out of date and
 must be rebuilt"]].

@@ -475,6 +475,14 @@ xref, project roots through =project.el=.
 
 ** Fixed
 
+- Stopping the Lean server no longer leaves no way of starting one.
+  =C-c C-r= and the menu entry beside it were ~eglot-reconnect~, which
+  signals where nothing is running, so the menu invited the reader to
+  stop the server and then offered only a command that errored.  Both are
+  now ~lean4-restart-server~, which reconnects where there is a server
+  and starts one where there is not; the menu entry reads =Start the Lean
+  server= while none is running.  VS Code works the same way, having a
+  "Restart Server" and no separate "Start".
 - Setup warnings no longer arrive from a buffer with no file behind it.
   The guard covered the per-project check alone, so a machine missing
   elan or Lean still warned from every temporary buffer running the mode
