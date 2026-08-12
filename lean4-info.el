@@ -1074,7 +1074,7 @@ the position reads as a place rather than as a bare pair of numbers."
          (propertize
          (lean4-info--align-right
           (propertize place 'face 'lean4-info-location)
-          (list (lean4-info--goto-button buffer line column)))
+          (lean4-info--message-controls message place buffer line column))
           'lean4-info-position (list buffer line column))))
       (puthash place message lean4-info--messages)
       (lean4-info--section-body
@@ -1084,6 +1084,29 @@ the position reads as a place rather than as a bare pair of numbers."
             (lean4-info--insert message "\n")
           (lean4-info--insert-parts (lean4-info--searched message place))
           (lean4-info--insert "\n"))))))
+
+(defun lean4-info--message-controls (message place buffer line column)
+  "Return the controls for the heading of MESSAGE, shown at PLACE.
+The way to the place it was reported for, in BUFFER at LINE and COLUMN,
+always; and a search, where the message has a trace to search -- which is
+where VS Code puts its own search icon, and on the messages with no trace
+in them it puts none either.
+
+The search is one of the controls that runs in the display: it acts on the
+message whose heading it sits in, and there is nowhere else for it to find
+one."
+  (append
+   (when (lean4-info--has-trace-p message)
+     (let ((searched (equal place (plist-get lean4-info--search :place))))
+       (list (lean4-info--button
+              (lean4-info-search-glyph)
+              (if searched
+                  "mouse-1: search this trace again, or clear the search"
+                "mouse-1: search this message's traces")
+              #'lean4-info-search-trace
+              searched
+              'here))))
+   (list (lean4-info--goto-button buffer line column))))
 
 (defun lean4-info--searched (message place)
   "Return the message to show for PLACE: the search's answer, or MESSAGE.
@@ -2105,6 +2128,18 @@ Nil means pick whichever candidate the frame can display."
   "Return the refresh control for this frame."
   (lean4--glyph lean4-info-refresh-icon '("⟳" "↻" "⭮") "R"))
 
+(defcustom lean4-info-search-icon nil
+  "Control that searches the traces of a message.
+Nil means pick whichever candidate the frame can display."
+  :group 'lean4-info
+  :type '(choice (const :tag "Choose to suit the frame" nil) string))
+
+(defun lean4-info-search-glyph ()
+  "Return the trace-search control for this frame."
+  ;; VS Code uses a codicon magnifier.  U+1F50D is that, where a frame can
+  ;; draw it; U+2315 is the same shape in a font far more machines have.
+  (lean4--glyph lean4-info-search-icon '("🔍" "⌕") "S"))
+
 (defcustom lean4-info-restart-file-icon nil
   "Control that rebuilds the imports and reloads the file.
 Nil means pick whichever candidate the frame can display."
@@ -2170,12 +2205,21 @@ move made and then silently undone."
   'action #'lean4-info--press-control)
 
 (defun lean4-info--press-control (button)
-  "Run the command BUTTON stands for."
-  (lean4-info--run-control (button-get button 'lean4-info-command)))
+  "Run the command BUTTON stands for.
+In the Lean buffer, as `lean4-info--run-control' explains -- unless the
+control was made to run where it is, in which case point is already in the
+section it means and moving would lose it."
+  (let ((command (button-get button 'lean4-info-command)))
+    (if (button-get button 'lean4-info-here)
+        (call-interactively command)
+      (lean4-info--run-control command))))
 
-(defun lean4-info--button (label help command &optional active)
+(defun lean4-info--button (label help command &optional active here)
   "Return LABEL as a clickable control running COMMAND, described by HELP.
-ACTIVE marks the control as engaged, which shows in its face.
+ACTIVE marks the control as engaged, which shows in its face.  HERE says
+to run COMMAND in the display, where the control is, rather than in the
+Lean buffer: a command which acts on the section it was pressed in has
+nowhere else to run.
 
 A real button, so `push-button', `button-at' and `forward-button' all
 find it and the display costs nothing to reach from outside.  What it
@@ -2187,7 +2231,8 @@ Lean buffer, which the button knows nothing about."
    'type 'lean4-info-control
    'face (if active 'lean4-info-button-active 'lean4-info-button)
    'help-echo help
-   'lean4-info-command command))
+   'lean4-info-command command
+   'lean4-info-here here))
 
 (defun lean4-info--goto-button (buffer line column &optional label)
   "Return a control sending point to LINE and COLUMN of BUFFER.

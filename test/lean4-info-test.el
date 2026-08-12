@@ -1911,6 +1911,43 @@ apply, and does not."
                         lean4-info-test--line-messages 3))
                3))))
 
+;;;; The controls on a message's heading
+
+(ert-deftest lean4-info-a-trace-message-gets-a-search-control ()
+  "Where VS Code puts its search icon: on the messages with trace output,
+and on the others none."
+  (let ((lean4-info--search nil))
+    (should (= (length (lean4-info--message-controls
+                        lean4-info-test--trace-message
+                        "Foo.lean:3:0" (current-buffer) 3 0))
+               2))
+    (should (= (length (lean4-info--message-controls
+                        "type mismatch" "Foo.lean:3:0" (current-buffer) 3 0))
+               1))))
+
+(ert-deftest lean4-info-the-search-control-runs-in-the-display ()
+  "It acts on the message its heading belongs to, so it cannot be run in
+the Lean buffer as the other controls are."
+  (let* ((lean4-info--search nil)
+         (control (car (lean4-info--message-controls
+                        lean4-info-test--trace-message
+                        "Foo.lean:3:0" (current-buffer) 3 0))))
+    (should (get-text-property 0 'lean4-info-here control))
+    (should (eq (get-text-property 0 'lean4-info-command control)
+                #'lean4-info-search-trace))))
+
+(ert-deftest lean4-info-the-search-control-shows-a-search-in-force ()
+  "Engaged, as the pin and the pause are, so that the display says which
+message is being searched."
+  (let* ((place "Foo.lean:3:0")
+         (lean4-info--search (list :place place :query "x"))
+         (control (car (lean4-info--message-controls
+                        lean4-info-test--trace-message
+                        place (current-buffer) 3 0))))
+    (should (eq (get-text-property 0 'face control)
+                'lean4-info-button-active))
+    (should (string-search "clear" (get-text-property 0 'help-echo control)))))
+
 ;;;; Stale imports, and the control they call for
 
 (ert-deftest lean4-info-notices-imports-which-must-be-rebuilt ()

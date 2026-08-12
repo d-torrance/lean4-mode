@@ -470,10 +470,15 @@ it never will be.  ‘C-s’ still means ‘isearch’, for the text that is
 there.
 
    One search at a time, belonging to the message it was asked about, as
-in VS Code - which opens its search from a message's header, on the
-messages that have trace output and no others.  Here there is no icon to
-click: the key and the menu are the way in, and a message with no trace
-in it says so rather than searching nothing.
+in VS Code.  A ‘🔍’ sits in the heading of every message with a trace in
+it, and in the heading of no other, which is where VS Code puts its own;
+it does what the key does, and shows engaged on the message being
+searched.  ‘lean4-info-search-icon’ names another glyph for it.  A
+message with no trace in it says so rather than searching nothing.
+
+   That control runs where it sits, unlike the others in the display,
+which run their command in the Lean buffer: this one acts on the message
+whose heading it is in, and has nowhere else to find one.
 
 
 File: lean4-mode.info,  Node: The tactic state,  Next: Copying what is on display,  Prev: Keys in the goal display,  Up: Usage
@@ -1877,46 +1882,46 @@ Node: Usage9750
 Node: Keys in a Lean buffer11822
 Node: Keys in the goal display14448
 Node: Searching a trace19237
-Node: The tactic state20389
-Node: Copying what is on display22552
-Node: How much of a goal to show23579
-Node: Errors and warnings27886
-Node: Building dependencies32571
-Node: Starting a project33841
-Node: Building35633
-Node: Mathlib's build cache36825
-Node: Choosing which Lean to use38437
-Node: Elan itself40871
-Node: Git and curl42087
-Node: Searching Mathlib with Loogle43834
-Node: Reading a dependency46090
-Node: Following a name through a project47022
-Node: The module hierarchy49800
-Node: It needs a built project51848
-Node: Other Lake operations52498
-Node: Moving by declaration53934
-Node: Folding a file up56561
-Node: Applying what Lean suggests59042
-Node: Being told a suggestion is there60927
-Node: What Lean filled in for you63381
-Node: Completion65786
-Node: Finding a symbol you cannot name67995
-Node: Configuration69246
-Node: Frequently used options69726
-Node: Finding the Lean programs71746
-Node: Tuning72688
-Node: The goal display's controls73490
-Node: Older Lean versions75764
-Node: Semantic highlighting76746
-Node: Optional packages78258
-Node: Troubleshooting78751
-Node: What is checked before Lean starts79116
-Node: Reporting on the setup82214
-Node: Where the documentation is84211
-Node: "Timed out after 30 seconds" opening a file outside a project85369
-Node: "Imports are out of date and must be rebuilt"86557
-Node: Common Pitfalls88080
-Node: Acknowledgements88681
+Node: The tactic state20689
+Node: Copying what is on display22852
+Node: How much of a goal to show23879
+Node: Errors and warnings28186
+Node: Building dependencies32871
+Node: Starting a project34141
+Node: Building35933
+Node: Mathlib's build cache37125
+Node: Choosing which Lean to use38737
+Node: Elan itself41171
+Node: Git and curl42387
+Node: Searching Mathlib with Loogle44134
+Node: Reading a dependency46390
+Node: Following a name through a project47322
+Node: The module hierarchy50100
+Node: It needs a built project52148
+Node: Other Lake operations52798
+Node: Moving by declaration54234
+Node: Folding a file up56861
+Node: Applying what Lean suggests59342
+Node: Being told a suggestion is there61227
+Node: What Lean filled in for you63681
+Node: Completion66086
+Node: Finding a symbol you cannot name68295
+Node: Configuration69546
+Node: Frequently used options70026
+Node: Finding the Lean programs72046
+Node: Tuning72988
+Node: The goal display's controls73790
+Node: Older Lean versions76064
+Node: Semantic highlighting77046
+Node: Optional packages78558
+Node: Troubleshooting79051
+Node: What is checked before Lean starts79416
+Node: Reporting on the setup82514
+Node: Where the documentation is84511
+Node: "Timed out after 30 seconds" opening a file outside a project85669
+Node: "Imports are out of date and must be rebuilt"86857
+Node: Common Pitfalls88380
+Node: Acknowledgements88981
 
 End Tag Table
 

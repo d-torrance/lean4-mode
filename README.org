@@ -287,10 +287,15 @@ searched has never been in the buffer, and on a =simp= trace most of it
 never will be.  =C-s= still means =isearch=, for the text that is there.
 
 One search at a time, belonging to the message it was asked about, as in
-VS Code -- which opens its search from a message's header, on the
-messages that have trace output and no others.  Here there is no icon to
-click: the key and the menu are the way in, and a message with no trace
-in it says so rather than searching nothing.
+VS Code.  A =🔍= sits in the heading of every message with a trace in it,
+and in the heading of no other, which is where VS Code puts its own; it
+does what the key does, and shows engaged on the message being searched.
+~lean4-info-search-icon~ names another glyph for it.  A message with no
+trace in it says so rather than searching nothing.
+
+That control runs where it sits, unlike the others in the display, which
+run their command in the Lean buffer: this one acts on the message whose
+heading it is in, and has nowhere else to find one.
 
 ** The tactic state
 

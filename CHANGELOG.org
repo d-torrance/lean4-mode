@@ -181,8 +181,10 @@ xref, project roots through =project.el=.
   and thinned to those a match is in.  =C-c C-e= puts the message back.
   A request rather than an =isearch= because most of what is searched has
   never been in the buffer, and on a =simp= trace never will be; =C-s=
-  still means =isearch=.  VS Code opens its search from an icon in a
-  message's header; here the key and the menu are the way in.
+  still means =isearch=.  A =🔍= sits in the heading of every message with
+  a trace in it, where VS Code puts its own, and runs where it sits rather
+  than in the Lean buffer as the other controls do -- it acts on the
+  message whose heading it is in.
 - The setup is checked when a Lean file is visited, and what looks wrong is
   said through ~display-warning~ -- VS Code's setup diagnostics and its
   =showSetupWarnings=.  Missing Git or curl, no =lean=, no =lake= and a
@@ -380,7 +382,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 492 unit tests, and 50 end-to-end tests that run against
+- A test suite: 495 unit tests, and 50 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual says where VS Code's navigation commands went, none of which
   this package implements and all of which therefore appeared in no table
