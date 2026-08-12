@@ -637,16 +637,23 @@ message are as interactive as terms inside a goal.
    Those covering point are listed under ‘Messages’, set in under the
 heading naming the position, along with the goals and the expected type.
 Every message in the file is listed under ‘All messages’, at the outer
-level, with two controls of its own: one orders the list by nearness to
-point or by position in the file - nearness first by default, as in VS
-Code, whose manual has All Messages "sorted by their proximity to the
-text cursor by default" - and one holds the list as it is, separately
-from the pause in the position heading.  While the display is paused a
-third control appears in the position heading, between the way back to
-the pinned position and the pin, which brings it up to date without
-unpausing it.  Both headings count what is in them by severity, the way
-VS Code's do - ‘All messages (1 ⊗ 5 ⓘ)’ for a file with one error and
-five notes.
+level.  It starts folded, ‘lean4-info-all-messages-visibility’ being
+‘collapsed’ - which is VS Code's default said forwards, its own setting
+saying it backwards: ‘Infoview: Auto Open Shows Goal’, on by default,
+means the InfoView opens with ‘All Messages’ collapsed.  ‘expanded’
+starts it open, and either way ‘TAB’ folds and unfolds it as ever; the
+setting is a default and not a rule.
+
+   The section has two controls of its own: one orders the list by
+nearness to point or by position in the file - nearness first by
+default, as in VS Code, whose manual has All Messages "sorted by their
+proximity to the text cursor by default" - and one holds the list as it
+is, separately from the pause in the position heading.  While the
+display is paused a third control appears in the position heading,
+between the way back to the pinned position and the pin, which brings it
+up to date without unpausing it.  Both headings count what is in them by
+severity, the way VS Code's do - ‘All messages (1 ⊗ 5 ⓘ)’ for a file
+with one error and five notes.
 
    Messages Lean marks as being for the goal display rather than the
 editor - that is what ‘isSilent’ means, the completed-proof report among
@@ -1844,41 +1851,41 @@ Node: The tactic state20211
 Node: Copying what is on display22374
 Node: How much of a goal to show23401
 Node: Errors and warnings27708
-Node: Building dependencies31803
-Node: Starting a project33073
-Node: Building34865
-Node: Mathlib's build cache36057
-Node: Choosing which Lean to use37669
-Node: Elan itself40103
-Node: Git and curl41319
-Node: Searching Mathlib with Loogle43066
-Node: Following a name through a project45336
-Node: The module hierarchy48123
-Node: It needs a built project50171
-Node: Other Lake operations50821
-Node: Moving by declaration52257
-Node: Folding a file up54779
-Node: Applying what Lean suggests57154
-Node: Being told a suggestion is there59039
-Node: What Lean filled in for you61493
-Node: Completion63898
-Node: Finding a symbol you cannot name66107
-Node: Configuration67358
-Node: Frequently used options67838
-Node: Finding the Lean programs69858
-Node: Tuning70800
-Node: The goal display's controls71602
-Node: Older Lean versions73876
-Node: Semantic highlighting74858
-Node: Optional packages76370
-Node: Troubleshooting76863
-Node: What is checked before Lean starts77228
-Node: Reporting on the setup80326
-Node: Where the documentation is82323
-Node: "Timed out after 30 seconds" opening a file outside a project83481
-Node: "Imports are out of date and must be rebuilt"84669
-Node: Common Pitfalls86192
-Node: Acknowledgements86793
+Node: Building dependencies32222
+Node: Starting a project33492
+Node: Building35284
+Node: Mathlib's build cache36476
+Node: Choosing which Lean to use38088
+Node: Elan itself40522
+Node: Git and curl41738
+Node: Searching Mathlib with Loogle43485
+Node: Following a name through a project45755
+Node: The module hierarchy48542
+Node: It needs a built project50590
+Node: Other Lake operations51240
+Node: Moving by declaration52676
+Node: Folding a file up55198
+Node: Applying what Lean suggests57573
+Node: Being told a suggestion is there59458
+Node: What Lean filled in for you61912
+Node: Completion64317
+Node: Finding a symbol you cannot name66526
+Node: Configuration67777
+Node: Frequently used options68257
+Node: Finding the Lean programs70277
+Node: Tuning71219
+Node: The goal display's controls72021
+Node: Older Lean versions74295
+Node: Semantic highlighting75277
+Node: Optional packages76789
+Node: Troubleshooting77282
+Node: What is checked before Lean starts77647
+Node: Reporting on the setup80745
+Node: Where the documentation is82742
+Node: "Timed out after 30 seconds" opening a file outside a project83900
+Node: "Imports are out of date and must be rebuilt"85088
+Node: Common Pitfalls86611
+Node: Acknowledgements87212
 
 End Tag Table
 

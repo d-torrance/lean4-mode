@@ -439,7 +439,14 @@ message are as interactive as terms inside a goal.
 Those covering point are listed under =Messages=, set in under the
 heading naming the position, along with the goals and the expected type.
 Every message in the file is listed under =All messages=, at the outer
-level, with two controls of its own: one orders the list by nearness to
+level.  It starts folded, ~lean4-info-all-messages-visibility~ being
+=collapsed= -- which is VS Code's default said forwards, its own setting
+saying it backwards: =Infoview: Auto Open Shows Goal=, on by default,
+means the InfoView opens with =All Messages= collapsed.  =expanded= starts
+it open, and either way =TAB= folds and unfolds it as ever; the setting is
+a default and not a rule.
+
+The section has two controls of its own: one orders the list by nearness to
 point or by position in the file -- nearness first by default, as in VS
 Code, whose manual has All Messages "sorted by their proximity to the
 text cursor by default" -- and one holds the list as it is, separately

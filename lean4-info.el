@@ -238,6 +238,11 @@ Read-only and undo-less already, from `magit-section-mode'.
   ;; last time.  The hook stops at the first answer.
   (add-hook 'magit-section-set-visibility-hook
             #'lean4-info--expected-type-visibility nil 'local)
+  ;; After the one above and before the global `magit-section-cached-visibility'
+  ;; all the same: the two answer for different sections, and the order
+  ;; between them says nothing.
+  (add-hook 'magit-section-set-visibility-hook
+            #'lean4-info--all-messages-visibility t 'local)
   ;; Following point is watched for globally rather than in the Lean
   ;; buffer, because point there can be moved by a command run anywhere;
   ;; see `lean4-info--follow-point'.  Installed here and taken off with
@@ -460,6 +465,49 @@ default is all it is.")
 (defun lean4-info--expected-type-changed (&rest _)
   "Arrange for the expected type\\='s visibility to be applied once."
   (setq lean4-info--expected-type-pending t))
+
+(defvar lean4-info--all-messages-pending t
+  "Non-nil when `lean4-info-all-messages-visibility' has yet to take effect.
+Starts set, unlike its counterpart for the expected type: the default is
+to fold, and folding has to happen the first time the display is built as
+well as whenever the setting changes.  See
+`lean4-info--expected-type-pending', which explains why a default can
+only be applied once.")
+
+(defun lean4-info--all-messages-changed (&rest _)
+  "Arrange for the message list\='s visibility to be applied once."
+  (setq lean4-info--all-messages-pending t))
+
+(defcustom lean4-info-all-messages-visibility 'collapsed
+  "How to show the file\='s message list when the display is built.
+
+`collapsed' folds it, `expanded' leaves it open.  A default rather than a
+rule: `TAB' folds and unfolds it as ever, and a fold made by hand stands
+until this changes.
+
+Folded is VS Code\='s default too, though its setting says so backwards:
+`Infoview: Auto Open Shows Goal', on by default, means the InfoView opens
+with `All Messages' collapsed.  Reading its source is the only way to
+learn that -- the manual says the section is the only thing displayed,
+which is not what the code does with it."
+  :group 'lean4-info
+  :type '(choice (const :tag "Shown" expanded)
+                 (const :tag "Shown, folded" collapsed))
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (lean4-info--all-messages-changed)))
+
+(defun lean4-info--all-messages-visibility (section)
+  "Say how to show SECTION, if it is the message list and has yet to be shown.
+For `magit-section-set-visibility-hook', which wants `show', `hide' or
+nil."
+  (and lean4-info--all-messages-pending
+       (eq (oref section value) 'all-messages)
+       (progn
+         (setq lean4-info--all-messages-pending nil)
+         (if (eq lean4-info-all-messages-visibility 'collapsed)
+             'hide
+           'show))))
 
 (defcustom lean4-info-expected-type-visibility 'expanded
   "How to show the expected type at point.

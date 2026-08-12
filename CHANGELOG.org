@@ -132,6 +132,13 @@ xref, project roots through =project.el=.
   the alternatives when the guess is wrong.  ~lean4-indent-offset~ sets
   the width of a level, and ~lean4-indent-function~ restores the
   previous cycle-only behaviour.
+- The file's message list starts folded, which is VS Code's default:
+  ~lean4-info-all-messages-visibility~, =collapsed= by default and
+  =expanded= to start it open, with =TAB= folding it as ever.  VS Code says
+  this backwards -- its =autoOpenShowsGoal=, on by default, means =All
+  Messages= opens collapsed -- and says something else again in its manual,
+  where the setting is described as leaving only that section displayed.
+  The code is what settles it.
 - Two more setup checks and two more glyph options.  A project pinning a
   Lean version elan has not got is a warning now, that being downloaded
   whole before the server starts and able to outlast
@@ -356,7 +363,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 473 unit tests, and 49 end-to-end tests that run against
+- A test suite: 478 unit tests, and 49 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual says where VS Code's navigation commands went, none of which
   this package implements and all of which therefore appeared in no table

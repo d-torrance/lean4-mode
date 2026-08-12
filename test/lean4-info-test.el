@@ -1944,6 +1944,60 @@ sent."
                  "Nat is a type"))
   (should (equal (lean4-info--message-words nil) "")))
 
+;;;; How the message list starts out
+
+(defun lean4-info-test--section (value)
+  "Return a bare `magit-section' whose value is VALUE.
+Set rather than passed to the constructor: the slots of `magit-section'
+carry no `:initarg' in the version this package supports."
+  (let ((section (magit-section)))
+    (oset section value value)
+    section))
+
+(ert-deftest lean4-info-all-messages-starts-folded ()
+  "Folded, which is VS Code's default said forwards: its
+`autoOpenShowsGoal' is on, and means `All Messages' opens collapsed."
+  (let ((lean4-info--all-messages-pending t)
+        (lean4-info-all-messages-visibility 'collapsed))
+    (should (eq (lean4-info--all-messages-visibility
+                 (lean4-info-test--section 'all-messages))
+                'hide))))
+
+(ert-deftest lean4-info-all-messages-can-start-open ()
+  "And `expanded' says so."
+  (let ((lean4-info--all-messages-pending t)
+        (lean4-info-all-messages-visibility 'expanded))
+    (should (eq (lean4-info--all-messages-visibility
+                 (lean4-info-test--section 'all-messages))
+                'show))))
+
+(ert-deftest lean4-info-all-messages-visibility-is-only-a-default ()
+  "Answered once, so that a rebuild does not undo a fold made by hand: it
+is a default and not a rule."
+  (let ((lean4-info--all-messages-pending t)
+        (lean4-info-all-messages-visibility 'collapsed))
+    (should (lean4-info--all-messages-visibility
+             (lean4-info-test--section 'all-messages)))
+    (should-not (lean4-info--all-messages-visibility
+                 (lean4-info-test--section 'all-messages)))))
+
+(ert-deftest lean4-info-all-messages-visibility-answers-for-nothing-else ()
+  "Other sections are none of its business; the hook stops at an answer."
+  (let ((lean4-info--all-messages-pending t)
+        (lean4-info-all-messages-visibility 'collapsed))
+    (should-not (lean4-info--all-messages-visibility
+                 (lean4-info-test--section 'term-goal)))
+    ;; And it has not spent its one answer on them.
+    (should (lean4-info--all-messages-visibility
+             (lean4-info-test--section 'all-messages)))))
+
+(ert-deftest lean4-info-changing-it-applies-again ()
+  "Setting it through Customize arranges for one more answer, so that the
+change is visible without rebuilding the display by hand."
+  (let ((lean4-info--all-messages-pending nil))
+    (lean4-info--all-messages-changed)
+    (should lean4-info--all-messages-pending)))
+
 ;;;; Searching a trace
 
 (defconst lean4-info-test--trace-message
