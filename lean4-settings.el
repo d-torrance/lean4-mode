@@ -79,6 +79,24 @@ written."
   :group 'lean4
   :type 'boolean)
 
+(defcustom lean4-read-only-dependencies t
+  "Whether a Lean file belonging to a dependency opens read-only.
+That is one under a `.lake' directory -- a package Lake fetched -- or
+under a `.elan' one, which is Lean\='s own source.  Jumping into either
+with \[xref-find-definitions] is the ordinary way to read a proof; editing
+what one finds there is not, the file being rebuilt from upstream and
+overwritten by the next build or cache fetch, and the diagnostics for it
+being about what was built rather than about what is on screen.
+
+VS Code says the same thing with `files.readonlyInclude', which it sets
+for both directories.  Read-only rather than not shown: reading them is
+the point.
+
+The buffer is merely marked read-only, so \[read-only-mode] gets you in
+if you mean it."
+  :group 'lean4
+  :type 'boolean)
+
 (defcustom lean4-highlight-inaccessible-names t
   "Use font to highlight inaccessible names.
 Set this variable to t to highlight inaccessible names in the info display

@@ -212,5 +212,38 @@ lives -- offered to pin even with the followed position already pinned."
                            "Unpin this position"))))
       (kill-buffer source))))
 
+;;;; Dependencies open read-only
+
+(defmacro lean4-mode-test--visiting (file-name &rest body)
+  "Evaluate BODY in a `lean4-mode' buffer pretending to visit FILE-NAME."
+  (declare (indent 1) (debug (form body)))
+  `(with-temp-buffer
+     (setq buffer-file-name ,file-name)
+     (unwind-protect
+         (let ((lean4-mode-hook nil)
+               (lean4-auto-start-server nil)
+               (lean4-info-auto-open nil))
+           (lean4-mode)
+           ,@body)
+       ;; So that killing the buffer asks nothing.
+       (setq buffer-file-name nil))))
+
+(ert-deftest lean4-mode-a-dependency-opens-read-only ()
+  "Editing a fetched package diverges from what was built and is
+overwritten by the next build, so the buffer says no."
+  (lean4-mode-test--visiting "/tmp/p/.lake/packages/mathlib/Mathlib/Foo.lean"
+    (should buffer-read-only)))
+
+(ert-deftest lean4-mode-your-own-file-does-not ()
+  "The file one is writing is writable."
+  (lean4-mode-test--visiting "/tmp/p/Foo/Bar.lean"
+    (should-not buffer-read-only)))
+
+(ert-deftest lean4-mode-read-only-dependencies-can-be-turned-off ()
+  "For whoever means to edit one."
+  (let ((lean4-read-only-dependencies nil))
+    (lean4-mode-test--visiting "/tmp/p/.lake/packages/mathlib/Mathlib/Foo.lean"
+      (should-not buffer-read-only))))
+
 (provide 'lean4-mode-test)
 ;;; lean4-mode-test.el ends here

@@ -166,6 +166,10 @@ the arguments to pass."
   "C-c C-SPC"   #'lean4-info-toggle-pause
   "C-c C-o"     #'lean4-info-toggle-message-order
   "C-c C-a"     #'lean4-info-toggle-all-messages-pause
+  ;; VS Code's `Ctrl+Shift+Alt+Enter', which folds the same list from the
+  ;; editor.  `TAB' does it with point on the heading, which needs the
+  ;; display to be the selected window first.
+  "C-c C-b"     #'lean4-info-toggle-all-messages
   "C-c C-g"     #'lean4-info-refresh-paused)
 
 (easy-menu-define lean4-mode-menu lean4-mode-map
@@ -314,6 +318,10 @@ The page VS Code\='s \"Show Documentation Resources\" opens."
   (setq-local beginning-of-defun-function #'lean4-beginning-of-defun)
   (setq-local end-of-defun-function #'lean4-end-of-defun)
   (setq-local add-log-current-defun-function #'lean4-current-defun-name)
+  ;; A dependency's own sources are for reading: they are rebuilt from
+  ;; upstream, and an edit here is overwritten by the next build.
+  (when (and lean4-read-only-dependencies (lean4--dependency-file-p))
+    (setq buffer-read-only t))
   ;; So that `outline-minor-mode' folds namespaces, sections and
   ;; declarations if the reader turns it on.  It is not turned on here.
   (lean4-outline--setup)

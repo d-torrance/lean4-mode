@@ -1845,14 +1845,22 @@ a fold made by hand."
       (lean4-info-cycle-expected-type)
       (should lean4-info--expected-type-pending))))
 
-(ert-deftest lean4-info-mode-installs-the-visibility-hook ()
-  "The hook is local to the display and ahead of the cached visibility."
+(ert-deftest lean4-info-mode-installs-the-visibility-hooks ()
+  "Both are local to the display and ahead of the cached visibility.
+
+Ahead is the whole of it: the buffer-local value ends with the `t' which
+stands for the global value, `magit-section-cached-visibility' is what the
+global value holds, and it answers about any section it has seen before.
+A function added with APPEND lands after that `t' and never gets its say --
+which is how the message list came to ignore its own setting."
   (with-temp-buffer
     (lean4-info-mode)
-    (should (memq #'lean4-info--expected-type-visibility
-                  magit-section-set-visibility-hook))
-    (should (eq (car magit-section-set-visibility-hook)
-                #'lean4-info--expected-type-visibility))))
+    (let ((global (seq-position magit-section-set-visibility-hook t)))
+      (should global)
+      (dolist (function '(lean4-info--expected-type-visibility))
+        (should (memq function magit-section-set-visibility-hook))
+        (should (< (seq-position magit-section-set-visibility-hook function)
+                   global))))))
 
 (ert-deftest lean4-info-expected-type-cycles-through-three ()
   "The cycle returns to where it started after three presses."
@@ -1946,54 +1954,62 @@ sent."
 
 ;;;; How the message list starts out
 
-(defun lean4-info-test--section (value)
-  "Return a bare `magit-section' whose value is VALUE.
-Set rather than passed to the constructor: the slots of `magit-section'
-carry no `:initarg' in the version this package supports."
-  (let ((section (magit-section)))
-    (oset section value value)
-    section))
-
 (ert-deftest lean4-info-all-messages-starts-folded ()
   "Folded, which is VS Code's default said forwards: its
 `autoOpenShowsGoal' is on, and means `All Messages' opens collapsed."
   (let ((lean4-info--all-messages-pending t)
-        (lean4-info-all-messages-visibility 'collapsed))
-    (should (eq (lean4-info--all-messages-visibility
-                 (lean4-info-test--section 'all-messages))
-                'hide))))
+        (lean4-info-all-messages-visibility 'collapsed)
+        (folded nil))
+    (cl-letf (((symbol-function 'lean4-info--section-with-value)
+               (lambda (_) 'the-section))
+              ((symbol-function 'magit-section-hide)
+               (lambda (_) (setq folded t)))
+              ((symbol-function 'magit-section-show)
+               (lambda (_) (setq folded 'shown))))
+      (lean4-info--apply-all-messages-visibility))
+    (should (eq folded t))
+    (should-not lean4-info--all-messages-pending)))
 
 (ert-deftest lean4-info-all-messages-can-start-open ()
   "And `expanded' says so."
   (let ((lean4-info--all-messages-pending t)
-        (lean4-info-all-messages-visibility 'expanded))
-    (should (eq (lean4-info--all-messages-visibility
-                 (lean4-info-test--section 'all-messages))
-                'show))))
+        (lean4-info-all-messages-visibility 'expanded)
+        (shown nil))
+    (cl-letf (((symbol-function 'lean4-info--section-with-value)
+               (lambda (_) 'the-section))
+              ((symbol-function 'magit-section-hide) #'ignore)
+              ((symbol-function 'magit-section-show)
+               (lambda (_) (setq shown t))))
+      (lean4-info--apply-all-messages-visibility))
+    (should shown)))
 
 (ert-deftest lean4-info-all-messages-visibility-is-only-a-default ()
-  "Answered once, so that a rebuild does not undo a fold made by hand: it
-is a default and not a rule."
+  "Applied once, so that a rebuild does not undo a fold made by hand."
   (let ((lean4-info--all-messages-pending t)
-        (lean4-info-all-messages-visibility 'collapsed))
-    (should (lean4-info--all-messages-visibility
-             (lean4-info-test--section 'all-messages)))
-    (should-not (lean4-info--all-messages-visibility
-                 (lean4-info-test--section 'all-messages)))))
+        (lean4-info-all-messages-visibility 'collapsed)
+        (folds 0))
+    (cl-letf (((symbol-function 'lean4-info--section-with-value)
+               (lambda (_) 'the-section))
+              ((symbol-function 'magit-section-hide)
+               (lambda (_) (setq folds (1+ folds)))))
+      (lean4-info--apply-all-messages-visibility)
+      (lean4-info--apply-all-messages-visibility)
+      (lean4-info--apply-all-messages-visibility))
+    (should (= folds 1))))
 
-(ert-deftest lean4-info-all-messages-visibility-answers-for-nothing-else ()
-  "Other sections are none of its business; the hook stops at an answer."
+(ert-deftest lean4-info-all-messages-visibility-waits-for-the-section ()
+  "A display with no messages in it has nothing to fold, and the setting
+keeps until there is."
   (let ((lean4-info--all-messages-pending t)
         (lean4-info-all-messages-visibility 'collapsed))
-    (should-not (lean4-info--all-messages-visibility
-                 (lean4-info-test--section 'term-goal)))
-    ;; And it has not spent its one answer on them.
-    (should (lean4-info--all-messages-visibility
-             (lean4-info-test--section 'all-messages)))))
+    (cl-letf (((symbol-function 'lean4-info--section-with-value)
+               (lambda (_) nil)))
+      (lean4-info--apply-all-messages-visibility))
+    (should lean4-info--all-messages-pending)))
 
 (ert-deftest lean4-info-changing-it-applies-again ()
-  "Setting it through Customize arranges for one more answer, so that the
-change is visible without rebuilding the display by hand."
+  "Setting it through Customize arranges for one more application, so that
+the change is visible without rebuilding the display by hand."
   (let ((lean4-info--all-messages-pending nil))
     (lean4-info--all-messages-changed)
     (should lean4-info--all-messages-pending)))

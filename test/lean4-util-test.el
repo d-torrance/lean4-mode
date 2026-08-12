@@ -53,5 +53,22 @@ marker came out as a box with 1F6E0 printed inside it."
   (cl-letf (((symbol-function 'lean4--displayable-p) (lambda (&rest _) t)))
     (should (equal (lean4--glyph "!" '("⇅") "S") "!"))))
 
+;;;; A dependency's own sources
+
+(ert-deftest lean4-util-dependency-files-are-recognised ()
+  "Anything under a `.lake' or `.elan' directory belongs to something else,
+at any depth: a package vendored under `.lake/packages' keeps its sources
+several levels down."
+  (should (lean4--dependency-file-p "/home/x/p/.lake/packages/mathlib/Mathlib/Order/Basic.lean"))
+  (should (lean4--dependency-file-p "/home/x/.elan/toolchains/v4.33.0/src/lean/Init/Prelude.lean"))
+  (should (lean4--dependency-file-p "/home/x/p/.lake/build/ir/Foo.lean")))
+
+(ert-deftest lean4-util-a-project-s-own-files-are-not ()
+  "The files one is writing are not, however the directories are named."
+  (should-not (lean4--dependency-file-p "/home/x/p/Foo/Bar.lean"))
+  (should-not (lean4--dependency-file-p "/home/x/lakeish/Foo.lean"))
+  (should-not (lean4--dependency-file-p "/home/x/elan-notes/Foo.lean"))
+  (should-not (lean4--dependency-file-p nil)))
+
 (provide 'lean4-util-test)
 ;;; lean4-util-test.el ends here

@@ -932,11 +932,18 @@ and `Nat' of a type mismatch are as hoverable as anything in a goal."
       (lean4-e2e--goto-line lean4-e2e--error-line)
       (back-to-indentation)
       (lean4-info-buffer-refresh)
+      ;; Waited for as the interactive message rather than as text: until
+      ;; the RPC answers, the display falls back to what Flymake holds,
+      ;; whose message is a plain string with no subterms in it.  Waiting
+      ;; for the words alone was a race, and one that the message list's
+      ;; folding was enough to lose.
       (lean4-e2e--wait-until
-       "the type mismatch to reach the info buffer"
+       "the type mismatch to reach the info buffer as a tree"
        (lambda ()
          (with-current-buffer lean4-info-buffer-name
-           (string-search "Type mismatch" (buffer-string)))))
+           (goto-char (point-min))
+           (and (search-forward "String" nil t)
+                (get-text-property (match-beginning 0) 'lean4-info)))))
       (with-current-buffer lean4-info-buffer-name
         (goto-char (point-min))
         (should (search-forward "String" nil t))
@@ -1290,6 +1297,32 @@ the thing under point."
     (back-to-indentation)
     (should-error (lean4-insert-inlay-hint) :type 'user-error)
     (should-not (buffer-modified-p))))
+
+;;;; Folding the message list from the Lean buffer
+
+(ert-deftest lean4-e2e-all-messages-can-be-folded-from-the-file ()
+  "`lean4-info-toggle-all-messages' works where the reader is, which is the
+point of it: `TAB' folds the same section but wants the display selected
+first.  It starts folded, so the first press opens it."
+  :tags '(:e2e)
+  (lean4-e2e--with-fixture
+    (lean4-e2e--with-info-window
+      (lean4-e2e--show-goal-at lean4-e2e--sorry-line)
+      (lean4-e2e--wait-until
+       "the message list to be built"
+       (lambda ()
+         (accept-process-output nil 0.05)
+         (with-current-buffer lean4-info-buffer-name
+           (lean4-info--section-with-value 'all-messages))))
+      ;; From the Lean buffer, which is where point is.
+      (should (eq (current-buffer) (get-file-buffer lean4-e2e--fixture-file)))
+      (let ((section (with-current-buffer lean4-info-buffer-name
+                       (lean4-info--section-with-value 'all-messages))))
+        (should (oref section hidden))
+        (lean4-info-toggle-all-messages)
+        (should-not (oref section hidden))
+        (lean4-info-toggle-all-messages)
+        (should (oref section hidden))))))
 
 ;;;; Searching a trace
 

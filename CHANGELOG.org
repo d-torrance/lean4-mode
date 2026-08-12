@@ -132,6 +132,16 @@ xref, project roots through =project.el=.
   the alternatives when the guess is wrong.  ~lean4-indent-offset~ sets
   the width of a level, and ~lean4-indent-function~ restores the
   previous cycle-only behaviour.
+- A Lean file under =.lake= or =.elan= opens read-only, those holding the
+  packages Lake fetched and the toolchains elan installed.  Reading them is
+  how one finds out what a lemma says; editing them is overwritten by the
+  next build, and the diagnostics are about what was built rather than what
+  is on screen.  VS Code says the same with =files.readonlyInclude= for the
+  same two directories.  ~lean4-read-only-dependencies~ turns it off, and
+  =C-x C-q= lets you in for one buffer.
+- =C-c C-b= (~lean4-info-toggle-all-messages~) folds the file's message
+  list from the Lean buffer, where =TAB= cannot reach it without selecting
+  the display first.  VS Code binds =Ctrl+Shift+Alt+Enter= to the same.
 - The file's message list starts folded, which is VS Code's default:
   ~lean4-info-all-messages-visibility~, =collapsed= by default and
   =expanded= to start it open, with =TAB= folding it as ever.  VS Code says
@@ -363,7 +373,7 @@ xref, project roots through =project.el=.
   =Lean= menu under =Help=.  The first two open this package's own manual,
   shipped as Info beside the source; the others open the pages VS Code
   opens.
-- A test suite: 478 unit tests, and 49 end-to-end tests that run against
+- A test suite: 483 unit tests, and 50 end-to-end tests that run against
   a real Lean server.  Both run in CI.
 - The manual says where VS Code's navigation commands went, none of which
   this package implements and all of which therefore appeared in no table

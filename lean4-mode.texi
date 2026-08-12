@@ -76,6 +76,7 @@ Usage
 * Mathlib's build cache::
 * Choosing which Lean to use::
 * Searching Mathlib with Loogle::
+* Reading a dependency::
 * Following a name through a project::
 * The module hierarchy::
 * Other Lake operations::
@@ -326,6 +327,7 @@ buffer.  To put it in a side window on the right:
 * Mathlib's build cache::
 * Choosing which Lean to use::
 * Searching Mathlib with Loogle::
+* Reading a dependency::
 * Following a name through a project::
 * The module hierarchy::
 * Other Lake operations::
@@ -363,6 +365,9 @@ buffer.  To put it in a side window on the right:
 @item @samp{C-c C-a}
 @tab Pause or unpause the file's message list
 @tab @code{lean4-info-toggle-all-messages-pause}
+@item @samp{C-c C-b}
+@tab Fold or unfold that list
+@tab @code{lean4-info-toggle-all-messages}
 @item @samp{C-c C-o}
 @tab Order that list by position or by nearness
 @tab @code{lean4-info-toggle-message-order}
@@ -714,7 +719,9 @@ level.  It starts folded, @code{lean4-info-all-messages-visibility} being
 saying it backwards: @samp{Infoview: Auto Open Shows Goal}, on by default,
 means the InfoView opens with @samp{All Messages} collapsed.  @samp{expanded} starts
 it open, and either way @samp{TAB} folds and unfolds it as ever; the setting is
-a default and not a rule.
+a default and not a rule.  @samp{C-c C-b} folds it from the Lean buffer, where
+@samp{TAB} cannot reach without selecting the display first, which is what VS
+Code binds @samp{Ctrl+Shift+Alt+Enter} to.
 
 The section has two controls of its own: one orders the list by nearness to
 point or by position in the file -- nearness first by default, as in VS
@@ -1061,6 +1068,22 @@ answers about Mathlib rather than about the code in hand.
 -- by default @samp{leanprover-community.github.io/mathlib4_docs/}, to which
 the module's name, its dots turned into slashes, and @samp{.html} are
 appended.
+
+@node Reading a dependency
+@section Reading a dependency
+
+A Lean file under a @samp{.lake} directory belongs to a package Lake fetched,
+and one under @samp{.elan} to a toolchain elan installed -- Lean's own source
+among them.  Both open read-only, which is what VS Code's
+@samp{files.readonlyInclude} says of the same two directories.
+
+Reading them is the point: @samp{M-.} into Mathlib is how one finds out what a
+lemma says.  Editing them is not.  The file is rebuilt from upstream and
+overwritten by the next build or cache fetch, and the diagnostics you see
+are about what was built rather than about what is on the screen.
+
+@code{lean4-read-only-dependencies} set to @samp{nil} turns this off, and @samp{C-x C-q}
+(@code{read-only-mode}) lets you in for one buffer, for whoever means it.
 
 @node Following a name through a project
 @section Following a name through a project

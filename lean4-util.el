@@ -164,6 +164,23 @@ installations that are not on the variable `exec-path'."
       (expand-file-name name (expand-file-name "bin" lean4-rootdir))
     name))
 
+(defconst lean4--dependency-directories '(".lake" ".elan")
+  "Directories whose Lean files belong to something else.
+`.lake' holds the packages Lake fetched and what it built; `.elan' holds
+the toolchains elan installed, Lean's own source among them.  The two VS
+Code names in `files.readonlyInclude'.")
+
+(defun lean4--dependency-file-p (&optional file-name)
+  "Return non-nil if FILE-NAME is a Lean file belonging to a dependency.
+FILE-NAME defaults to the current buffer's.  True of anything under a
+`.lake' or `.elan' directory, at any depth: a package vendored under
+`.lake/packages' keeps its own sources several levels down."
+  (when-let* ((file-name (or file-name buffer-file-name)))
+    (let ((parts (split-string (expand-file-name file-name) "/" t)))
+      (seq-some (lambda (part)
+                  (member part lean4--dependency-directories))
+                parts))))
+
 (defun lean4-whitespace-cleanup ()
   "Delete trailing whitespace if `lean4-delete-trailing-whitespace' is t."
   (when lean4-delete-trailing-whitespace

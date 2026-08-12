@@ -238,11 +238,6 @@ Read-only and undo-less already, from `magit-section-mode'.
   ;; last time.  The hook stops at the first answer.
   (add-hook 'magit-section-set-visibility-hook
             #'lean4-info--expected-type-visibility nil 'local)
-  ;; After the one above and before the global `magit-section-cached-visibility'
-  ;; all the same: the two answer for different sections, and the order
-  ;; between them says nothing.
-  (add-hook 'magit-section-set-visibility-hook
-            #'lean4-info--all-messages-visibility t 'local)
   ;; Following point is watched for globally rather than in the Lean
   ;; buffer, because point there can be moved by a command run anywhere;
   ;; see `lean4-info--follow-point'.  Installed here and taken off with
@@ -497,17 +492,20 @@ which is not what the code does with it."
          (set-default symbol value)
          (lean4-info--all-messages-changed)))
 
-(defun lean4-info--all-messages-visibility (section)
-  "Say how to show SECTION, if it is the message list and has yet to be shown.
-For `magit-section-set-visibility-hook', which wants `show', `hide' or
-nil."
-  (and lean4-info--all-messages-pending
-       (eq (oref section value) 'all-messages)
-       (progn
-         (setq lean4-info--all-messages-pending nil)
-         (if (eq lean4-info-all-messages-visibility 'collapsed)
-             'hide
-           'show))))
+(defun lean4-info--apply-all-messages-visibility ()
+  "Fold the message list, or unfold it, if the setting has yet to be applied.
+Done by folding the section rather than through
+`magit-section-set-visibility-hook', which decides a section's visibility
+as it is created: this display inserts its sections itself rather than
+through the refresh machinery `magit-section' expects, and a `hidden'
+slot set at creation does not survive that.  Folding it afterwards is
+what the reader's own `TAB' does, and it holds."
+  (when lean4-info--all-messages-pending
+    (when-let* ((section (lean4-info--section-with-value 'all-messages)))
+      (setq lean4-info--all-messages-pending nil)
+      (if (eq lean4-info-all-messages-visibility 'collapsed)
+          (magit-section-hide section)
+        (magit-section-show section)))))
 
 (defcustom lean4-info-expected-type-visibility 'expanded
   "How to show the expected type at point.
@@ -1341,6 +1339,39 @@ independently, and VS Code gives each its own control."
   (message "All messages %s"
            (if lean4-info-all-messages-paused "paused" "unpaused")))
 
+;;;###autoload
+(defun lean4-info-toggle-all-messages ()
+  "Fold the file's message list, or unfold it.
+Works from the Lean buffer as well as from the display, which is the
+point of it: `TAB' does this with point on the heading, and VS Code binds
+its own `Toggle \"All Messages\"' to a key one presses from the editor.
+
+Folding is `magit-section''s, so this is the same act as pressing `TAB'
+there and leaves the fold where a later rebuild will find it."
+  (interactive)
+  (let ((buffer (get-buffer lean4-info-buffer-name)))
+    (unless buffer
+      (user-error "The goal display is not open"))
+    (with-current-buffer buffer
+      (if-let* ((section (lean4-info--section-with-value 'all-messages)))
+          (progn
+            (magit-section-toggle section)
+            (message "All messages %s"
+                     (if (oref section hidden) "folded" "unfolded")))
+        (user-error "No messages to fold")))))
+
+(defun lean4-info--section-with-value (value)
+  "Return the section of the display whose value is VALUE, or nil.
+Looked for from the root rather than from point: this is asked from the
+Lean buffer as readily as from the display, where point says nothing
+about it."
+  (when magit-root-section
+    (let ((found nil))
+      (dolist (section (oref magit-root-section children))
+        (when (and (not found) (equal (oref section value) value))
+          (setq found section)))
+      found)))
+
 (defcustom lean4-info-message-order 'point
   "How the file's messages are ordered in the goal display.
 
@@ -1658,6 +1689,7 @@ Lean buffer to be the selected one, which it is not in that case."
             (clrhash lean4-info--messages)
             (lean4-info--insert-display location goals term-goal here
                                         sorted all following buffer)
+            (lean4-info--apply-all-messages-visibility)
             (lean4-info--add-visibility-indicators)))))))
 
 ;;;; Refresh
@@ -2666,6 +2698,8 @@ creates a pin, which is the nil answer."
     ["Pause all messages" lean4-info-toggle-all-messages-pause
      :label (if lean4-info-all-messages-paused "Unpause all messages"
               "Pause all messages")]
+    ["Fold all messages" lean4-info-toggle-all-messages
+     :enable (get-buffer lean4-info-buffer-name)]
     ["Order all messages" lean4-info-toggle-message-order
      :label (if (eq lean4-info-message-order 'point)
                 "Order all messages by position in the file"
