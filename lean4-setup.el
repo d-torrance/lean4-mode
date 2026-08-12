@@ -67,12 +67,6 @@ reports the same and more, on request."
   :group 'lean4
   :type 'boolean)
 
-(defconst lean4-setup--elan-major-version 4
-  "The elan this package wants, and why.
-Version 4 is where `elan dump-state' arrives, without which the
-toolchain commands cannot say what a version resolves to.  VS Code wants
-the same, for the same reason.")
-
 (defvar lean4-setup--machine-checked nil
   "Non-nil once the machine has been looked at this session.
 What is installed does not change as one moves between files, and saying
@@ -82,8 +76,12 @@ so once is the difference between a warning and a nag.")
   "The workspace roots looked at this session.")
 
 (defun lean4-setup--warn (level format &rest arguments)
-  "Report FORMAT with ARGUMENTS as a Lean setup warning of LEVEL."
-  (display-warning 'lean4-setup (apply #'format format arguments) level))
+  "Report FORMAT with ARGUMENTS as a Lean setup warning of LEVEL.
+The type is a list beginning `lean4', which is what makes
+`warning-suppress-types' useful here: an entry of `(lean4)' silences
+every warning this package raises, and `(lean4 setup)' only these.  A flat
+symbol would have to be listed one by one."
+  (display-warning '(lean4 setup) (apply #'format format arguments) level))
 
 (defun lean4-setup--machine-problems ()
   "Return what is wrong with this machine, as a list of level and text.
@@ -118,12 +116,15 @@ package is served by `%s serve', so such a file will not be served"
 `exec-path', but nothing here can choose a version without elan; `M-x \
 lean4-install-elan' installs it")
                    problems))
-            ((< elan lean4-setup--elan-major-version)
+            ;; The same constant the toolchain commands themselves refuse
+            ;; below, so that a warning and a refusal cannot come to
+            ;; disagree about which elan is new enough.
+            ((< elan lean4-toolchain--elan-minimum)
              (push (list :warning
                          (format "Elan %d is older than %d, which is where \
 `elan dump-state' arrives; the commands under `Lean version' need it.  `M-x \
 lean4-update-elan' updates it"
-                                 elan lean4-setup--elan-major-version))
+                                 elan lean4-toolchain--elan-minimum))
                    problems))))
     (nreverse problems)))
 
@@ -208,11 +209,18 @@ with no file behind it is an ordinary thing in Emacs rather than a setup
 gone wrong -- editing a Lean block inside an Org or Markdown document
 gives one, and so does every `with-temp-buffer' -- and a warning that
 arrives in all of those is one that gets turned off, taking the two above
-with it."
-  (when lean4-show-setup-warnings
+with it.
+
+Which is why the variable `buffer-file-name' gates the machine check as
+well as the project one.  `markdown-code-lang-modes' maps Lean blocks to
+this mode,
+and Markdown fontifies such a block by running the mode in a temporary
+buffer: without the guard, a reader whose elan is missing meets the news
+in a `*Warnings*' window that a redisplay opened, with no Lean file in
+sight."
+  (when (and lean4-show-setup-warnings buffer-file-name)
     (lean4-setup--check-machine)
-    (when buffer-file-name
-      (lean4-setup--check-project))))
+    (lean4-setup--check-project)))
 
 (defun lean4-setup-forget ()
   "Forget what has been checked, so that it is checked again.

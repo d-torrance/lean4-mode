@@ -91,7 +91,10 @@ naming the symbol, beats a `void-function' backtrace surfacing weeks
 later from inside a jsonrpc callback."
   (when-let* ((missing (seq-remove #'fboundp lean4--eglot-internals)))
     (display-warning
-     'lean4
+     ;; A list beginning `lean4', so that `warning-suppress-types' can
+     ;; silence this alone as `(lean4 eglot)' or the package's warnings
+     ;; together as `(lean4)'.
+     '(lean4 eglot)
      (format "This Eglot is missing %s, which lean4-mode uses.  \
 Some features will not work.  Please report this together with your \
 Emacs and Eglot versions."

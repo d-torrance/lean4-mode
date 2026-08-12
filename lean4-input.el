@@ -156,11 +156,16 @@ keyboard gives you easily, that being the point.  And Lean should never
 begin a token with it: `#\\=' would be a poor choice, since the table
 holds single-letter abbreviations, so typing `#eval\\=' would find `#e\\='
 complete and hand you ε.  The backslash is the default because Lean code
-starts nothing with one."
+starts nothing with one.
+
+The empty string is not one of the choices: it would strip the leader
+from every rule in the table, so that `a\\=' alone expanded, and leave the
+completion at point with nothing to look backwards for."
   :group 'lean4-input
   :set 'lean4-input-incorporate-changed-setting
   :initialize 'custom-initialize-default
-  :type 'string)
+  :type '(string :match (lambda (_widget value)
+                          (and (stringp value) (not (string-empty-p value))))))
 
 (defcustom lean4-input-data-directory
   (expand-file-name "data/" (file-name-directory (or load-file-name (buffer-file-name))))

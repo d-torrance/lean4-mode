@@ -176,10 +176,12 @@ FILE-NAME defaults to the current buffer's.  True of anything under a
 `.lake' or `.elan' directory, at any depth: a package vendored under
 `.lake/packages' keeps its own sources several levels down."
   (when-let* ((file-name (or file-name buffer-file-name)))
-    (let ((parts (split-string (expand-file-name file-name) "/" t)))
-      (seq-some (lambda (part)
-                  (member part lean4--dependency-directories))
-                parts))))
+    ;; `file-name-split' rather than splitting on a slash by hand: it is
+    ;; what Emacs provides for taking a name apart, and it knows the
+    ;; separator this system uses.
+    (seq-some (lambda (part)
+                (member part lean4--dependency-directories))
+              (file-name-split (expand-file-name file-name)))))
 
 (defun lean4-whitespace-cleanup ()
   "Delete trailing whitespace if `lean4-delete-trailing-whitespace' is t."

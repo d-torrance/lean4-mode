@@ -229,11 +229,39 @@ has already said so."
 wrong: editing a Lean block in an Org document gives one, and so does
 every `with-temp-buffer'.  VS Code warns about its unsaved files; warning
 about all of these would be a nag, and a nag is turned off along with the
-warnings worth keeping."
+warnings worth keeping.
+
+The machine here is a broken one, which is the whole point: the guard
+used to cover the project check alone, so a machine with nothing
+installed still warned from a buffer with no file.  `lean4-mode.el' maps
+Lean blocks into `markdown-code-lang-modes', and Markdown fontifies such
+a block by running the mode in a temporary buffer -- so the news arrived
+in a `*Warnings*' window that a redisplay had opened, with no Lean file
+anywhere in sight."
   (with-temp-buffer
     (should-not (lean4-setup-test--recording
-                  (lean4-setup-test--with-machine nil t t 4
+                  (lean4-setup-test--with-machine '("git" "curl") nil nil nil
                     (lean4-setup-check))))))
+
+(ert-deftest lean4-setup-warns-under-a-type-that-nests ()
+  "The warning type is a list beginning `lean4', not a flat symbol.
+That is what makes `warning-suppress-types' usable: an entry of
+`(lean4)' silences everything this package raises, and `(lean4 setup)'
+only these.  A flat `lean4-setup' matches neither, so a reader who had
+suppressed `lean4' would go on being told."
+  (let ((types nil))
+    (cl-letf (((symbol-function 'display-warning)
+               (lambda (type &rest _) (push type types))))
+      (let ((lean4-show-setup-warnings t))
+        (lean4-setup-forget)
+        (with-temp-buffer
+          (setq buffer-file-name "/tmp/lean4-setup-test.lean")
+          (lean4-setup-test--with-machine '("git") nil nil nil
+            (lean4-setup-check)))))
+    (should types)
+    (dolist (type types)
+      (should (equal type '(lean4 setup)))
+      (should (warning-suppress-p type '((lean4)))))))
 
 (provide 'lean4-setup-test)
 ;;; lean4-setup-test.el ends here
