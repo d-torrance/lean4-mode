@@ -184,6 +184,7 @@ buffer.  To put it in a side window on the right:
 | =C-c C-a=              | Pause or unpause the file's message list                 | ~lean4-info-toggle-all-messages-pause~ |
 | =C-c C-b=              | Fold or unfold that list                                 | ~lean4-info-toggle-all-messages~       |
 | =C-c C-o=              | Order that list by position or by nearness               | ~lean4-info-toggle-message-order~      |
+| =C-c C-w=              | Hand the selection to the widget at point                | ~lean4-info-apply-selection~           |
 | =C-c C-k=              | Echo the keystroke needed to input the symbol at point    | ~quail-show-key~                      |
 | =C-c C-d=              | Rebuild changed imports and reload the file              | ~lean4-refresh-file-dependencies~      |
 |                        | -- the same command under the name Lean's messages use    | ~lean4-restart-file~                  |
@@ -197,6 +198,28 @@ buffer.  To put it in a side window on the right:
 The five that act on the goal display -- =C-c C-s=, =C-c C-SPC=,
 =C-c C-g=, =C-c C-a= and =C-c C-o= -- are bound inside the display too,
 so it can be driven from either buffer.
+
+** The right-click menu
+
+With =M-x context-menu-mode= on, right-clicking in a Lean buffer offers
+the four commands VS Code puts in its own editor context menu: the
+module hierarchy each way, =Restart File=, and =Search With Loogle=.
+They join the ones =prog-mode= contributes -- xref's =Go Back=, =Go
+Forward= and definition lookup for the identifier clicked -- rather than
+replacing them, and a click inside a comment or a string still gets the
+text-selection items.
+
+Right-clicking inside the goal display offers what can be done to the
+part clicked, as VS Code's InfoView menu does: over a message, copying
+it, going to where it was reported, and -- where the message has a trace
+-- searching that trace or clearing the search; anywhere in the display,
+pinning, pausing, refreshing a paused display, pausing all messages, and
+copying the tactic state.  The commands are the same ones the keys and
+the =Lean Goal= menu reach, so nothing is only available by mouse.
+
+Emacs does not turn =context-menu-mode= on by default, and this does not
+turn it on either: whether the right button opens a menu or extends the
+region is the reader's business, not a major mode's.
 
 ** Keys in the goal display
 
@@ -216,6 +239,10 @@ rest on any part of a goal and ask about it.
 | =C-c C-o=   | Order that list by position or by nearness          | ~lean4-info-toggle-message-order~      |
 | =C-c C-f=   | Search the traces of the message point is in        | ~lean4-info-search-trace~              |
 | =C-c C-e=   | Put that message back as it was                     | ~lean4-info-clear-trace-search~        |
+| =m=         | Select the subterm at point, or unselect it         | ~lean4-info-select~                    |
+| =S-mouse-1= | The same by mouse, as VS Code's shift-click         | ~lean4-info-select-at-mouse~           |
+| =u=         | Unselect the subterm at point                       | ~lean4-info-unselect~                  |
+| =U=         | Unselect everything                                 | ~lean4-info-unselect-all~              |
 
 Folding and movement come from ~magit-section~, this being one of its
 buffers: =TAB=, =n=, =p=, =M-n= and =M-p= mean in the goal display
@@ -256,6 +283,66 @@ message heading it goes to the place the message was reported for.
 
 Clicking a control does what its key does, and puts the keyboard back in
 the Lean buffer rather than taking focus, as VS Code does.
+
+*** Selecting parts of a goal
+
+=m=, or a shift-click, selects the subterm at point; pressing it again
+unselects it, =u= unselects without toggling, and =U= clears the lot --
+marking spelt as Dired and Ibuffer spell it.  =SPC= is left alone: the
+goal display descends from ~special-mode~, where =SPC= and =DEL= page
+forward and back, and taking one of that pair away would leave a
+read-only buffer that scrolls only upward.  A selection is Lean's own
+=SubExpr.GoalsLocation=: the goal it is in and a place within that goal,
+which is one of four things -- a hypothesis, a subexpression of its type,
+a subexpression of its value, or a subexpression of the target.  So
+selecting =b + a= in =a + b = b + a= selects that subexpression and not
+the line holding it, and selecting a hypothesis's name is a different
+thing from selecting its type.
+
+Because a location names a subexpression of a particular metavariable, a
+selection is dropped as soon as the goals it was made in are no longer
+the goals on display.
+
+*** Using a selection
+
+=C-c C-w= in the Lean buffer hands the selection to the widget at point
+and applies what it answers.  Mathlib's =conv?= is the example:
+
+#+begin_src lean
+example (a b : Nat) : a + b = b + a := by
+  conv?
+#+end_src
+
+Select =b + a= in the goal display, press =C-c C-w=, and the =conv?=
+becomes
+
+#+begin_src lean
+  conv =>
+    enter [2]
+    skip
+#+end_src
+
+=gcongr?= and =calc?= are the same shape and work the same way.  Where
+the widget offers several things, you are asked which; where it offers
+none -- nothing selected, or a selection it will not take -- nothing is
+changed and it says so.
+
+What consumes a selection, in VS Code, is a *user widget*: a piece of
+JavaScript the server sends, rendered in a webview.  There is no webview
+here and the JavaScript is not run.  It does not need to be: a widget
+that reads a selection is a thin shell over a =@[server_rpc_method]=
+which does the work and answers with an =Html= tree, and the edit the
+reader would have clicked is already inside that tree, as an ordinary LSP
+=TextDocumentEdit=.  So the method is called and the answer read.  Both
+halves are JSON.
+
+The one convention relied on is Lean's own: =mk_rpc_widget%= pairs a
+widget =X= with a method =X.rpc=, and =Lean.Widget.getWidgets= reports
+each instance's id, so the method to call is that id with =.rpc= after
+it.  A widget not built that way answers nothing and is passed over,
+which is the right outcome -- this drives what it can and stays quiet
+about the rest.  Widgets that only draw something, rather than offering
+an edit, are not shown at all; that would need the webview.
 
 Where there is nothing at point to report -- outside a proof, say -- the
 display says =No info found.= rather than going blank, which would read
@@ -709,7 +796,11 @@ The query is read with the Lean input method inherited, so =\alpha= becomes
 α in the minibuffer exactly as it would in a Lean buffer -- which is the
 point of asking from inside Emacs rather than in a browser tab, since
 Loogle's syntax leans on notation.  An active region is offered as the
-starting point.
+starting point, and =M-p= reaches what you asked before: the queries are
+kept in ~lean4-loogle-history~, which ~savehist-mode~ carries between
+sessions.  The trace search and the argument =M-x lean4-execute= asks for
+keep histories of their own the same way, in ~lean4-info-search-history~
+and ~lean4-execute-history~.
 
 Results appear in a =*Lean Loogle*= buffer: each is its name, the module it
 lives in, and its type, foldable like everything else.  Where Loogle offers
@@ -902,6 +993,15 @@ Emacs as Imenu through Eglot.  But moving by structure has to work in a
 file that has not been elaborated, or has no server, or does not
 compile, which is precisely when one moves around by structure.  So
 this reads the buffer, as ~lean4-indent-line~ does.
+
+The same walk is offered to Imenu, so =M-x imenu= lists a file's
+declarations without a server having said anything.  Eglot replaces the
+index with the server's own while it manages the buffer, which is the
+better answer where there is one; this is what serves a file outside any
+package, a file opened before the server has connected, and a session
+with ~lean4-auto-start-server~ set to =nil=.  Anything built on Imenu --
+~which-function-mode~, =M-x imenu=, the completing-read frontends -- gets
+the same list.
 
 Declarations inside a =mutual= block count one by one.  Lean writes
 them flush with the =mutual=, so nothing short of counting =mutual= and
@@ -1355,10 +1455,12 @@ other end, with its =alwaysAskBeforeInstallingLeanVersions=.
 They go through ~display-warning~, so they land in a =*Warnings*= buffer
 that waits to be read rather than in an echo area that scrolls away, and
 ~warning-minimum-level~ and its relatives govern them as they govern every
-other warning.  ~lean4-show-setup-warnings~ set to =nil= turns the lot
-off; =M-x lean4-diagnose= still reports the same and more, on request, and
-=M-x lean4-setup-forget= makes the checks run again after you have
-installed something.
+other warning.  The type is =(lean4 setup)=, so an entry of =(lean4)= in
+~warning-suppress-types~ silences everything this package raises and
+=(lean4 setup)= only these.  ~lean4-show-setup-warnings~ set to =nil=
+turns the lot off; =M-x lean4-diagnose= still reports the same and more,
+on request, and =M-x lean4-setup-forget= makes the checks run again after
+you have installed something.
 
 VS Code has one check more, for a file being edited which has not been
 saved anywhere, Lean having nothing to serve.  That one is left out: a

@@ -65,6 +65,7 @@ With a source-based package manager
 Usage
 
 * Keys in a Lean buffer::
+* The right-click menu::
 * Keys in the goal display::
 * The tactic state::
 * Copying what is on display::
@@ -90,6 +91,8 @@ Usage
 
 Keys in the goal display
 
+* Selecting parts of a goal::
+* Using a selection::
 * Searching a trace::
 
 Choosing which Lean to use
@@ -316,6 +319,7 @@ buffer.  To put it in a side window on the right:
 
 @menu
 * Keys in a Lean buffer::
+* The right-click menu::
 * Keys in the goal display::
 * The tactic state::
 * Copying what is on display::
@@ -371,6 +375,9 @@ buffer.  To put it in a side window on the right:
 @item @samp{C-c C-o}
 @tab Order that list by position or by nearness
 @tab @code{lean4-info-toggle-message-order}
+@item @samp{C-c C-w}
+@tab Hand the selection to the widget at point
+@tab @code{lean4-info-apply-selection}
 @item @samp{C-c C-k}
 @tab Echo the keystroke needed to input the symbol at point
 @tab @code{quail-show-key}
@@ -403,6 +410,29 @@ buffer.  To put it in a side window on the right:
 The five that act on the goal display -- @samp{C-c C-s}, @samp{C-c C-SPC},
 @samp{C-c C-g}, @samp{C-c C-a} and @samp{C-c C-o} -- are bound inside the display too,
 so it can be driven from either buffer.
+
+@node The right-click menu
+@section The right-click menu
+
+With @samp{M-x context-menu-mode} on, right-clicking in a Lean buffer offers
+the four commands VS Code puts in its own editor context menu: the
+module hierarchy each way, @samp{Restart File}, and @samp{Search With Loogle}.
+They join the ones @samp{prog-mode} contributes -- xref's @samp{Go Back}, @samp{Go
+Forward} and definition lookup for the identifier clicked -- rather than
+replacing them, and a click inside a comment or a string still gets the
+text-selection items.
+
+Right-clicking inside the goal display offers what can be done to the
+part clicked, as VS Code's InfoView menu does: over a message, copying
+it, going to where it was reported, and -- where the message has a trace
+-- searching that trace or clearing the search; anywhere in the display,
+pinning, pausing, refreshing a paused display, pausing all messages, and
+copying the tactic state.  The commands are the same ones the keys and
+the @samp{Lean Goal} menu reach, so nothing is only available by mouse.
+
+Emacs does not turn @samp{context-menu-mode} on by default, and this does not
+turn it on either: whether the right button opens a menu or extends the
+region is the reader's business, not a major mode's.
 
 @node Keys in the goal display
 @section Keys in the goal display
@@ -447,6 +477,18 @@ rest on any part of a goal and ask about it.
 @item @samp{C-c C-e}
 @tab Put that message back as it was
 @tab @code{lean4-info-clear-trace-search}
+@item @samp{m}
+@tab Select the subterm at point, or unselect it
+@tab @code{lean4-info-select}
+@item @samp{S-mouse-1}
+@tab The same by mouse, as VS Code's shift-click
+@tab @code{lean4-info-select-at-mouse}
+@item @samp{u}
+@tab Unselect the subterm at point
+@tab @code{lean4-info-unselect}
+@item @samp{U}
+@tab Unselect everything
+@tab @code{lean4-info-unselect-all}
 @end multitable
 
 Folding and movement come from @code{magit-section}, this being one of its
@@ -489,6 +531,74 @@ message heading it goes to the place the message was reported for.
 Clicking a control does what its key does, and puts the keyboard back in
 the Lean buffer rather than taking focus, as VS Code does.
 
+@menu
+* Selecting parts of a goal::
+* Using a selection::
+* Searching a trace::
+@end menu
+
+@node Selecting parts of a goal
+@subsection Selecting parts of a goal
+
+@samp{m}, or a shift-click, selects the subterm at point; pressing it again
+unselects it, @samp{u} unselects without toggling, and @samp{U} clears the lot --
+marking spelt as Dired and Ibuffer spell it.  @samp{SPC} is left alone: the
+goal display descends from @code{special-mode}, where @samp{SPC} and @samp{DEL} page
+forward and back, and taking one of that pair away would leave a
+read-only buffer that scrolls only upward.  A selection is Lean's own
+@samp{SubExpr.GoalsLocation}: the goal it is in and a place within that goal,
+which is one of four things -- a hypothesis, a subexpression of its type,
+a subexpression of its value, or a subexpression of the target.  So
+selecting @samp{b + a} in @samp{a + b = b + a} selects that subexpression and not
+the line holding it, and selecting a hypothesis's name is a different
+thing from selecting its type.
+
+Because a location names a subexpression of a particular metavariable, a
+selection is dropped as soon as the goals it was made in are no longer
+the goals on display.
+
+@node Using a selection
+@subsection Using a selection
+
+@samp{C-c C-w} in the Lean buffer hands the selection to the widget at point
+and applies what it answers.  Mathlib's @samp{conv?} is the example:
+
+@example
+example (a b : Nat) : a + b = b + a := by
+  conv?
+@end example
+
+Select @samp{b + a} in the goal display, press @samp{C-c C-w}, and the @samp{conv?}
+becomes
+
+@example
+conv =>
+  enter [2]
+  skip
+@end example
+
+@samp{gcongr?} and @samp{calc?} are the same shape and work the same way.  Where
+the widget offers several things, you are asked which; where it offers
+none -- nothing selected, or a selection it will not take -- nothing is
+changed and it says so.
+
+What consumes a selection, in VS Code, is a @strong{user widget}: a piece of
+JavaScript the server sends, rendered in a webview.  There is no webview
+here and the JavaScript is not run.  It does not need to be: a widget
+that reads a selection is a thin shell over a @samp{@@[server_rpc_method]}
+which does the work and answers with an @samp{Html} tree, and the edit the
+reader would have clicked is already inside that tree, as an ordinary LSP
+@samp{TextDocumentEdit}.  So the method is called and the answer read.  Both
+halves are JSON@.
+
+The one convention relied on is Lean's own: @samp{mk_rpc_widget%} pairs a
+widget @samp{X} with a method @samp{X.rpc}, and @samp{Lean.Widget.getWidgets} reports
+each instance's id, so the method to call is that id with @samp{.rpc} after
+it.  A widget not built that way answers nothing and is passed over,
+which is the right outcome -- this drives what it can and stays quiet
+about the rest.  Widgets that only draw something, rather than offering
+an edit, are not shown at all; that would need the webview.
+
 Where there is nothing at point to report -- outside a proof, say -- the
 display says @samp{No info found.} rather than going blank, which would read
 like a display that had stopped working.  Messages from elsewhere in the
@@ -503,10 +613,6 @@ Traces fold like everything else, being sections themselves: @samp{TAB} or
 the mouse, with the same indicator.  Lean does not send the children of
 a trace node until something asks -- a @samp{simp} trace on a real proof is
 enormous -- so opening one fetches them, once.
-
-@menu
-* Searching a trace::
-@end menu
 
 @node Searching a trace
 @subsection Searching a trace
@@ -1040,7 +1146,11 @@ The query is read with the Lean input method inherited, so @samp{\alpha} becomes
 α in the minibuffer exactly as it would in a Lean buffer -- which is the
 point of asking from inside Emacs rather than in a browser tab, since
 Loogle's syntax leans on notation.  An active region is offered as the
-starting point.
+starting point, and @samp{M-p} reaches what you asked before: the queries are
+kept in @code{lean4-loogle-history}, which @code{savehist-mode} carries between
+sessions.  The trace search and the argument @samp{M-x lean4-execute} asks for
+keep histories of their own the same way, in @code{lean4-info-search-history}
+and @code{lean4-execute-history}.
 
 Results appear in a @samp{*Lean Loogle*} buffer: each is its name, the module it
 lives in, and its type, foldable like everything else.  Where Loogle offers
@@ -1287,6 +1397,15 @@ Emacs as Imenu through Eglot.  But moving by structure has to work in a
 file that has not been elaborated, or has no server, or does not
 compile, which is precisely when one moves around by structure.  So
 this reads the buffer, as @code{lean4-indent-line} does.
+
+The same walk is offered to Imenu, so @samp{M-x imenu} lists a file's
+declarations without a server having said anything.  Eglot replaces the
+index with the server's own while it manages the buffer, which is the
+better answer where there is one; this is what serves a file outside any
+package, a file opened before the server has connected, and a session
+with @code{lean4-auto-start-server} set to @samp{nil}.  Anything built on Imenu --
+@code{which-function-mode}, @samp{M-x imenu}, the completing-read frontends -- gets
+the same list.
 
 Declarations inside a @samp{mutual} block count one by one.  Lean writes
 them flush with the @samp{mutual}, so nothing short of counting @samp{mutual} and
@@ -1834,10 +1953,12 @@ other end, with its @samp{alwaysAskBeforeInstallingLeanVersions}.
 They go through @code{display-warning}, so they land in a @samp{*Warnings*} buffer
 that waits to be read rather than in an echo area that scrolls away, and
 @code{warning-minimum-level} and its relatives govern them as they govern every
-other warning.  @code{lean4-show-setup-warnings} set to @samp{nil} turns the lot
-off; @samp{M-x lean4-diagnose} still reports the same and more, on request, and
-@samp{M-x lean4-setup-forget} makes the checks run again after you have
-installed something.
+other warning.  The type is @samp{(lean4 setup)}, so an entry of @samp{(lean4)} in
+@code{warning-suppress-types} silences everything this package raises and
+@samp{(lean4 setup)} only these.  @code{lean4-show-setup-warnings} set to @samp{nil}
+turns the lot off; @samp{M-x lean4-diagnose} still reports the same and more,
+on request, and @samp{M-x lean4-setup-forget} makes the checks run again after
+you have installed something.
 
 VS Code has one check more, for a file being edited which has not been
 saved anywhere, Lean having nothing to serve.  That one is left out: a

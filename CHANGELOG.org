@@ -420,9 +420,75 @@ xref, project roots through =project.el=.
   it is skipped without complaint, but a download that fails stops the
   build instead of leaving it to compile Mathlib locally.  For a bare
   =lake build=, use =M-x compile=.
+- Selecting parts of a goal, as VS Code's InfoView does: =m= or a
+  shift-click selects the subterm at point and pressing it again
+  unselects it, =u= unselects one and =U= clears the selection -- marking
+  spelt as Dired and Ibuffer spell it, leaving =SPC= to page through the
+  display as ~special-mode~ intends.  The right-click menu
+  offers =Select=, =Unselect= and =Unselect All= gated on there being a
+  subterm under the pointer.  A selection is Lean's own
+  =SubExpr.GoalsLocation= -- the goal and a place within it, told apart
+  as a hypothesis, its type, its value or the target -- so it can be sent
+  as it stands, and it is dropped when the goals it was made in go away.
+- =C-c C-w= hands the selection to the widget at point and applies what
+  it answers, which is what a selection is for.  Write =conv?=, select a
+  subexpression, press it, and the =conv?= becomes the =conv= invocation
+  that zooms to what was selected; Mathlib's =gcongr?= and =calc?= work
+  the same way.  VS Code does this with a JavaScript widget in a webview,
+  which this package does not render and does not need to: such a widget
+  is a shell over a =@[server_rpc_method]= that answers with an =Html=
+  tree carrying the edit as an ordinary LSP =TextDocumentEdit=, so the
+  method is called and the answer read.  Widgets that only draw
+  something, offering no edit, are not shown -- that would need the
+  webview.
+- A right-click menu, for readers who have =context-menu-mode= on.  In a
+  Lean buffer it offers the four commands VS Code declares in its own
+  =editor/context= menu -- the module hierarchy each way, =Restart File=
+  and =Search With Loogle= -- added below the xref items =prog-mode=
+  already contributes.  In the goal display it offers what can be done to
+  the part clicked, gated as VS Code gates its InfoView menu: copying a
+  message, going to where it was reported, searching or clearing the
+  search on a message with a trace, and the pin, pause, refresh and copy
+  commands that act on the display as a whole.  Nothing is reachable only
+  by mouse, and =context-menu-mode= is left for the reader to turn on.
+- Imenu lists a Lean file's declarations without a server, built from the
+  same walk =C-M-a= uses, so it knows about doc comments, attributes and
+  a =set_option ... in= prefix.  Eglot substitutes the server's own
+  document symbols while it manages the buffer; this serves a file
+  outside any package, one opened before the server has connected, and a
+  session with ~lean4-auto-start-server~ nil, where =M-x imenu= used to
+  answer that the buffer could not use it at all.  ~which-function-mode~
+  and the Imenu completion frontends follow.
+- The three prompts that take free text -- the Loogle query, the trace
+  search, and the argument =M-x lean4-execute= asks for -- each keep a
+  minibuffer history, in ~lean4-loogle-history~,
+  ~lean4-info-search-history~ and ~lean4-execute-history~.  =M-p= reaches
+  what was typed before, and ~savehist-mode~ carries them between
+  sessions.  A history of its own per prompt rather than the shared
+  default: a Loogle query is a shape rather than a word, and retyping one
+  to vary it was the common case.
+- Setup and Eglot warnings are raised under the types =(lean4 setup)= and
+  =(lean4 eglot)= rather than the flat symbols =lean4-setup= and =lean4=.
+  Only a list nests, so ~warning-suppress-types~ can now silence
+  everything this package raises with a single =(lean4)= entry, or either
+  kind on its own.
 
 ** Fixed
 
+- Setup warnings no longer arrive from a buffer with no file behind it.
+  The guard covered the per-project check alone, so a machine missing
+  elan or Lean still warned from every temporary buffer running the mode
+  -- and because Lean blocks are mapped into
+  ~markdown-code-lang-modes~, Markdown fontifying such a block was enough
+  to open a =*Warnings*= window with no Lean file in sight.
+- =M-x lean4-info-search-trace= refuses from outside the goal display
+  when called from Lisp, not only when its key is pressed.  The check sat
+  in the ~interactive~ form, so a caller from Lisp met a stranger error
+  further in.
+- ~lean4-input-leader~ rejects the empty string, which would have
+  stripped the leader from every rule in the abbreviation table -- so
+  that =a= alone expanded -- and left the completion at point with
+  nothing to search backwards for.
 - A Lake package is recognised by its =lakefile.toml= as well as by a
   =lakefile.lean=.  Only the latter was looked for, so a package using
   the TOML form was treated as no package at all.

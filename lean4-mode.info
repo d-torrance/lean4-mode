@@ -57,6 +57,7 @@ With a source-based package manager
 Usage
 
 * Keys in a Lean buffer::
+* The right-click menu::
 * Keys in the goal display::
 * The tactic state::
 * Copying what is on display::
@@ -82,6 +83,8 @@ Usage
 
 Keys in the goal display
 
+* Selecting parts of a goal::
+* Using a selection::
 * Searching a trace::
 
 Choosing which Lean to use
@@ -316,6 +319,7 @@ buffer.  To put it in a side window on the right:
 * Menu:
 
 * Keys in a Lean buffer::
+* The right-click menu::
 * Keys in the goal display::
 * The tactic state::
 * Copying what is on display::
@@ -340,7 +344,7 @@ buffer.  To put it in a side window on the right:
 * Finding a symbol you cannot name::
 
 
-File: lean4-mode.info,  Node: Keys in a Lean buffer,  Next: Keys in the goal display,  Up: Usage
+File: lean4-mode.info,  Node: Keys in a Lean buffer,  Next: The right-click menu,  Up: Usage
 
 2.1 Keys in a Lean buffer
 =========================
@@ -355,6 +359,7 @@ Key                      Description                                            
 ‘C-c C-a’                Pause or unpause the file's message list                      ‘lean4-info-toggle-all-messages-pause’
 ‘C-c C-b’                Fold or unfold that list                                      ‘lean4-info-toggle-all-messages’
 ‘C-c C-o’                Order that list by position or by nearness                    ‘lean4-info-toggle-message-order’
+‘C-c C-w’                Hand the selection to the widget at point                     ‘lean4-info-apply-selection’
 ‘C-c C-k’                Echo the keystroke needed to input the symbol at point        ‘quail-show-key’
 ‘C-c C-d’                Rebuild changed imports and reload the file                   ‘lean4-refresh-file-dependencies’
                          - the same command under the name Lean's messages use         ‘lean4-restart-file’
@@ -370,9 +375,35 @@ C-g’, ‘C-c C-a’ and ‘C-c C-o’ - are bound inside the display too, so i
 can be driven from either buffer.
 
 
-File: lean4-mode.info,  Node: Keys in the goal display,  Next: The tactic state,  Prev: Keys in a Lean buffer,  Up: Usage
+File: lean4-mode.info,  Node: The right-click menu,  Next: Keys in the goal display,  Prev: Keys in a Lean buffer,  Up: Usage
 
-2.2 Keys in the goal display
+2.2 The right-click menu
+========================
+
+With ‘M-x context-menu-mode’ on, right-clicking in a Lean buffer offers
+the four commands VS Code puts in its own editor context menu: the
+module hierarchy each way, ‘Restart File’, and ‘Search With Loogle’.
+They join the ones ‘prog-mode’ contributes - xref's ‘Go Back’, ‘Go
+Forward’ and definition lookup for the identifier clicked - rather than
+replacing them, and a click inside a comment or a string still gets the
+text-selection items.
+
+   Right-clicking inside the goal display offers what can be done to the
+part clicked, as VS Code's InfoView menu does: over a message, copying
+it, going to where it was reported, and - where the message has a trace
+- searching that trace or clearing the search; anywhere in the display,
+pinning, pausing, refreshing a paused display, pausing all messages, and
+copying the tactic state.  The commands are the same ones the keys and
+the ‘Lean Goal’ menu reach, so nothing is only available by mouse.
+
+   Emacs does not turn ‘context-menu-mode’ on by default, and this does
+not turn it on either: whether the right button opens a menu or extends
+the region is the reader's business, not a major mode's.
+
+
+File: lean4-mode.info,  Node: Keys in the goal display,  Next: The tactic state,  Prev: The right-click menu,  Up: Usage
+
+2.3 Keys in the goal display
 ============================
 
 Goals arrive as trees in which every subterm is labelled, so point can
@@ -391,6 +422,10 @@ Key           Description                                                 Comman
 ‘C-c C-o’     Order that list by position or by nearness                  ‘lean4-info-toggle-message-order’
 ‘C-c C-f’     Search the traces of the message point is in                ‘lean4-info-search-trace’
 ‘C-c C-e’     Put that message back as it was                             ‘lean4-info-clear-trace-search’
+‘m’           Select the subterm at point, or unselect it                 ‘lean4-info-select’
+‘S-mouse-1’   The same by mouse, as VS Code's shift-click                 ‘lean4-info-select-at-mouse’
+‘u’           Unselect the subterm at point                               ‘lean4-info-unselect’
+‘U’           Unselect everything                                         ‘lean4-info-unselect-all’
 
    Folding and movement come from ‘magit-section’, this being one of its
 buffers: ‘TAB’, ‘n’, ‘p’, ‘M-n’ and ‘M-p’ mean in the goal display
@@ -432,6 +467,76 @@ message heading it goes to the place the message was reported for.
    Clicking a control does what its key does, and puts the keyboard back
 in the Lean buffer rather than taking focus, as VS Code does.
 
+* Menu:
+
+* Selecting parts of a goal::
+* Using a selection::
+* Searching a trace::
+
+
+File: lean4-mode.info,  Node: Selecting parts of a goal,  Next: Using a selection,  Up: Keys in the goal display
+
+2.3.1 Selecting parts of a goal
+-------------------------------
+
+‘m’, or a shift-click, selects the subterm at point; pressing it again
+unselects it, ‘u’ unselects without toggling, and ‘U’ clears the lot -
+marking spelt as Dired and Ibuffer spell it.  ‘SPC’ is left alone: the
+goal display descends from ‘special-mode’, where ‘SPC’ and ‘DEL’ page
+forward and back, and taking one of that pair away would leave a
+read-only buffer that scrolls only upward.  A selection is Lean's own
+‘SubExpr.GoalsLocation’: the goal it is in and a place within that goal,
+which is one of four things - a hypothesis, a subexpression of its type,
+a subexpression of its value, or a subexpression of the target.  So
+selecting ‘b + a’ in ‘a + b = b + a’ selects that subexpression and not
+the line holding it, and selecting a hypothesis's name is a different
+thing from selecting its type.
+
+   Because a location names a subexpression of a particular
+metavariable, a selection is dropped as soon as the goals it was made in
+are no longer the goals on display.
+
+
+File: lean4-mode.info,  Node: Using a selection,  Next: Searching a trace,  Prev: Selecting parts of a goal,  Up: Keys in the goal display
+
+2.3.2 Using a selection
+-----------------------
+
+‘C-c C-w’ in the Lean buffer hands the selection to the widget at point
+and applies what it answers.  Mathlib's ‘conv?’ is the example:
+
+     example (a b : Nat) : a + b = b + a := by
+       conv?
+
+   Select ‘b + a’ in the goal display, press ‘C-c C-w’, and the ‘conv?’
+becomes
+
+     conv =>
+       enter [2]
+       skip
+
+   ‘gcongr?’ and ‘calc?’ are the same shape and work the same way.
+Where the widget offers several things, you are asked which; where it
+offers none - nothing selected, or a selection it will not take -
+nothing is changed and it says so.
+
+   What consumes a selection, in VS Code, is a *user widget*: a piece of
+JavaScript the server sends, rendered in a webview.  There is no webview
+here and the JavaScript is not run.  It does not need to be: a widget
+that reads a selection is a thin shell over a ‘@[server_rpc_method]’
+which does the work and answers with an ‘Html’ tree, and the edit the
+reader would have clicked is already inside that tree, as an ordinary
+LSP ‘TextDocumentEdit’.  So the method is called and the answer read.
+Both halves are JSON.
+
+   The one convention relied on is Lean's own: ‘mk_rpc_widget%’ pairs a
+widget ‘X’ with a method ‘X.rpc’, and ‘Lean.Widget.getWidgets’ reports
+each instance's id, so the method to call is that id with ‘.rpc’ after
+it.  A widget not built that way answers nothing and is passed over,
+which is the right outcome - this drives what it can and stays quiet
+about the rest.  Widgets that only draw something, rather than offering
+an edit, are not shown at all; that would need the webview.
+
    Where there is nothing at point to report - outside a proof, say -
 the display says ‘No info found.’ rather than going blank, which would
 read like a display that had stopped working.  Messages from elsewhere
@@ -446,14 +551,10 @@ the mouse, with the same indicator.  Lean does not send the children of
 a trace node until something asks - a ‘simp’ trace on a real proof is
 enormous - so opening one fetches them, once.
 
-* Menu:
-
-* Searching a trace::
-
 
-File: lean4-mode.info,  Node: Searching a trace,  Up: Keys in the goal display
+File: lean4-mode.info,  Node: Searching a trace,  Prev: Using a selection,  Up: Keys in the goal display
 
-2.2.1 Searching a trace
+2.3.3 Searching a trace
 -----------------------
 
 ‘C-c C-f’ (‘lean4-info-search-trace’) asks Lean to find something in the
@@ -483,7 +584,7 @@ whose heading it is in, and has nowhere else to find one.
 
 File: lean4-mode.info,  Node: The tactic state,  Next: Copying what is on display,  Prev: Keys in the goal display,  Up: Usage
 
-2.3 The tactic state
+2.4 The tactic state
 ====================
 
 The goals at point are listed under ‘Tactic state’, with the number of
@@ -525,7 +626,7 @@ colon, as neither does in VS Code.
 
 File: lean4-mode.info,  Node: Copying what is on display,  Next: How much of a goal to show,  Prev: The tactic state,  Up: Usage
 
-2.4 Copying what is on display
+2.5 Copying what is on display
 ==============================
 
 Command                        Copies
@@ -547,7 +648,7 @@ This is what VS Code copies too.
 
 File: lean4-mode.info,  Node: How much of a goal to show,  Next: Errors and warnings,  Prev: Copying what is on display,  Up: Usage
 
-2.5 How much of a goal to show
+2.6 How much of a goal to show
 ==============================
 
 A goal in Mathlib can carry more hypotheses than fit on a screen, most
@@ -616,7 +717,7 @@ filtered; the settings simply have nothing to act on.
 
 File: lean4-mode.info,  Node: Errors and warnings,  Next: Building dependencies,  Prev: How much of a goal to show,  Up: Usage
 
-2.6 Errors and warnings
+2.7 Errors and warnings
 =======================
 
 Diagnostics are reported through Flymake, which Eglot drives.  ‘C-c ! n’
@@ -696,7 +797,7 @@ is following point and it would only lead where point already is.
 
 File: lean4-mode.info,  Node: Building dependencies,  Next: Starting a project,  Prev: Errors and warnings,  Up: Usage
 
-2.7 Building dependencies
+2.8 Building dependencies
 =========================
 
 Visiting a file does not build what it imports.  The server decides that
@@ -722,7 +823,7 @@ outright.
 
 File: lean4-mode.info,  Node: Starting a project,  Next: Building,  Prev: Building dependencies,  Up: Usage
 
-2.8 Starting a project
+2.9 Starting a project
 ======================
 
 Three commands, in the ‘Lean’ menu under ‘Project’.
@@ -759,8 +860,8 @@ last step.  VS Code commits as itself for the same reason.
 
 File: lean4-mode.info,  Node: Building,  Next: Mathlib's build cache,  Prev: Starting a project,  Up: Usage
 
-2.9 Building
-============
+2.10 Building
+=============
 
 ‘C-c C-p C-l’ (‘lean4-lake-build’) builds the package the way VS Code's
 "Build Project" does, which is three steps rather than a bare ‘lake
@@ -788,7 +889,7 @@ resolution, ‘M-x compile’ is the thing.
 
 File: lean4-mode.info,  Node: Mathlib's build cache,  Next: Choosing which Lean to use,  Prev: Building,  Up: Usage
 
-2.10 Mathlib's build cache
+2.11 Mathlib's build cache
 ==========================
 
 Mathlib is far too large to build locally, and does not need to be: its
@@ -819,7 +920,7 @@ whatever Lake reports, as with any other build.
 
 File: lean4-mode.info,  Node: Choosing which Lean to use,  Next: Searching Mathlib with Loogle,  Prev: Mathlib's build cache,  Up: Usage
 
-2.11 Choosing which Lean to use
+2.12 Choosing which Lean to use
 ===============================
 
 Four commands, in the ‘Lean’ menu under ‘Lean version’.
@@ -871,7 +972,7 @@ instead, in order to stay compatible with it,
 
 File: lean4-mode.info,  Node: Elan itself,  Next: Git and curl,  Up: Choosing which Lean to use
 
-2.11.1 Elan itself
+2.12.1 Elan itself
 ------------------
 
 Three more commands manage the tool rather than the versions.
@@ -899,7 +1000,7 @@ installed)’ version in any of the other commands fetches it anyway.
 
 File: lean4-mode.info,  Node: Git and curl,  Prev: Elan itself,  Up: Choosing which Lean to use
 
-2.11.2 Git and curl
+2.12.2 Git and curl
 -------------------
 
 Elan downloads toolchains with curl and Lake clones dependencies with
@@ -935,7 +1036,7 @@ environment it was started with is refreshed.
 
 File: lean4-mode.info,  Node: Searching Mathlib with Loogle,  Next: Reading a dependency,  Prev: Choosing which Lean to use,  Up: Usage
 
-2.12 Searching Mathlib with Loogle
+2.13 Searching Mathlib with Loogle
 ==================================
 
 ‘M-x lean4-loogle-search’ asks Loogle (https://loogle.lean-lang.org),
@@ -953,7 +1054,11 @@ which searches Mathlib by shape rather than by name:
 becomes α in the minibuffer exactly as it would in a Lean buffer - which
 is the point of asking from inside Emacs rather than in a browser tab,
 since Loogle's syntax leans on notation.  An active region is offered as
-the starting point.
+the starting point, and ‘M-p’ reaches what you asked before: the queries
+are kept in ‘lean4-loogle-history’, which ‘savehist-mode’ carries
+between sessions.  The trace search and the argument ‘M-x lean4-execute’
+asks for keep histories of their own the same way, in
+‘lean4-info-search-history’ and ‘lean4-execute-history’.
 
    Results appear in a ‘*Lean Loogle*’ buffer: each is its name, the
 module it lives in, and its type, foldable like everything else.  Where
@@ -980,7 +1085,7 @@ appended.
 
 File: lean4-mode.info,  Node: Reading a dependency,  Next: Following a name through a project,  Prev: Searching Mathlib with Loogle,  Up: Usage
 
-2.13 Reading a dependency
+2.14 Reading a dependency
 =========================
 
 A Lean file under a ‘.lake’ directory belongs to a package Lake fetched,
@@ -1001,7 +1106,7 @@ it.
 
 File: lean4-mode.info,  Node: Following a name through a project,  Next: The module hierarchy,  Prev: Reading a dependency,  Up: Usage
 
-2.14 Following a name through a project
+2.15 Following a name through a project
 =======================================
 
 Nothing here implements any of this: Lean answers it and Eglot puts the
@@ -1048,7 +1153,7 @@ commands for each because it has a window to hang them in.
 
 File: lean4-mode.info,  Node: The module hierarchy,  Next: Other Lake operations,  Prev: Following a name through a project,  Up: Usage
 
-2.15 The module hierarchy
+2.16 The module hierarchy
 =========================
 
 What a module imports, and what imports it, as a tree in a ‘*Lean Module
@@ -1093,7 +1198,7 @@ and non-meta’ for one imported both ways.
 
 File: lean4-mode.info,  Node: It needs a built project,  Up: The module hierarchy
 
-2.15.1 It needs a built project
+2.16.1 It needs a built project
 -------------------------------
 
 The server answers these from its reference data, which it builds from
@@ -1108,7 +1213,7 @@ after a rebuild may be the one from before it; ‘g’ asks again.
 
 File: lean4-mode.info,  Node: Other Lake operations,  Next: Moving by declaration,  Prev: The module hierarchy,  Up: Usage
 
-2.16 Other Lake operations
+2.17 Other Lake operations
 ==========================
 
 Two more commands live in the same ‘Project’ menu.
@@ -1138,7 +1243,7 @@ has a window to point at a folder.
 
 File: lean4-mode.info,  Node: Moving by declaration,  Next: Folding a file up,  Prev: Other Lake operations,  Up: Usage
 
-2.17 Moving by declaration
+2.18 Moving by declaration
 ==========================
 
 The commands Emacs binds in every buffer for moving over a function work
@@ -1177,6 +1282,15 @@ file that has not been elaborated, or has no server, or does not
 compile, which is precisely when one moves around by structure.  So this
 reads the buffer, as ‘lean4-indent-line’ does.
 
+   The same walk is offered to Imenu, so ‘M-x imenu’ lists a file's
+declarations without a server having said anything.  Eglot replaces the
+index with the server's own while it manages the buffer, which is the
+better answer where there is one; this is what serves a file outside any
+package, a file opened before the server has connected, and a session
+with ‘lean4-auto-start-server’ set to ‘nil’.  Anything built on Imenu -
+‘which-function-mode’, ‘M-x imenu’, the completing-read frontends - gets
+the same list.
+
    Declarations inside a ‘mutual’ block count one by one.  Lean writes
 them flush with the ‘mutual’, so nothing short of counting ‘mutual’ and
 ‘end’ would tell them from top-level ones, and reaching one of them is
@@ -1185,7 +1299,7 @@ worth more than reporting the block as a unit.
 
 File: lean4-mode.info,  Node: Folding a file up,  Next: Applying what Lean suggests,  Prev: Moving by declaration,  Up: Usage
 
-2.18 Folding a file up
+2.19 Folding a file up
 ======================
 
 ‘M-x outline-minor-mode’ folds a Lean file by its structure: a namespace
@@ -1234,7 +1348,7 @@ wrap another: ‘Lean.Parser.Command.«in»’ is a trailing parser over
 
 File: lean4-mode.info,  Node: Applying what Lean suggests,  Next: Being told a suggestion is there,  Prev: Folding a file up,  Up: Usage
 
-2.19 Applying what Lean suggests
+2.20 Applying what Lean suggests
 ================================
 
 Lean offers to write things for you in two quite different ways, and
@@ -1272,7 +1386,7 @@ way; a prompt offering a single answer is a keystroke spent on nothing.
 
 File: lean4-mode.info,  Node: Being told a suggestion is there,  Next: What Lean filled in for you,  Prev: Applying what Lean suggests,  Up: Usage
 
-2.20 Being told a suggestion is there
+2.21 Being told a suggestion is there
 =====================================
 
 ElDoc reports the inlay hint wherever there is one, as *note What Lean
@@ -1321,7 +1435,7 @@ about the key follows the keymap.
 
 File: lean4-mode.info,  Node: What Lean filled in for you,  Next: Completion,  Prev: Being told a suggestion is there,  Up: Usage
 
-2.21 What Lean filled in for you
+2.22 What Lean filled in for you
 ================================
 
 A declaration whose type mentions a variable never bound still compiles:
@@ -1384,7 +1498,7 @@ though: whatever the server sends is what is shown and inserted.
 
 File: lean4-mode.info,  Node: Completion,  Next: Finding a symbol you cannot name,  Prev: What Lean filled in for you,  Up: Usage
 
-2.22 Completion
+2.23 Completion
 ===============
 
 Completion is offered through ‘completion-at-point-functions’, so any
@@ -1427,7 +1541,7 @@ starts nothing with one.
 
 File: lean4-mode.info,  Node: Finding a symbol you cannot name,  Prev: Completion,  Up: Usage
 
-2.23 Finding a symbol you cannot name
+2.24 Finding a symbol you cannot name
 =====================================
 
 Completion goes from an abbreviation to a symbol, which is no help when
@@ -1706,10 +1820,12 @@ other end, with its ‘alwaysAskBeforeInstallingLeanVersions’.
    They go through ‘display-warning’, so they land in a ‘*Warnings*’
 buffer that waits to be read rather than in an echo area that scrolls
 away, and ‘warning-minimum-level’ and its relatives govern them as they
-govern every other warning.  ‘lean4-show-setup-warnings’ set to ‘nil’
-turns the lot off; ‘M-x lean4-diagnose’ still reports the same and more,
-on request, and ‘M-x lean4-setup-forget’ makes the checks run again
-after you have installed something.
+govern every other warning.  The type is ‘(lean4 setup)’, so an entry of
+‘(lean4)’ in ‘warning-suppress-types’ silences everything this package
+raises and ‘(lean4 setup)’ only these.  ‘lean4-show-setup-warnings’ set
+to ‘nil’ turns the lot off; ‘M-x lean4-diagnose’ still reports the same
+and more, on request, and ‘M-x lean4-setup-forget’ makes the checks run
+again after you have installed something.
 
    VS Code has one check more, for a file being edited which has not
 been saved anywhere, Lean having nothing to serve.  That one is left
@@ -1879,58 +1995,61 @@ extension (https://github.com/leanprover/vscode-lean4).  See the
 
 Tag Table:
 Node: Top223
-Node: Installation2791
-Node: Requirements3016
-Node: From source4461
-Node: With a source-based package manager4949
-Node: Native vc (Emacs 30 or later)5460
-Node: Doom-Emacs5905
-Node: Straight6224
-Node: Upgrading from version 16581
-Node: Usage9750
-Node: Keys in a Lean buffer11822
-Node: Keys in the goal display14448
-Node: Searching a trace19237
-Node: The tactic state20689
-Node: Copying what is on display22852
-Node: How much of a goal to show23879
-Node: Errors and warnings28186
-Node: Building dependencies32871
-Node: Starting a project34141
-Node: Building35933
-Node: Mathlib's build cache37125
-Node: Choosing which Lean to use38737
-Node: Elan itself41171
-Node: Git and curl42387
-Node: Searching Mathlib with Loogle44134
-Node: Reading a dependency46390
-Node: Following a name through a project47322
-Node: The module hierarchy50100
-Node: It needs a built project52148
-Node: Other Lake operations52798
-Node: Moving by declaration54234
-Node: Folding a file up56861
-Node: Applying what Lean suggests59342
-Node: Being told a suggestion is there61227
-Node: What Lean filled in for you63681
-Node: Completion66622
-Node: Finding a symbol you cannot name68831
-Node: Configuration70082
-Node: Frequently used options70562
-Node: Finding the Lean programs72582
-Node: Tuning73524
-Node: The goal display's controls74326
-Node: Older Lean versions76600
-Node: Semantic highlighting77582
-Node: Optional packages79094
-Node: Troubleshooting79587
-Node: What is checked before Lean starts79952
-Node: Reporting on the setup83050
-Node: Where the documentation is85047
-Node: "Timed out after 30 seconds" opening a file outside a project86205
-Node: "Imports are out of date and must be rebuilt"87393
-Node: Common Pitfalls88916
-Node: Acknowledgements89517
+Node: Installation2868
+Node: Requirements3093
+Node: From source4538
+Node: With a source-based package manager5026
+Node: Native vc (Emacs 30 or later)5537
+Node: Doom-Emacs5982
+Node: Straight6301
+Node: Upgrading from version 16658
+Node: Usage9827
+Node: Keys in a Lean buffer11924
+Node: The right-click menu14670
+Node: Keys in the goal display16026
+Node: Selecting parts of a goal20546
+Node: Using a selection21743
+Node: Searching a trace24303
+Node: The tactic state25781
+Node: Copying what is on display27944
+Node: How much of a goal to show28971
+Node: Errors and warnings33278
+Node: Building dependencies37963
+Node: Starting a project39233
+Node: Building41025
+Node: Mathlib's build cache42219
+Node: Choosing which Lean to use43831
+Node: Elan itself46265
+Node: Git and curl47481
+Node: Searching Mathlib with Loogle49228
+Node: Reading a dependency51811
+Node: Following a name through a project52743
+Node: The module hierarchy55521
+Node: It needs a built project57569
+Node: Other Lake operations58219
+Node: Moving by declaration59655
+Node: Folding a file up62816
+Node: Applying what Lean suggests65297
+Node: Being told a suggestion is there67182
+Node: What Lean filled in for you69636
+Node: Completion72577
+Node: Finding a symbol you cannot name74786
+Node: Configuration76037
+Node: Frequently used options76517
+Node: Finding the Lean programs78537
+Node: Tuning79479
+Node: The goal display's controls80281
+Node: Older Lean versions82555
+Node: Semantic highlighting83537
+Node: Optional packages85049
+Node: Troubleshooting85542
+Node: What is checked before Lean starts85907
+Node: Reporting on the setup89176
+Node: Where the documentation is91173
+Node: "Timed out after 30 seconds" opening a file outside a project92331
+Node: "Imports are out of date and must be rebuilt"93519
+Node: Common Pitfalls95042
+Node: Acknowledgements95643
 
 End Tag Table
 
